@@ -4,11 +4,12 @@
   HISTORY:
     2010-10-17 Extracted restock classes from SpecialVbzAdmin.php
 */
+/*
 if (defined('LIBMGR')) {
     clsLibMgr::Add('time',		KFP_LIB.'/time.php',__FILE__,__LINE__);
     clsLibMgr::Load('time'		,__FILE__,__LINE__);
 }
-
+*/
 /*
  RESTOCK MANAGEMENT
  CLASSES:
@@ -124,14 +125,15 @@ class clsAdminRstkReqs extends clsRstkReqs {
 	} else {
 	    $objSupp = $this->objDB->Suppliers()->GetItem($idSupp);
 	    $out = '<h2>'.$objSupp->Name.' items needed</h2>';
+// handle any special display functions
+	    $out .= $this->AdminItemsSave($objSupp);
+// 2013-11-05 I'm guessing that this only applies when we're filtering by supplier
 	}
 
 	$arNeed = $this->ItemsNeeded();
 
 	$vgPage->UseHTML();
 
-// handle any special display functions
-	$out .= $this->AdminItemsSave($objSupp);
 
 // now show the current data
 	if (is_array($arNeed)) {
@@ -540,7 +542,7 @@ class clsAdminRstkReq extends clsRstkReq {
 	2010-11-03 Created as call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
      /*----
       NOTES:
@@ -1484,6 +1486,7 @@ $wgOut->AddWikiText('<br>SQL='.$sql,TRUE);
 	global $wgOut;
 
 	assert('is_object($this->Table);');
+	clsModule::LoadFunc('Date_DefaultYear');
 
 	if ($this->hasRows()) {
 	    $vgPage->UseHTML();

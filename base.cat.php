@@ -5,9 +5,10 @@
     2012-05-08 split off from store.php
     2012-05-13 moved clsCatPages here from pages.php
 */
+/*
 clsLibMgr::Add('vbz.cat.page',	KFP_LIB_VBZ.'/page-cat.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsSuppliers_StoreUI','vbz.cat.page');
-
+*/
 class clsCatPages extends clsVbzTable {
     public function __construct($iDB) {
 	parent::__construct($iDB);
@@ -277,10 +278,12 @@ class clsDepts extends clsVbzTable {
 	  $this->ClassSng('clsDept');
 	  $this->ActionKey('dept');
     }
+/*
     protected function _newItem() {
 	CallStep('clsDepts._newItem()');
 	return new clsDept($this);
     }
+*/
 }
 class clsDept extends clsDataSet {
 // object cache
@@ -371,11 +374,12 @@ class clsDept extends clsDataSet {
 	if (empty($idDept)) {
 	    throw new exception('Department object has no ID');
 	}
-	$objSection = new clsPageOutput();
+	//$objSection = new clsPageOutput();
 	// calculate the list of item types available in this department
 	$objItTyps = $this->Data_forStore();
-	$objTitles = new clsVbzTitle($this->objDB);
-	$objNoImgSect = new clsPageOutput();
+	//$objTitles = new clsVbzTitle($this->objDB);
+	//$objNoImgSect = new clsPageOutput();
+	//$objNoImgSect = new clsRTDoc_HTML();
 	$cntSections = 0;
 	while ($objItTyps->NextRow()) {
 	    $cntInPrint = $objItTyps->Row['cntInPrint'];
@@ -386,22 +390,27 @@ class clsDept extends clsDataSet {
 		$idItTyp = $objItTyps->Row['ID_ItTyp'];
 	        $sql = 'SELECT *, ID_Title AS ID, TitleName AS Name, cntInStock FROM _title_ittyps WHERE ((cntForSale) AND (ID_ItTyp='.$idItTyp.') AND (ID_Dept='.$idDept.'));';
 		//$sql = 'SELECT t.ID_Title AS ID, t.* FROM qryTitles_ItTyps_Titles AS t WHERE (ID_ItTyp='.$idItTyp.') AND (ID_Dept='.$idDept.');';
-		$objTitles->Query($sql);
+		$rsTitles = $this->Engine()->DataSet($sql);
 	
 		$arTitles = NULL;
-		if ($objTitles->hasRows()) {
-		    while ($objTitles->NextRow()) {
+		if ($rsTitles->hasRows()) {
+		    while ($rsTitles->NextRow()) {
 			// add title to display list
-			$arTitles[] = $objTitles->Values();	// save it in a list
+			$arTitles[] = $rsTitles->Values();	// save it in a list
 		    }
 		    assert('is_array($arTitles)');
 
   // We've generated the list of titles for this section; now display the section header and titles:
-		    $out .= $this->objDB->ShowTitles($objItTyps->Row['ItTypNamePlr'].':',$arTitles,$objNoImgSect);
+		    $objTitles = new clsTitleList($arTitles);
+		    $objTitles->Table($this->Engine()->Titles());
+		    $sDescr = $objItTyps->Row['ItTypNamePlr'].':';
+		    $objCont = $objTitles->Build($sDescr,new clsRTDoc_HTML());
+//$out .= $objCont->DumpHTML();
+		    $out .= $objCont->Render();
 		} else {
 		    echo 'ERROR: No titles found! SQL='.$sql;
 		}
-		$objSection->Clear();
+		//$objSection->Clear();
 	    } else {
 		$out .= '<span class=main>Small coding error: this line should never happen.</span>'; // TO DO: log an error
 	    }
@@ -409,12 +418,13 @@ class clsDept extends clsDataSet {
 	if (!$cntSections) {
 	    $out .= '<span class=main>This department appears to have been emptied of all leftover stock. (Eventually there will be a way to see what items used to be here.)</span>';
 	}
-	if ($objNoImgSect->inTbl) {
+/*	if ($objNoImgSect->inTbl) {
 	    $objNoImgSect->EndTable();
 	    $objSection->AddText($objNoImgSect->out);
 	    $objSection->EndTable();
 	    $out .= $objSection->out;
 	}
+*/
 	return $out;
     }
     public function URL_Rel() {
@@ -448,312 +458,6 @@ class clsDept extends clsDataSet {
     public function AffectsCatNum() {
 	return ($this->CatKey != '');
     }
-}
-
-class clsVbzTitles extends clsVbzTable {
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name('cat_titles');
-	  $this->KeyName('ID');
-	  $this->ClassSng('clsVbzTitle');
-    }
-    public function Search_forText_SQL($iFind) {
-	return '(Name LIKE "%'.$iFind.'%") OR (`Desc` LIKE "%'.$iFind.'%")';
-    }
-    public function Search_forText($iFind) {
-	$sqlFilt = $this->Search_forText_SQL($iFind);
-	$rs = $this->GetData($sqlFilt);
-	return $rs;
-    }
-/*
- ACTION: Finds a Title from a CatNum and returns an object for it
- TO DO:
-    Rename to Get_byCatNum()
-    Stop using v_titles
-*/
-/* 2010-11-07 Is anything actually using this?
-  public function GetItem_byCatNum($iCatNum) {
-    global $objDataMgr;
-
-    CallEnter($this,__LINE__,__CLASS__.'.GetItem_byCatNum('.$iCatNum.')');
-    assert('is_object($this->objDB)');
-    $sqlCatNum = strtoupper(str_replace('.','-',$iCatNum));
-    $sqlCatNum = $this->objDB->SafeParam($sqlCatNum);
-    $sql = 'SELECT * FROM v_titles WHERE CatNum="'.$sqlCatNum.'"';
-//    $objTitle = new clsVbzTitleExt($this);
-    $objTitle = new clsVbzTitle($this);
-    // make sure _titles (part of v_titles) is up-to-date
-    //$objDataMgr->Update_byName('_titles','GetItem_byCatNum('.$iCatNum.')');
-    $objDataMgr->Update_byName('_depts','GetItem_byCatNum('.$iCatNum.')');
-    // get data from v_titles
-    $objTitle->Query($sql);
-    $idTitle = $objTitle->ID;
-    assert('is_resource($objTitle->Res)');
-    if ($objTitle->RowCount()) {
-      assert('$idTitle');
-      $sql = 'SELECT * FROM titles WHERE ID='.$idTitle;
-      $objTitle->dontLoadBasic = true;
-      $objTitle->Query($sql);
-      CallExit('clsVbzTitles.GetItem_byCatNum() -> ok');
-      return $objTitle;
-    } else {
-      CallExit('clsVbzTitles.GetItem_byCatNum() -> NULL');
-      return NULL;
-    }
-  }
-*/
-}
-class clsVbzTitle extends clsDataSet {
-// object cache
-    private $objDept;
-    private $objSupp;
-// options
-    public $hideImgs;
-
-    public function Dept() {
-	$doLoad = FALSE;
-	if (empty($this->objDept)) {
-	    $doLoad = TRUE;
-	} else if (is_object($this->objDept)) {
-	    if ($this->ID_Dept != $this->objDept->ID) {
-		$doLoad = TRUE;
-	    }
-	} else {
-	    $doLoad = TRUE;
-	}
-	if ($doLoad) {
-	    $idDept = $this->ID_Dept;
-	    if (empty($idDept)) {
-		$objDept = NULL;
-	    } else {
-		$objDept = $this->objDB->Depts()->GetItem($idDept);
-		assert('is_object($objDept)');
-	    }
-	    $this->objDept = $objDept;
-	}
-	return $this->objDept;
-    }
-    /*----
-      RETURNS: ID of this title's supplier
-      HISTORY:
-	2011-09-28 revised to get ID directly from the new ID_Supp field
-	  instead of having to look up the Dept and get it from there.
-    */
-    public function Supplier_ID() {
-/*
-	$objDept = $this->Dept();
-	$idSupp = $objDept->ID_Supplier;
-*/
-	$idSupp = $this->Value('ID_Supp');
-	return $idSupp;
-    }
-    // DEPRECATED -- use SuppObj()
-    public function Supplier() {
-	return $this->SuppObj();
-    }
-    public function SuppObj() {
-	$doLoad = FALSE;
-	if (empty($this->objSupp)) {
-	    $doLoad = TRUE;
-	} else if (is_object($this->objSupp)) {
-	    if ($this->ID_Supplier != $this->objSupp->ID) {
-		$doLoad = TRUE;
-	    }
-	} else {
-	    $doLoad = TRUE;
-	}
-	if ($doLoad) {
-	    $idSupp = $this->Supplier_ID();
-	    if (empty($idSupp)) {
-		$objSupp = NULL;
-	    } else {
-		$objSupp = $this->objDB->Suppliers()->GetItem($idSupp);
-		assert('is_object($objSupp)');
-	    }
-	    $this->objSupp = $objSupp;
-	}
-	return $this->objSupp;
-    }
-    public function Items() {
-	$sqlFilt = 'ID_Title='.$this->ID;
-	$objTbl = $this->objDB->Items();
-	$objRows = $objTbl->GetData($sqlFilt);
-	return $objRows;
-    }
-    public function Topics() {
-	$objTbl = $this->Engine()->TitleTopic_Topics();
-	$objRows = $objTbl->GetTitle($this->KeyValue());
-	return $objRows;
-    }
-    /*----
-      RETURNS: Array containing summary information about this title
-    */
-    public function Indicia(array $iarAttr=NULL) {
-	$objItems = $this->Items();
-	$intActive = 0;
-	$intRetired = 0;
-	if ($objItems->HasRows()) {
-	    while ($objItems->NextRow()) {
-		if ($objItems->isForSale) {
-		    $intActive++;
-		} else {
-		    $intRetired++;
-		}
-	    }
-	}
-	// "dark-bg" brings up link colors for a dark background
-	$arLink = array('class'=>'dark-bg');
-	// merge in any overrides or additions from iarAttr:
-	if (is_array($iarAttr)) {
-	    $arLink = array_merge($arLink,$iarAttr);
-	}
-	$htLink = $this->Link($arLink);
-	$txtCatNum = $this->CatNum();
-	$txtName = $this->Name;
-
-	$arOut['cnt.active'] = $intActive;
-	$arOut['cnt.retired'] = $intRetired;
-	$arOut['txt.cat.num'] = $txtCatNum;
-	$arOut['ht.link.open'] = $htLink;
-	$arOut['ht.cat.line'] = $htLink.$txtCatNum.'</a> '.$txtName;
-
-	return $arOut;
-    }
-    /*----
-      RETURNS: Array containing summaries of ItTyps in which this Title is available
-	array['text.!num'] = plaintext version with no numbers (types only)
-	array['text.cnt'] = plaintext version with line counts
-	array['html.cnt'] = HTML version with line counts
-	array['html.qty'] = HTML version with stock quantities
-      HISTORY:
-	2011-01-23 written
-    */
-    public function Summary_ItTyps($iSep=', ') {
-	$dsRows = $this->DataSet_ItTyps();
-	$outTextNoQ = $outTextType = $outTextCnt = $outHTMLCnt = $outHTMLQty = NULL;
-	if ($dsRows->HasRows()) {
-	    $isFirst = TRUE;
-	    while ($dsRows->NextRow()) {
-		$cntType = $dsRows->Value('cntForSale');
-		if ($cntType > 0) {
-		    $qtyStk = $dsRows->Value('qtyInStock');
-		    $txtSng = $dsRows->Value('ItTypNameSng');
-		    $txtPlr = $dsRows->Value('ItTypNamePlr');
-		    $strType = Pluralize($cntType,$txtSng,$txtPlr);
-		    if ($isFirst) {
-			$isFirst = FALSE;
-		    } else {
-			$outTextType .= $iSep;
-			$outTextCnt .= $iSep;
-			$outHTMLCnt .= $iSep;
-			if (!is_null($outHTMLQty)) {
-			    $outHTMLQty .= $iSep;
-			}
-		    }
-		    $outTextType .= $txtSng;
-		    $outTextCnt .= $cntType.' '.$strType;
-		    $outHTMLCnt .= '<b>'.$cntType.'</b> '.$strType;
-		    if (!empty($qtyStk)) {
-			$outHTMLQty .= '<b>'.$qtyStk.'</b> '.Pluralize($qtyStk,$txtSng,$txtPlr);
-		    }
-		}
-	    }
-	}
-	$arOut['text.!num'] = $outTextType;
-	$arOut['text.cnt'] = $outTextCnt;
-	$arOut['html.cnt'] = $outHTMLCnt;
-	$arOut['html.qty'] = $outHTMLQty;
-	return $arOut;
-    }
-// LATER: change name to DataSet_Images() to clarify that this returns a dataset, not a text list or array
-    public function ListImages($iSize) {
-	$sqlFilt = '(ID_Title='.$this->ID.') AND (Ab_Size="'.$iSize.'") AND isActive';
-	$objImgs = $this->objDB->Images()->GetData($sqlFilt,'clsImage','AttrSort');
-	return $objImgs;
-    }
-    /*----
-      RETURNS: dataset of item types for this title
-      USES: _title_ittyps (cached table)
-      HISTORY:
-	2011-01-19 written
-    */
-    public function DataSet_ItTyps() {
-	$sql = 'SELECT * FROM _title_ittyps WHERE ID_Title='.$this->KeyValue();
-	$obj = $this->Engine()->DataSet($sql,'clsTitleIttyp');
-	return $obj;
-    }
-    /*----
-      HISTORY:
-	2010-10-19 added optimization to fetch answer from CatKey field if it exists.
-	  This may cause future problems. Remove $iSep field and create individual functions
-	  if so.
-	2012-02-02 allowed bypass of Dept if it isn't set
-    */
-    public function CatNum($iSep='-') {
-      if (empty($this->Row['CatNum'])) {
-
-	  $objDept = $this->Dept();
-	  $objSupp = $this->SuppObj();
-	  if (is_object($objDept)) {
-	      $strDeptKey = $objDept->CatKey;
-	      $strOut = $objSupp->CatKey;
-	      if ($strDeptKey) {
-		$strOut .= $iSep.$strDeptKey;
-	      }
-	  } else {
-	      if (is_object($objSupp)) {
-		  $strOut = $objSupp->CatKey;
-	      } else {
-		  $strOut = '?';
-	      }
-	  }
-	  $strOut .= $iSep.$this->CatKey;
-      } else {
-	  $strOut = $this->CatNum;
-      }
-      return strtoupper($strOut);
-    }
-  public function URL_part() {
-    return strtolower($this->CatNum('/'));
-  }
-  public function URL($iBase=KWP_CAT_REL) {
-    return $iBase.$this->URL_part();
-  }
-    public function Link(array $iarAttr=NULL) {
-	$strURL = $this->URL();
-	$htAttr = ArrayToAttrs($iarAttr);
-	return '<a'.$htAttr.' href="'.$strURL.'">';
-    }
-  public function LinkAbs() {
-    $strURL = $this->URL(KWP_CAT);
-    return '<a href="'.$strURL.'">';
-  }
-  public function LinkName() {
-    return $this->Link().$this->Name.'</a>';
-  }
-/* 2010-11-06 if this is needed, use a method in SpecialVbzAdmin
-  public function LinkName_wt() {
-// TO DO: make this more configurable
-    $out = '[[vbznet:cat/'.$this->URL_part().'|'.$this->Name.']]';
-    return $out;
-  }
-*/
-}
-
-/*====
-  PURPOSE: TITLE/ITTYP hybrid
-  TABLE: _title_ittyps
-*/
-class clsTitleIttyp extends clsDataSet {
-// object cache
-  private $objIttyp;
-
-  public function Ittyp() {
-    if (is_null($this->objIttyp)) {
-      $this->objIttyp = VbzClasses::ItTyps()->GetItem($this->ID_ItTyp);
-    }
-    return $this->objIttyp;
-  }
 }
 /* -------------------- *\
     ITEM classes
@@ -1003,40 +707,27 @@ class clsItem extends clsDataSet {
       RETURNS: The item's per-item shipping price for the given shipping zone
       FUTURE: Rename to ShPerItm_forZone()
     */
-    public function ShipPriceItem($iZone) {
-	global $listItmFactors;
-
-	$fltZoneFactor = $listItmFactors[$iZone];
-	$objSh = $this->ShipCostObj();
-	return $objSh->PerItem * $fltZoneFactor;
+    public function ShipPriceItem(clsShipZone $iZone) {
+	return $iZone->CalcPerPkg($this->ShPerItm());
     }
     /*----
       RETURNS: The item's per-package shipping price for the given shipping zone
       FUTURE: Rename to ShPerPkg_forZone()
     */
-    public function ShipPricePkg($iZone) {
-	global $listPkgFactors;
-
-	$fltZoneFactor = $listPkgFactors[$iZone];
-	return $this->ShipCostObj()->PerPkg * $fltZoneFactor;
+    public function ShipPricePkg(clsShipZone $iZone) {
+	return $iZone->CalcPerPkg($this->ShPerPkg());
     }
     /*----
-      RETURNS: The item's per-item shipping price, with no zone calculations
-      FUTURE: need to handle shipping zone more gracefully and rigorously
-	This function is currently only used in the admin area, so does not need
-	to be infallible.
+      RETURNS: The item's base per-item shipping price (no zone calculations)
     */
     public function ShPerItm() {
-	return $this->ShipCostObj()->Value('PerItem');
+	return $this->ShipCostObj()->PerItem();
     }
     /*----
       RETURNS: The item's per-package shipping price, with no zone calculations
-      FUTURE: need to handle shipping zone more gracefully and rigorously
-	This function is currently only used in the admin area, so does not need
-	to be infallible.
     */
     public function ShPerPkg() {
-	return $this->ShipCostObj()->Value('PerPkg');
+	return $this->ShipCostObj()->PerPkg();
     }
 }
 /*====
@@ -1280,6 +971,12 @@ class clsShipCost extends clsDataSet {
     */
     public function ChoiceLine() {
 	return $this->Value('Descr');
+    }
+    public function PerPkg() {
+	return $this->Value('PerPkg');
+    }
+    public function PerItem() {
+	return $this->Value('PerItem');
     }
 }
 /* -------------------- *\

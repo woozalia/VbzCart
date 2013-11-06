@@ -5,11 +5,12 @@
     2010-11-03 extracted classes from SpecialVbzAdmin.php:
       VbzStockPlace(s), VbzStockBin(s), VbzStockBinLog, VbzStockBinEvent, VbzAdminStkItem(s), clsStkLog, clsStockEvent
 */
+/*
 clsLibMgr::Add('vbz.stock',	KFP_LIB_VBZ.'/base.stock.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsStkItems','vbz.stock');
 clsLibMgr::Add('vbz.cat',	KFP_LIB_VBZ.'/base.cat.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsSuppliers','vbz.cat');
-
+*/
 /* *****
  STOCK MANAGEMENT
 */
@@ -200,10 +201,10 @@ class VbzStockPlace extends clsDataSet {
       BOILERPLATE: self-linkage
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminRedirect(array $iarArgs=NULL) {
-	return clsAdminData::_AdminRedirect($this,$iarArgs);
+	return clsAdminData_helper::_AdminRedirect($this,$iarArgs);
     }
     /*====
       BOILERPLATE: event logging
@@ -781,10 +782,10 @@ class VbzStockBin extends clsDataSet {
       BOILERPLATE: self-linkage
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminRedirect(array $iarArgs=NULL) {
-	return clsAdminData::_AdminRedirect($this,$iarArgs);
+	return clsAdminData_helper::_AdminRedirect($this,$iarArgs);
     }
     /*====
       BOILERPLATE: event logging
@@ -800,8 +801,8 @@ class VbzStockBin extends clsDataSet {
     public function EventListing() {
 	return $this->Log()->EventListing();
     }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
+    public function StartEvent(array $iArgs,array $iEdits) {
+	return $this->Log()->StartEvent($iArgs,$iEdits);
     }
     public function FinishEvent(array $iArgs=NULL) {
 	return $this->Log()->FinishEvent($iArgs);
@@ -1068,12 +1069,19 @@ class VbzStockBin extends clsDataSet {
 	}
 	$objPage = new clsWikiFormatter($vgPage);
 	//$objSection = new clsWikiAdminSection($strName);
+/*
 	$objSection = new clsWikiSection($objPage,$strName);
 	//$out = $objSection->HeaderHtml_Edit();
 	$objSection->ToggleAdd('edit');
 	//$objSection->ActionAdd('edit');
 	//$objSection->ActionAdd('view');
 	$out .= $objSection->Generate();
+*/
+	$objSection = new clsWikiSection_std_page($objPage,$strName);
+	$objSection->AddLink_local(new clsWikiSectionLink_keyed(array('edit'=>TRUE),'edit'));
+	$out = $objSection->Render();
+
+
 	$wgOut->AddHTML($out); $out = '';
 
 	$objPlace = $this->PlaceObj();
@@ -1166,10 +1174,24 @@ class VbzStockBin extends clsDataSet {
 //	$out = "===Contents===\n";
 	if (!$isNew) {
 	    $objFmt = new clsWikiFormatter($vgPage);
-	    $objHdr = new clsWikiSection($objFmt,'contents','items in '.$strName,3);
+	    $sHdr = 'items in '.$strName;
+/*
+	    $objHdr = new clsWikiSection($objFmt,$sHdr,3);
 	    $objHdr->ActionAdd('move','move items from '.$strName.' to another one',NULL,'move.items');
 	    $objHdr->ToggleAdd('count','record inventory count for '.$strName,'inv');
 	    $out = $objHdr->Generate();
+*/
+	    $objSection = new clsWikiSection_std_page($objPage,$sHdr,3);
+	    //$arLink = array('edit'=>TRUE)
+	    $oLink = new clsWikiSectionLink_option(array(),'move.items','do','move');
+	      //(array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
+	      $oLink->Popup('move items from '.$strName.' to another one');
+	      $objSection->AddLink_local($oLink);
+	    $oLink = new clsWikiSectionLink_option(array(),'inv','do','count');
+	      $oLink->Popup('record inventory count for '.$strName);
+	      $objSection->AddLink_local($oLink);
+	    $out = $objSection->Render();
+
 	    $wgOut->AddHTML($out); $out = '';
 	    $wgOut->addHTML($this->Contents());
 	    $wgOut->addWikiText('===History===',TRUE);
@@ -1664,7 +1686,6 @@ class VbzStockBin extends clsDataSet {
 
 			    // do data update
 			    if ($doInvSave) {
-//echo 'GOT TO HERE';
 				$sqlItem = $sqlLines.' AND (ID_Item='.$id.')';
 				$objLine = $this->objDB->StkItems()->GetData($sqlItem);
 				if ($objLine->HasRows()) {
@@ -1672,7 +1693,6 @@ class VbzStockBin extends clsDataSet {
 				    // -- make sure there's only one record. If more than one, update the first and delete others.
 				    $isFirst = TRUE;
 				    while ($objLine->NextRow()) {
-//echo '<br>LINE: '.$objLine->AdminLink_name();
 
 					if ($isFirst) {
 					    $isFirst = FALSE;

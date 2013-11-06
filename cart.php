@@ -3,20 +3,10 @@
   PURPOSE: shopping cart stuff -- base
   HISTORY:
     2012-04-17 extracted from shop.php
+    2013-09-13 now using cart-const.php
 */
 
-clsLibMgr::Add('vbz.cart-data',	KFP_LIB_VBZ.'/cart-data.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsCartVars', 'vbz.cart-data');
-clsLibMgr::Add('vbz.pages',	KFP_LIB_VBZ.'/pages.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzSkin_Standard','vbz.pages');
-clsLibMgr::Add('vbz.cart.lines',	KFP_LIB_VBZ.'/cart-lines.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsShopCartLines','vbz.cart.lines');
-clsLibMgr::Add('vbz.cat.base',	KFP_LIB_VBZ.'/base.cat.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsItems','vbz.cat.base');
-clsLibMgr::Add('vbz.cust.base',	KFP_LIB_VBZ.'/base.cust.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsCustCards','vbz.cust.base');
-
-clsLibMgr::Load('vbz.cart-data',__FILE__,__LINE__);	// later we might put this in a separate module for constants
+require_once('cart-const.php');
 
 // ShopCart
 class clsShopCarts extends clsTable {
@@ -35,6 +25,7 @@ class clsShopCart extends clsDataSet {
     protected $objCartData;
     private $arDataItem;
     protected $objOrder;
+    private $oSess;
 
     protected $hasDetails;	// customer details have been loaded?
 
@@ -44,6 +35,9 @@ class clsShopCart extends clsDataSet {
 	$this->objCartData = NULL;
 	$this->hasDetails = FALSE;
     }
+    /*----
+      NOTE: This needs to be better documented. (...as in, "what was I thinking??")
+    */
     public function InitNew($iSess) {
 	$this->ID = 0;
 	$this->WhenCreated = NULL;	// not created until saved
@@ -53,6 +47,7 @@ class clsShopCart extends clsDataSet {
 	$this->ID_Sess = $iSess;
 	$this->ID_Order = NULL;
 	$this->ID_Cust = NULL;
+	$this->oSess = NULL;
     }
     /*====
       BLOCK: EVENT HANDLING
@@ -133,21 +128,49 @@ class clsShopCart extends clsDataSet {
     public function HasCart() {
 	return $this->IsCreated();	// may use different criteria later on
     }
+    /*----
+      TODO: Figure out why $this->HasField('ID_Sess') would ever *not* be true.
+    */
     public function HasSession() {
 	$ok = FALSE;
-	if ($this->HasField('ID_Sess')) {
-	    if ($this->ID_Sess>0) {
+	if ($this->HasField('ID_Sess')) {	// why would this ever *not* be true?
+	    if ($this->SessID() > 0) {
 		$ok = TRUE;
 	    }
 	}
 	return $ok;
     }
-    public function Session() {
+    /*----
+      NOTE: This is only private because nothing else needs it yet.
+	Okay to open it up if something does.
+      ASSUMES: row is set
+    */
+    private function SessID() {
+	return $this->Value('ID_Sess');
+    }
+    /*----
+      HISTORY:
+	2013-10-13
+	  * renamed from Session() to SessObj() for consistency
+	  * added caching of session object
+    */
+    public function SessObj() {
 	if ($this->HasSession()) {
-	    $objSessions = $this->objDB->Sessions();
-	    $objSess = $objSessions->GetItem($this->ID_Sess);
-	    return $objSess;
+	    $doNew = TRUE;
+	    if (!is_null($this->oSess)) {
+		if ($this->oSess->KeyValue() == $this->SessID()) {
+		    $doNew = FALSE;
+		    $oSess = $this->oSess;
+		}
+	    }
+	    if ($doNew) {
+		$tSess = $this->Engine()->Sessions();
+		$oSess = $tSess->GetItem($this->ID_Sess);
+		$this->oSess = $oSess;
+	    }
+	    return $jSess;
 	} else {
+	    $this->oSess = NULL;
 	    return NULL;
 	}
     }
@@ -211,21 +234,7 @@ class clsShopCart extends clsDataSet {
     }
     public function IsCreated() {
 	return ($this->ID > 0);
-	//return !is_null($this->ID);
-	//return $this->hasField('ID') || isset($this->ID)
     }
-    /*----
-      RETURNS: TRUE iff customer has any known email addresses
-    public function HasEmail() {
-	$isShipCard = $this->DataItem(KSI_SHIP_IS_CARD);
-	$isShipSelf = $this->DataItem(KSI_SHIP_TO_SELF);
-	// $objCart->ContCustObj()->Email()->Value()
-	if ($isShipSelf) {
-	return $this->ContCustObj()->HasEmail();
-    }
-    public function EmailObj() {
-    }
-*/
 // == FORM HANDLING STUFF
     /*----
       NOTE: If shipping zone requested by customer isn't affecting the cart, the
@@ -281,10 +290,7 @@ class clsShopCart extends clsDataSet {
 	if ($doCheckout) {
 	    $this->LogEvent('ck1','going to checkout');
 	    $objSess = $this->Session();
-	    //http_redirect(KWP_CHKOUT,array(KS_VBZCART_SESSION_KEY => $objSess->SessKey()));
-	    //http_redirect(KWP_CHKOUT.'?'.KS_VBZCART_SESSION_KEY.'='.$objSess->SessKey());
-	    http_redirect(KWP_CHKOUT);
-//	    http_redirect('https://ssl.vbz.net/phpinfo.php');
+	    http_redirect(KWP_CKOUT);
 	    $this->LogEvent('ck2','sent redirect to checkout');
 	}
     }
@@ -321,7 +327,7 @@ class clsShopCart extends clsDataSet {
 	$objSess->SetCart($this->ID);
     }
     public function RenderHdr() {
-	$out = "\n".'<!-- Cart ID='.$this->KeyValue().' | Session ID='.$this->ID_Sess.' -->';
+	$out = "\n\n".'<!-- Cart ID='.$this->KeyValue().' | Session ID='.$this->ID_Sess." -->";
 	$out .= "\n<center><table class=border><tr><td><table class=cart><tr><td align=center valign=middle>";
 	$out .= "\n<form method=post action='./'>";
 	$out .= "\n<table class=cart-data>\n";
@@ -334,6 +340,7 @@ class clsShopCart extends clsDataSet {
       ACTION: Render the receipt in HTML
 	Shows the order as generated from *cart* data, not what's in the order record.
 	...except for the order number.
+      TODO: somehow merge clsShopCart::RenderReceipt() with clsOrder::RenderReceipt()
       HISTORY:
 	2011-03-27 adapting this from clsOrder::RenderReceipt()
     */
@@ -359,16 +366,18 @@ class clsShopCart extends clsDataSet {
 	  'ord.num'	=> $objOrd->Number,
 	  'timestamp'	=> date(KF_RCPT_TIMESTAMP),
 	  'cart.id'	=> $objCart->ID,
+	  'sess.id'	=> $objSess->KeyValue(),
 	  'cart.detail'	=> $objCart->RenderConfirm(),
 	  'ship.name'	=> $objCart->AddrShipObj()->Name()->Value(),
 	  'ship.addr'	=> $objCart->AddrShipObj()->AsText("\n<br>"),
 	  'pay.name'	=> $objPay->Addr()->Name()->Value(),
 	  'pay.spec'	=> $objPay->SafeDisplay(),
+	  'url.shop'	=> KWP_HOME_REL,
 	  'email.short'	=> 'orders-'.date('Y').'@vbz.net'
 	  );
 	$objStrTplt = new clsStringTemplate_array(NULL,NULL,$arVars);
 	$objStrTplt->MarkedValue(KHT_RCPT_TPLT);
-	$out = '<!-- ORDER ID: '.$objOrd->ID.' / CART ID from order: '.$objCart->ID.' -->';
+	$out = "\n<!-- ORDER ID: ".$objOrd->ID.' / CART ID from order: '.$objCart->ID." -->\n";
 	$out .= $objStrTplt->Replace();
 	return $out;
     }
@@ -376,10 +385,6 @@ class clsShopCart extends clsDataSet {
       ACTION: Renders the order contents as plaintext, suitable for emailing
     */
     public function RenderOrder_Text() {
-/* NOT USED HERE
-	$isShipCard = $this->DataItem(KSI_SHIP_IS_CARD);
-	$isShipSelf = $this->DataItem(KSI_SHIP_TO_SELF);
-*/
 // copy any needed constants over to variables for parsing:
 	$ksShipMsg	= KSF_SHIP_MESSAGE;
 	$ksfCustCardNum = KSF_CUST_CARD_NUM;
@@ -389,12 +394,8 @@ class clsShopCart extends clsDataSet {
 // get non-address field data:
 	$strCardNum = $objData->CardNum();
 	$strCardExp = $objData->CardExp();
-	$strCustShipMsg = $objData->ShipMessage();
-/*
-	$strCardNum = $this->DataItem(KSI_CUST_CARD_NUM);
-	$strCardExp = $this->DataItem(KSI_CUST_CARD_EXP);
-	$strCustShipMsg = $this->DataItem(KSI_SHIP_MESSAGE);
-*/
+	$strCustShipMsg = $objData->ShipMsg();
+
 	$ftCustShipMsg = wordwrap($strCustShipMsg);
 
 	$out = '';
@@ -486,7 +487,7 @@ class clsShopCart extends clsDataSet {
 	$strTotalDesc = 'order total if shipping to '.$strShipZone.':';
 	$strOrdTotal = FormatMoney($this->CostTotalItem + $this->CostTotalShip + $shipMinCost);
 
-	$objSess = $this->Session();
+	//$objSess = $this->Session();	// 2013-10-14 never used
 	
 	if ($iAsForm) {
 	    $htDelAll = '<span class=text-btn>[<a href="?action=delcart" title="remove all items from cart">remove all</a>]</span>';
@@ -514,6 +515,7 @@ class clsShopCart extends clsDataSet {
 </tr>
 <tr><td colspan=6>$htZoneCombo</td></tr>
 __END__;
+	$out .= '<!-- '.__FILE__.' line '.__LINE__.' -->';
 	$this->LogEvent('disp','displaying cart, zone '.$this->objShipZone->Abbr().' total $'.$strOrdTotal);
 	return $out;
     }
@@ -526,6 +528,7 @@ __END__;
 
 	$abbrShipZone = $objData->ShipZone();
 	$this->ShipZoneObj()->Abbr($abbrShipZone);	
+	$objZone = $this->ShipZoneObj();
 
 	$shipMinCost = 0;
 
@@ -548,8 +551,8 @@ __END__;
 	    $dlrPPkgMax = 0;	// per-pkg shipping total
 	    while ($objLines->NextRow()) {
 		$objItem = $objLines->Item();
-		$dlrShipItm = $objItem->ShipPriceItem($abbrShipZone);
-		$dlrShipPkg = $objItem->ShipPricePkg($abbrShipZone);
+		$dlrShipItm = $objItem->ShipPriceItem($objZone);
+		$dlrShipPkg = $objItem->ShipPricePkg($objZone);
 
 		$out .= $objLines->RenderText($this,$strLineFmt);
 		if ($dlrPPkgMax < $dlrShipPkg) {
@@ -605,6 +608,7 @@ __END__;
 # get information for that destination type:
 	    $out = $this->RenderHdr();
 	    $out .= $this->RenderCore(TRUE);
+	    $out .= "\n<!-- ".__FILE__." line ".__LINE__." -->";
 	    $out .= $this->RenderFtr();
 	} else {
 	    if ($this->IsCreated()) {
@@ -629,6 +633,7 @@ __END__;
     public function RenderConfirm() {
 	if ($this->HasLines()) {
 	    $out = $this->RenderCore(FALSE);
+	    $out .= "\n<!-- ".__FILE__." line ".__LINE__." -->";
 	} else {
 	    // log error - you shouldn't be able to get to this point with an empty cart
 	    $txtParams = 'Cart ID='.$this->ID.' Order ID='.$this->ID_Order;

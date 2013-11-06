@@ -4,8 +4,14 @@
   HISTORY:
     2010-10-16 Extracted customer classes from SpecialVbzAdmin.php
 */
+/*
 clsLibMgr::Add('vbz.cust',	KFP_LIB_VBZ.'/base.cust.php',__FILE__,__LINE__);
 clsLibMgr::Load('vbz.cust'	,__FILE__,__LINE__);
+*/
+
+define('KS_DESCR_IS_NULL','<span style="color: grey; font-style: italic;">(none)</span>');
+define('KS_DESCR_IS_BLANK','<span style="color: grey; font-style: italic;">(blank)</span>');
+
 /*
  CUSTOMER DATA
 */
@@ -20,6 +26,21 @@ class VbzAdminCusts extends clsCusts {
 	    $this->ActionKey = $iName;
 	}
 	return $this->ActionKey;
+    }
+    public function GetRecs_forUser($idUser) {
+	$sqlFilt = '(ID_User='.$idUser.') AND (ID_Repl IS NULL)';
+	$rs = $this->GetData($sqlFilt);
+	return $rs;
+    }
+    public function GetAddrs_forUser($idUser) {
+	$sql = 'SELECT a.* FROM '
+	  .$this->Table->SQLName().' AS c '
+	  .'LEFT JOIN cust_addrs AS a '
+	  .'ON a.ID_Cust=c.ID '
+	  .'WHERE '
+	    .'(c.ID_User='.$idUser.') AND '
+	    .'(WhenExp IS NULL)';
+	
     }
 }
 class VbzAdminCust extends clsCust {
@@ -47,6 +68,14 @@ class VbzAdminCust extends clsCust {
 	return $this->Log()->FinishEvent($iArgs);
     }
     // -- admin links
+    /*----
+      HISTORY:
+	2010-10-11 Replaced existing code with call to static function
+	2013-10-21 Pretty sure this is boilerplate, so moving it to that section.
+    */
+    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
+    }
     /*----
       ACTION: Redirect to the url of the admin page for this object
       HISTORY:
@@ -87,6 +116,37 @@ class VbzAdminCust extends clsCust {
 	}
 	return $htOut;
     }
+    /*----
+      ACTION: Render all records in set as a table
+    */
+    public function Render_asTable() {
+	if ($this->HasRows()) {
+	    $qRows = $this->RowCount();
+	    $ht = 'You have <b>'.$qRows.'</b> customer profile'.Pluralize($qRows).':';
+	    $ht .= "\n<table>\n<tr><th>Name</th><th>Email(s)</th><th>Address</th><th>When Created</th></tr>";
+	    while ($this->NextRow()) {
+		$ht .= "\n<tr>".$this->Render_asTableRow().'</tr>';
+	    }
+	    $ht .= "\n</table>";
+	    return $ht;
+	} else {
+	    return NULL;
+	}
+    }
+    protected function Render_asTableRow() {
+	$ht =
+	  '<td>'.$this->NameStr().'</td>'
+	  .'<td>'.$this->EmailStr().'</td>'
+	  //.'<td>'.$this->AddrStr().'</td>'
+	  .'<td>'.$this->AddrLine().'</td>'
+	  .'<td>'.$this->Value('WhenCreated').'</td>';
+	return $ht;
+    }
+    protected function AddrStr() {
+	$rc = $this->AddrObj();
+	$ht = $rc->AsString(' / ');
+	return $ht;
+    }
   /*====
     /SECTION
   */
@@ -120,21 +180,35 @@ DOES ANYTHING USE THIS?
     public function NameStr() {
 	$obj = $this->NameObj();
 	if (is_object($obj)) {
-	    return $obj->Name;
+	    $txt = $obj->Name;
+	    return empty($txt)?KS_DESCR_IS_BLANK:$txt;
 	} else {
-	    return '';
+	    return KS_DESCR_IS_NULL;
 	}
     }
     public function AddrObj() {
-	return $this->objDB->CustAddrs()->GetItem($this->Value('ID_Addr'));
+	return $this->Engine()->CustAddrs()->GetItem($this->Value('ID_Addr'));
     }
     public function AddrLine() {
 	$obj = $this->AddrObj();
 	if (is_object($obj)) {
-	    return $obj->AsSingleLine();
+	    $txt = $obj->AsSingleLine();
+	    return empty($txt)?KS_DESCR_IS_BLANK:$txt;
 	} else {
-	    return '';
+	    return KS_DESCR_IS_NULL;
 	}
+    }
+    public function EmailStr() {
+	$tbl = $this->Engine()->CustEmails();
+	$rs = $tbl->Find_forCust($this->KeyValue());
+	$ht = NULL;
+	while ($rs->NextRow()) {
+	    if (!is_null($ht)) {
+		$ht .= ' ';
+	    }
+	    $ht .= $rs->Value('Email');
+	}
+	return is_null($ht)?KS_DESCR_IS_NULL:$ht;
     }
     public function HasRepl() {
 	return !is_null($this->Value('ID_Repl'));
@@ -149,13 +223,6 @@ DOES ANYTHING USE THIS?
 	} else {
 	    return 'none';
 	}
-    }
-    /*----
-      HISTORY:
-	2010-10-11 Replaced existing code with call to static function
-    */
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     /*----
       ACTION: merge this customer's into the given customer record
@@ -882,7 +949,7 @@ class clsAdminCustName extends clsCustName {
 	2011-09-21 added for customer admin page
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     // == boilerplate auxiliaries
     /*----
@@ -1089,69 +1156,123 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 	}
 	return $out;
     }
-    public function EncryptAdmin() {
+    public function AdminEncrypt() {
     // PURPOSE: interface to encrypt/decrypt sensitive data
 	global $wgOut,$wgRequest;
 
-	$strKey = $wgRequest->getVal('cryptKey');
-	$htKey = htmlspecialchars($strKey);
+	$canDoBulk = MWX_User::Current()->CanDo('crypt.bulk');
+	$canDoKeys = MWX_User::Current()->CanDo('crypt.keys');
+	if ($canDoBulk || $canDoKeys) {
+	    if (IsWebSecure()) {
 
-	$doEncry = $wgRequest->getVal('doEncrypt');
-	$doCheck = $wgRequest->getVal('doCheck');
-	$doClear = $wgRequest->getVal('doClear');
-	$doDecry = $wgRequest->getVal('doDecrypt');
+		if ($canDoBulk) {
 
-// do the selected actions
-	$this->CryptKey($strKey);
-	if ($doEncry) {
-	    $this->AdminEncrypt();
-	}
-	if ($doCheck) {
-	    $this->AdminCheckCrypt();
-	}
-	if ($doClear) {
-	    $this->AdminPlainClear();
-	}
-	if ($doDecry) {
-	    $this->AdminDecrypt();
-	}
+		    $doEncry = $wgRequest->getVal('doEncrypt');
+		    $doCheck = $wgRequest->getVal('doCheck');
+		    $doClear = $wgRequest->getVal('doClear');
+		    $doDecry = $wgRequest->getVal('doDecrypt');
 
-	$out = 'Select which tasks to perform. If server times out, select fewer tasks.';
-	$out .= '<form method=post>';
-	$out .= '<input type=checkbox name="doEncrypt">Encrypt sensitive data, and save results';
-	$out .= '<br><input type=checkbox name="doCheck">Decrypt encrypted data and verify that it matches';
+		    if ($doCheck || $doDecry) {	// do we need the private key?
+			$sKeyPrv = $wgRequest->getVal('cryptKey');	// private key
+			$htKeyPrv = htmlspecialchars($sKeyPrv);
+		    } else {
+			$htKeyPrv = NULL;
+		    }
 
-	$out .= '<br><br>If possible, you should make a local backup of your data before the next step.';
-	$out .= '<br>Do <i>not</i> copy over an unsecure connection.';
-	$out .= '<br>(Yes, exporting the affected table to a file should be a feature of this tool. Eventually.)';
-	$out .= '<br><input type=checkbox name="doClear">Clear unencrypted fields';
+	// do the selected actions
+		    //$this->CryptKey($strKey);
+		    if ($doEncry) {
+			$this->DoAdminEncrypt();
+		    }
+		    if ($doCheck) {
+			$this->DoAdminCheckCrypt($sKeyPrv);
+		    }
+		    if ($doClear) {
+			$this->DoAdminPlainClear();
+		    }
+		    if ($doDecry) {
+			$this->DoAdminDecrypt($sKeyPrv);
+		    }
 
-	$out .= '<br><br>Do this part after exporting/migrating data:';
-	$out .= '<br><input type=checkbox name="doDecrypt">Fill in plaintext fields with decrypted data';
+		    $out = 'Select which tasks to perform. If server times out, select fewer tasks.';
+		    $out .= '<form method=post>';
+		    $out .= '<input type=checkbox name="doEncrypt">Encrypt sensitive data, and save results';
+		    $out .= '<br><input type=checkbox name="doCheck">Verify that encrypted data matches existing plaintext - <b>need private key</b>';
 
-	$out .= '<br><br>Encryption key: <input type=text name=cryptKey size=64 value="'.$htKey.'">';
-	$out .= '<br><input type=submit name="btnGo" value="Go">';
-	if (IsWebSecure()) {
-	    $out .= ' - Browser is using a secure connection.';
+		    $out .= '<br><br>If possible, you should make a local backup of your (unencrypted) data before the next step.';
+		    $out .= '<br>At this point, sensitive data is available in the clear, so do <i>not</i> copy exported data over an unsecure connection .';
+		    $out .= '<br>(Yes, securely exporting the affected table to a file should be a feature of this tool. Eventually.)';
+		    $out .= '<br><input type=checkbox name="doClear">Clear unencrypted fields';
+
+		    $out .= '<br><br>Do this part after exporting/migrating data:';
+		    $out .= '<br><input type=checkbox name="doDecrypt">Decrypt and save as plaintext - <b>need private key</b>';
+
+		    $out .= "<br><br>Private key (needed for decryption only): <textarea name=cryptKey cols=64 rows=5>$htKeyPrv</textarea>";
+		    $out .= '<br><input type=submit name="btnGo" value="Go">';
+		    $out .= '</form>';
+		}
+
+		if ($canDoKeys) {
+		    $out .= '<h2>Key Generation</h2>';
+		    $doKeyGen = $wgRequest->getBool('btnKeyGen');
+		    if ($doKeyGen) {
+			// see http://us.php.net/manual/en/book.openssl.php
+			// Create the keypair
+			$res = openssl_pkey_new();
+
+			// Get private key
+			openssl_pkey_export($res, $privatekey);
+
+			// Get public key
+			$publickey = openssl_pkey_get_details($res);
+			$publickey = $publickey["key"];
+
+			// generate filename for storing public key:
+			$fn = date('Y-m-d His').' '.MWX_User::Current()->ShortText().'.public.key';
+			// Username is included so we know at a glance who generated the public key
+			  // and was therefore responsible for saving the private key.
+
+			$fs = KFP_KEYS.'/'.$fn;
+			// save the public key
+			$nRes = file_put_contents($fs,$publickey);
+			if ($nRes > 0) {
+			    $this->Engine()->VarsGlobal()->Val('public_key.fspec',$fn);
+
+			    $out .= '<h3>Private key</h3><b>Save this</b> in a secure location:<br><pre>'.$privatekey.'</pre>';
+			    $out .= '<h3>Public key</h3>This has been saved in '.$fs.':<br><pre>'.$publickey.'</pre>';
+			} else {
+			    $out .= '<h3>Key Generation Error</h3>The generated public key could not be saved to the file '.$fs.'. Please check folder permissions.';
+			}
+		    } else {
+			$out .= '<form method=post>';
+
+			$out .= '<br><input type=submit name="btnKeyGen" value="Generate New Keys">';
+			$out .= '</form>';
+		    }
+		}
+	    } else {
+		$out = '<br><span class=warning>You have permission to use this page, but you need to <a href="'.SecureURL().'">switch to https</a>.</span>';
+	    }
 	} else {
-	    $out .= ' - <span class=warning><b>Warning</b>: Browser is not using an encrypted connection!</span>';
+	    $out .= "You don't have permission to use any of the encryption utilities.";
 	}
-	$out .= '</form>';
 
 	$wgOut->AddHTML($out);
     }
-    public function AdminEncrypt() {
-    // ACTION: Encrypt data, update "Encrypted" field
+    /*----
+      ACTION: Encrypt data in all rows and save to Encrypted field
+    */
+    public function DoAdminEncrypt() {
 	global $wgOut;
 
-	$objLogger = VbzDb()->Events();
-	$objLogger->LogEvent(__METHOD__,NULL,'encrypting sensitive data',NULL,FALSE,FALSE);
+	$objLogger = $this->Engine()->Events();
+	$objLogger->LogEvent(__METHOD__,NULL,'encrypting sensitive data in ccard records',NULL,FALSE,FALSE);
 
 	$objRow = $this->GetData();
 	if ($objRow->hasRows()) {
 	    $intChecked = 0;
 	    $intChanged = 0;
-	    $out = 'Encrypting credit card data:';
+	    $out = 'Encrypting credit card data in card records:';
 	    $out .= "\n* ".$objRow->RowCount().' records to process';
 	    $wgOut->addWikiText($out,TRUE); $out=NULL;
 	    while ($objRow->NextRow()) {
@@ -1174,19 +1295,23 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 	    $wgOut->addWikiText($out,TRUE); $out=NULL;
 
 	} else {
-	    $objLogger->LogEvent(__METHOD__,NULL,'No records found to process',NULL,FALSE,FALSE);
+	    $objLogger->LogEvent(__METHOD__,NULL,'CustCards: No records found to process',NULL,FALSE,FALSE);
 	    $out = 'No credit cards currently in database.';
 	}
-	$wgOut->addWikiText($out,TRUE);
-    }
-    public function AdminCheckCrypt() {
+	$wgOut->addWikiText($out,TRUE); $out = NULL;
+	    }
+    public function DoAdminCheckCrypt($iPvtKey) {
     // PURPOSE: Verify that encrypted data matches unencrypted data
     //	This was part of AdminCrypt, but it took too long to execute
 	global $wgOut;
+	global $vgPage;
 
-	$objLogger = VbzDb()->Events();
+	$vgPage->UseWiki();	// apparently this isn't set elsewhere
+
+	$objLogger = $this->Engine()->Events();
 	$objLogger->LogEvent(__METHOD__,NULL,'checking encrypted data',NULL,FALSE,FALSE);
 
+	$out = NULL;
 	$objRow = $this->GetData();
 	if ($objRow->hasRows()) {
 	    $objRow = $this->GetData();
@@ -1194,6 +1319,7 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 	    $intBlank = 0;
 	    $intFound = 0;
 	    $objRow->Reset();
+	    $sBad = NULL;
 	    while ($objRow->NextRow()) {
 		$intFound++;
 		$strPlainOld = $objRow->SingleString();
@@ -1201,27 +1327,29 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 		if (empty($strEncrypted)) {
 		    $intBlank++;
 		} else {
-		    $objRow->Decrypt(FALSE);	// don't overwrite unencrypted data
+		    $objRow->Decrypt(FALSE,$iPvtKey);	// don't overwrite unencrypted data
 		    $strNumEncrNew = $objRow->Encrypted;
 		    $strPlainNew = $objRow->_strPlain;
 		    if ($strPlainOld == $strPlainNew) {
 			$intMatched++;
+		    } else {
+			$sBad .= "\n* ".$objRow->AdminLink().": plain=[$strPlainOld] encrypted=[$strPlainNew]";
 		    }
 		}
 	    }
-	    $out = "* $intMatched row".Pluralize($intMatched).' match';
+	    $out .= "* $intMatched card".Pluralize($intMatched).' match';
 	    $intRows = $objRow->RowCount();
 	    $intBad = $intRows - $intMatched - $intBlank;
 	    if ($intBad) { 
-		$strStat = $intBad.' row'.Pluralize($intBad);
-		$out .= "\n\n'''ERROR''' - $strStat did NOT match!";
+		$strStat = $intBad.' card'.Pluralize($intBad);
+		$out .= "\n\n'''ERROR''' - $strStat did NOT match!$sBad\n";
 		$objLogger->LogEvent(__METHOD__,NULL,$strStat.' did not match',NULL,FALSE,FALSE);
 		// TO DO: If this ever happens, give list of failed cards and some sort of way to figure out what went wrong
 	    } else {
 		if ($intRows == $intFound) {
 		    $strStat = $intRows.' row'.Pluralize($intRows);
-		    $out .= "\n\n'''OK''' - $strStat encrypted successfully";
-		    $objLogger->LogEvent(__METHOD__,NULL,$strStat.' encrypted successfully',NULL,FALSE,FALSE);
+		    $out .= "\n\n'''OK''' - $strStat matched";
+		    $objLogger->LogEvent(__METHOD__,NULL,$strStat.' matched',NULL,FALSE,FALSE);
 		} else {
 		    $strStat = $intRows.' row'.Pluralize($intRows).' detected, but only '.$intFound.' row'.Pluralize($intFound).' checked';
 		    $out .= "\n\n'''ERROR''' - $strStat!";
@@ -1239,10 +1367,12 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 	}
 	$wgOut->addWikiText($out,TRUE);
     }
-    public function AdminPlainClear() {
+    public function DoAdminPlainClear() {
+	global $wgOut;
+
     // ACTION: Clear plaintext data for all rows that have encrypted data
-	$objLogger = VbzDb()->Events();
-	$objLogger->LogEvent(__METHOD__,NULL,'clearing unencrypted sensitive data',NULL,FALSE,FALSE);
+	$objLogger = $this->Engine()->Events();
+	$objLogger->LogEvent(__METHOD__,NULL,'clearing unencrypted card data',NULL,FALSE,FALSE);
 
 	$arUpd = array(
 	  'CardNum' => 'NULL',
@@ -1253,37 +1383,40 @@ class VbzAdminCustCards extends clsCustCards_dyn {
 	$intRows = $this->objDB->RowsAffected();
 	$strStat = $intRows.' row'.Pluralize($intRows).' modified';
 	$out = "\n\n'''OK''': $strStat";
-	$wgOut->addWikiText($out,TRUE);
-	$objLogger->LogEvent(__METHOD__,NULL,'plaintext data cleared, '.$strStat,NULL,FALSE,FALSE);
+	$wgOut->addWikiText($out,TRUE); $out=NULL;
+
+
+	$objLogger->LogEvent(__METHOD__,NULL,'plaintext data cleared from card records, '.$strStat,NULL,FALSE,FALSE);
     }
-    public function AdminDecrypt() {
+    public function DoAdminDecrypt($iPvtKey) {
 	global $wgOut;
 
-	$objLogger = VbzDb()->Events();
+	$objLogger = $this->Engine()->Events();
 	$objLogger->LogEvent(__METHOD__,NULL,'decrypting data',NULL,FALSE,FALSE);
 
 	$objRow = $this->GetData();
 	if ($objRow->hasRows()) {
+	    $out = "\n\nDecrypting cards: ";
 	    $intFound = 0;
 	    while ($objRow->NextRow()) {
 		$intFound++;
-		$objRow->Decrypt(TRUE);	// decrypt and save
+		$objRow->Decrypt(TRUE,$iPvtKey);	// decrypt and save
 		$strNumEncrNew = $objRow->Encrypted;
 	    }
 	    $intRows = $objRow->RowCount();
 	    $intMissing = $intRows - $intFound;
 	    if ($intMissing) {
 		$strStat = $intFound.' row'.Pluralize($intFound).' out of '.$intRows.' not decrypted!';
-		$out = "\n\n'''ERROR''' - $strStat!";
+		$out .= "'''ERROR''' - $strStat!";
 		$objLogger->LogEvent(__METHOD__,NULL,$strStat,NULL,FALSE,FALSE);
 	    } else {
 		$strStat = $intRows.' row'.Pluralize($intRows);
-		$out = "\n\n'''OK''' - $strStat decrypted successfully";
+		$out .= "'''OK''' - $strStat decrypted successfully";
 		$objLogger->LogEvent(__METHOD__,NULL,$strStat.' decrypted successfully',NULL,FALSE,FALSE);
 	    }
 	    $wgOut->addWikiText($out,TRUE);
 	} else {
-	    $wgOut->addWikiText('No data to decrypt!',TRUE);
+	    $wgOut->addWikiText('No credit cards to decrypt!',TRUE);
 	}
     }
 }
@@ -1293,7 +1426,7 @@ class VbzAdminCustCard extends clsCustCard {
 	2010-10-11 Replaced existing code with call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     /*----
       HISTORY:
@@ -1382,9 +1515,9 @@ class VbzAdminCustCard extends clsCustCard {
 	    $ftNotes = '<textarea name="notes" height=3 width=40>'.$ftNotes.'</textarea>';
 	} else {
 	    $ftTag = $ftTagVal;
-	    $ftCust = $objCust->AdminLink($objCust->Name);
+	    $ftCust = $objCust->AdminLink_name();
 	    $ftAddr = $objAddr->AdminLink($objAddr->AsSingleLine(' / '));
-	    $ftName = $objName->AdminLink($objCust->ID);
+	    $ftName = $objName->AdminLink($objCust->KeyValue());
 	    $ftNum = $ftNumVal;
 	    $ftExp = $ftExpVal;
 	    $ftCVV = empty($ftCVVVal)?'':' CVV '.$ftCVVVal;
@@ -1606,7 +1739,7 @@ class clsAdminCustAddr extends clsCustAddr {
 	2011-09-02 Writing AdminPage()
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     /*----
       ACTION: Redirect to the url of the admin page for this object

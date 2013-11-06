@@ -1,6 +1,6 @@
 <?php
 /*
-  FILE: page-topic.php
+  FILE: page-cat.php
   HISTORY:
     2012-05-13 extracting clsVbzPage_Cat and clsPageCat from pages.php
 */
@@ -10,33 +10,25 @@
   TO DO: These classes still need more tidying -- see clsPageCat --
     and still need a bit of work to allow user-choosable skins.
 */
-
-if (!defined('LIBMGR')) {
-    require(KFP_LIB.'/libmgr.php');
-}
-
-clsLibMgr::Add('vbz.pages',	KFP_LIB_VBZ.'/pages.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzSkin_Standard','vbz.pages');
-clsLibMgr::Add('vbz.base.cat',	KFP_LIB_VBZ.'/base.cat.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsSuppliers', 'vbz.base.cat');
-clsLibMgr::Add('vbz.page.topic',	KFP_LIB_VBZ.'/page-topic.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsTopics_StoreUI','vbz.page.topic');
-
-abstract class clsVbzPage_Cat extends clsVbzSkin_Standard {
+abstract class clsVbzPage_Cat extends clsVbzPage_Browse {
 // helper objects
     protected $db;	// database - CHANGE TO PRIVATE
 // query
     protected $strReq;	// requested page
 // page definition
-    protected $strName;	// short title: {item name} (goes into html title, prefixed with store name)
-    protected $strTitle;	// longer, descriptive title: {"item name" by Supplier} (goes at top of page)
+    protected $arNav;	// array of navigation links
     protected $strWikiPg;	// name of wiki page to embed, if any (blank = suppress embedding)
 // calculated fields
 //    protected $strCalcTitle;
-    protected $strContText;
+//    protected $strContText;	// use Doc()
 // flags set by wiki contents
     protected $hideImgs;
 
+/*
+    public function NavArray() {
+	return $this->arNav;
+    }
+*/
     /*-----
       IMPLEMENTATION: Retrieves request from URL and parses it
 	URL data identifies page, keyed to cat_pages data
@@ -57,15 +49,16 @@ abstract class clsVbzPage_Cat extends clsVbzSkin_Standard {
 // DIFFERENT TYPES OF PAGES
     protected function DoNotFound() {
 	$this->strWikiPg	= '';
-	$this->strTitle	= 'Unknown Page';
-	$this->strName	= 'unknown title in catalog';
-	$this->strTitleContext	= 'Tomb of the...';
+	$this->CtxtStr('Tomb of the...');
+	$this->TitleStr('Unknown Page');
+	$this->NameStr('unknown title in catalog');
 	$this->strHdrXtra	= '';
 	$this->strSideXtra	= '<dt><b>Cat #</b>: '.$this->strReq;
     }
 // UTILITY
     protected function AddText($iText) {
-	$this->strContText .= $iText;
+	//$this->strContText .= $iText;
+	$this->Doc()->AddText($iText);
     }
     private function DoWikiContent() {
 # WIKI CONTENTS
@@ -93,6 +86,10 @@ abstract class clsVbzPage_Cat extends clsVbzSkin_Standard {
 class clsPageCat extends clsVbzPage_Cat {
     private $objCatPage;	// object for identifying page to display
 
+    protected function DoContent() {
+	echo $this->Doc()->Render();
+    }
+
     private function Suppliers($id=NULL) {
 	$tbl = $this->Data()->Suppliers();
 	$tbl->Page($this);
@@ -111,17 +108,6 @@ class clsPageCat extends clsVbzPage_Cat {
 	} else {
 	    $rc = $tbl->GetItem($id);
 	    return $rc;
-	}
-    }
-
-    protected function RenderHdrBlocks() {
-	if ($this->useSkin) {
-	    parent::RenderHdrBlocks();
-	}
-    }
-    protected function RenderFtrBlocks() {
-	if ($this->useSkin) {
-	    parent::RenderFtrBlocks();
 	}
     }
     protected function HandleInput() {
@@ -155,42 +141,41 @@ class clsPageCat extends clsVbzPage_Cat {
 	    $this->DoCatHome();
 	}
     }
-// SIDEBAR INFO for different types of pages
-  private function DoCatIndicia() {
-    $this->lstTop->Add('Section','<a href="'.KWP_CAT_REL.'">by supplier</a>');
-  }
-  private function DoSuppIndicia($iSupp,$isFinal=true) {
-    $this->DoCatIndicia();
-    if ($isFinal) {
-      $this->lstTop->Add('Supplier',$iSupp->Name);
-      $this->lstTop->Add('<a href="'.KWP_WIKI.$iSupp->Name.'">more info</a>');
-    } else {
-      $this->lstTop->Add('Supplier',$iSupp->Link());
+// SIDEBAR INFO for different page subtypes
+    private function DoCatIndicia() {
+	//$this->lstTop->Add('Section','<a href="'.KWP_CAT_REL.'">by supplier</a>');
+	$this->arNav['Section'] = '<a href="'.KWP_CAT_REL.'">by supplier</a>';
     }
-  }
-  private function DoDeptIndicia($iDept,$isFinal=true) {
-    $this->DoSuppIndicia($iDept->Supplier(),false);
-    if ($isFinal) {
-      $this->lstTop->Add('Dept.',$iDept->Name);
-    } else {
-      $this->lstTop->Add('Dept.',$iDept->LinkName());
+    private function DoSuppIndicia($iSupp,$isFinal=true) {
+	$this->DoCatIndicia();
+	if ($isFinal) {
+	    $this->arNav['Supplier'] = $iSupp->Name;
+	    $this->arNav['<a href="'.KWP_WIKI.$iSupp->Name.'">more info</a>'] = NULL;
+	} else {
+	    $this->arNav['Supplier'] = $iSupp->Link();
+	}
     }
-  }
-  private function DoTitleIndicia($iTitle) {
-    $this->DoDeptIndicia($iTitle->Dept(),false);
-    $this->lstTop->Add('Title',$iTitle->Name);
-    $this->lstTop->Add(' - catalog #',$iTitle->CatNum());
-  }
-
+    private function DoDeptIndicia($iDept,$isFinal=true) {
+	$this->DoSuppIndicia($iDept->Supplier(),false);
+	if ($isFinal) {
+	    $this->arNav['Dept.'] = $iDept->Name;
+	} else {
+	    $this->arNav['Dept.'] = $iDept->LinkName();
+	}
+    }
+    private function DoTitleIndicia($iTitle) {
+	$this->DoDeptIndicia($iTitle->Dept(),false);
+	$this->arNav['Title'] = $iTitle->Name;
+	$this->arNav[' - catalog #'] = $iTitle->CatNum();
+    }
 
     private function DoCatHome() {
 	$this->DoCatIndicia();
 	$this->strWikiPg	= 'cat';
-	$this->strTitle	= 'Catalog Home';
-	$this->strName	= 'Catalog main page';
-	$this->strTitleContext	= 'hello and welcome to the...';
+	$this->TitleStr('Catalog Home');
+	$this->NameStr('Catalog main page');
+	$this->TCtxtStr('hello and welcome to the...');
 	$this->Suppliers()->DoHomePage();
-	$this->AddText($this->Doc()->Render());
     }
     private function DoCatSupp() {
 	$idRow = $this->objCatPage->Value('ID_Row');
@@ -200,81 +185,77 @@ class clsPageCat extends clsVbzPage_Cat {
 
 	$this->DoSuppIndicia($rcSupp);
 	$this->strWikiPg	= 'supp:'.strtoupper($rcSupp->Value('CatKey'));
-	$this->strTitle	= $strSuppName;
-	$this->strName	= 'listing for '.$strSuppName;
-	$this->strTitleContext	= '<a href="'.KWP_CAT_REL.'">Suppliers</a>: <b>'.$strSuppName.'</b>:';
+	$this->TitleStr($strSuppName);
+	$this->NameStr('listing for '.$strSuppName);
+	$this->TCtxtStr('<a href="'.KWP_CAT_REL.'">Suppliers</a>: <b>'.$strSuppName.'</b>:');
 	$rcSupp->DoDeptsPage();
-	$this->AddText($this->Doc()->Render());
     }
-  private function DoCatDept() {
-    CallEnter($this,__LINE__,'clsPage.DoCatDept()');
+    private function DoCatDept() {
+	CallEnter($this,__LINE__,'clsPage.DoCatDept()');
 
-//    $objDeptTbl = VbzClasses::Depts();
-    $objDeptTbl = $this->Depts();
-    $objDept = $objDeptTbl->GetItem($this->objCatPage->ID_Row);
-    assert('is_object($objDept)');
-    $objSupp = $objDept->Supplier();
-    assert('is_object($objSupp)');
-    $strDeptName = $objDept->Name;
-    $strSuppName = $objSupp->Name;
-    $strDeptLink = $objDept->LinkName();
-    $strSuppLink = $objSupp->Link();
+	$objDeptTbl = $this->Data()->Depts();
+	$objDept = $objDeptTbl->GetItem($this->objCatPage->ID_Row);
+	assert('is_object($objDept)');
+	$objSupp = $objDept->Supplier();
+	assert('is_object($objSupp)');
+	$strDeptName = $objDept->Name;
+	$strSuppName = $objSupp->Name;
+	$strDeptLink = $objDept->LinkName();
+	$strSuppLink = $objSupp->Link();
 
-    $this->DoDeptIndicia($objDept);
-    $this->strWikiPg	= 'dept:'.strtoupper($objDept->PageKey);
+	$this->DoDeptIndicia($objDept);
+	$this->strWikiPg	= 'dept:'.strtoupper($objDept->PageKey);
 
-    $this->strTitle	= $strSuppName;
-    $this->strName	= $strDeptName.' dept. of '.$strSuppName;
-    $this->strTitleContext	= 'items <a href="'.KWP_CAT_REL.'">supplied</a> by '.$strSuppLink.'\'s <b>'.$strDeptName.'</b> department:';
-    $this->AddText($objDept->DoPage());
-    CallExit('clsPage.DoCatDept()');
-  }
+	$this->TitleStr($strSuppName);
+	$this->NameStr( $strDeptName.' dept. of '.$strSuppName);
+	$this->TCtxtStr('items <a href="'.KWP_CAT_REL.'">supplied</a> by '.$strSuppLink.'\'s <b>'.$strDeptName.'</b> department:');
+	$this->AddText($objDept->DoPage());
+	CallExit('clsPage.DoCatDept()');
+    }
     protected function TitleObj($id) {
 	$rs = $this->Titles();
 	$rc = $rs->GetItem($id);
 	return $rc;
     }
-  private function DoCatTitle() {
-    CallEnter($this,__LINE__,'clsPage.DoCatTitle()');
+    private function DoCatTitle() {
+	CallEnter($this,__LINE__,'clsPage.DoCatTitle()');
 
-    $strPageKey = $this->objCatPage->Path;
-//    $objTitleTbl = VbzClasses::Titles();
-//    $objTitleTbl = $this->Titles();
+	$strPageKey = $this->objCatPage->Path;
 
-    $idRow = $this->objCatPage->ID_Row;
-    //$objTitle = $objTitleTbl->GetItem($idRow);
-    $objTitle = $this->TitleObj($idRow);
-    assert('is_object($objTitle)');
-    $objDept = $objTitle->Dept();
-    assert('is_object($objDept)');
-    $objSupp = $objDept->Supplier();
-    assert('is_object($objSupp)');
-    $strTitleName = $objTitle->Name;
+	$idRow = $this->objCatPage->ID_Row;
+	$objTitle = $this->TitleObj($idRow);
+	assert('is_object($objTitle)');
+	$objDept = $objTitle->Dept();
+	assert('is_object($objDept)');
+	$objSupp = $objDept->Supplier();
+	assert('is_object($objSupp)');
+	$strTitleName = $objTitle->Name;
 
-    $this->DoTitleIndicia($objTitle);
+	$this->DoTitleIndicia($objTitle);
 
-//    $this->strAbbr	= 'title:'.strtoupper($strCatNum);
-    $this->strWikiPg	= 'title:'.$objTitle->CatNum();
-//print 'ABBR='.$this->strAbbr;
-    $this->strTitle	= $strTitleName;
-    $this->strName	= $strPageKey.' "'.$strTitleName.'" from '.$objSupp->Name;
-    $this->strTitleContext 	= 
-      'items <a href="'.KWP_CAT_REL.
-      '">supplied</a> by '.$objSupp->Link().'\'s '.
-      $objDept->LinkName().' department:';
-    $objTitle->hideImgs = $this->hideImgs;
-    $this->AddText($objTitle->DoPage());
-    CallExit('clsPage.DoCatTitle()');
-  }
-  private function DoCatImage() {
-    $rc = $this->objCatPage->ItemObj();
-/*
-    $objImageTbl = $objTitle->ShopPage_Images();
-    $objImage = $objImageTbl->GetItem($this->objCatPage->ID_Row);
-    $objImage->DoPage();
-*/
-    return $rc->DoPage();
-  }
+    //    $this->strAbbr	= 'title:'.strtoupper($strCatNum);
+	$this->strWikiPg	= 'title:'.$objTitle->CatNum();
+    //print 'ABBR='.$this->strAbbr;
+	$this->TitleStr($strTitleName);
+	$this->NameStr($strPageKey.' "'.$strTitleName.'" from '.$objSupp->Name);
+	$this->TCtxtStr( 
+	  'items <a href="'.KWP_CAT_REL.
+	  '">supplied</a> by '.$objSupp->Link().'\'s '.
+	  $objDept->LinkName().' department:'
+	  );
+	$objTitle->hideImgs = $this->hideImgs;
+	$this->AddText($objTitle->DoPage());
+	CallExit('clsPage.DoCatTitle()');
+    }
+    private function DoCatImage() {
+	$rc = $this->objCatPage->ItemObj();
+    /*
+	$objImageTbl = $objTitle->ShopPage_Images();
+	$objImage = $objImageTbl->GetItem($this->objCatPage->ID_Row);
+	$objImage->DoPage();
+    */
+	return $rc->DoPage();
+    }
 }
 /*%%%%
   PURPOSE: extends clsSuppliers to handle store UI interactions
@@ -286,7 +267,7 @@ class clsSuppliers_StoreUI extends clsSuppliers {
 	parent::__construct($iDB);
 	  $this->ClassSng('clsSupplier_StoreUI');
     }
-    public function Page(clsVbzSkin $iPage=NULL) {
+    public function Page(clsVbzPage $iPage=NULL) {
 	if (!is_null($iPage)) {
 	    $this->objPage = $iPage;
 	}
@@ -406,7 +387,7 @@ class clsTitles_StoreUI extends clsVbzTitles {
 	parent::__construct($iDB);
 	  $this->ClassSng('clsTitle_StoreUI');
     }
-    public function Page(clsVbzSkin $iPage=NULL) {
+    public function Page(clsVbzPage $iPage=NULL) {
 	if (!is_null($iPage)) {
 	    $this->objPage = $iPage;
 	}
@@ -800,7 +781,7 @@ class clsImages_StoreUI extends clsImages {
 	parent::__construct($iDB);
 	  $this->ClassSng('clsImage_StoreUI');
     }
-    public function Page(clsVbzSkin $iPage=NULL) {
+    public function Page(clsVbzPage $iPage=NULL) {
 	if (!is_null($iPage)) {
 	    $this->objPage = $iPage;
 	}

@@ -1,69 +1,64 @@
 <?php
 /*
   PURPOSE: shopping cart stuff -- store UI
+  VARIANT: for display while shopping
+    Note that there is no variant for checkout, because
+    the checkout page class just calls the cart object to display itself.
   HISTORY:
     2012-05-14 extracted from cart.php
 */
-if (!defined('LIBMGR')) {
-    require(KFP_LIB.'/libmgr.php');
-}
-
-clsLibMgr::Add('vbz.pages',	KFP_LIB_VBZ.'/pages.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzSkin_Standard', 'vbz.pages');
-clsLibMgr::Add('vbz.shop',	KFP_LIB_VBZ.'/shop.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsShopSessions', 'vbz.shop');
-
-class clsPageCart extends clsVbzSkin_Standard {
-    protected $objSess;
-    protected $objCart;
-
+class clsPageBrowse_Cart extends clsVbzPage_Browse {
+/*
+    public function TitleStr() {
+	return 'Shopping Cart';
+    }
+    public function TCtxtStr() {
+	return 'this is your...';
+    }
+    protected function NameStr() {
+	return 'cart';
+    }
+*/
     /*----
       ACTION: Cart does not use URL data; all info passed via POST.
 	So this implementation does nothing (but must be defined
 	so class is not abstract).
     */
-    protected function ParseInput() {}
+    protected function ParseInput() {
+	$this->TCtxtStr('this is your...');
+	$this->TitleStr('Shopping Cart');
+	$this->NameStr('cart');
+    }
+    /*-----
+      ACTION: render HTML header (no directly visible content)
+    */
+    protected function RenderHtmlHdr() {
+	return $this->Skin()->RenderHtmlHdr($this->TitleStr(),'cart');
+    }
 
 // process functions
     /*----
       NOTE: To have a message show up only on cart and checkout pages, put it after DoPreContent().
     */
+/*
     public function DoPreContent() {
-	$this->inCkout = FALSE;	// (2011-04-01) not sure why this is sometimes not getting set
 	parent::DoPreContent();
     }
-    /*----
-      INPUT: $iCaller is for debugging and is discarded; caller should pass __METHOD__ as the argument.
-    */
-    public function GetObjects($iCaller) {
-	$tbl = $this->Data()->Sessions();
-	$tbl->Page($this);
-	$this->objSess = $tbl->GetCurrent();	// get whatever session is currently applicable (existing or new)
-	$this->objCart = $this->objSess->CartObj();
-	$this->objCart->objSess = $this->objSess;	// used for logging
-    }
-    public function Cart($iObj=NULL) {
-	if (!is_null($iObj)) {
-	    $this->objCart = $iObj;
-	}
-	return $this->objCart;
-    }
+*/
     protected function HandleInput() {
-	$this->GetObjects(__METHOD__);
-	$this->objCart->CheckData();	// check for any form data (added items, recalculations, etc.)
-
-	$this->strSheet	= 'cart';	// cart stylesheet has a few different things in it
-
-	$this->strWikiPg	= '';
-	$this->strTitle	= 'Shopping Cart';	// Displayed title (page header)
-	$this->strName	= 'shopping cart';	// HTML title
-	$this->strTitleContext	= 'this is your'; // 'Tomb of the...';
-	$this->strHdrXtra	= '';
-	$this->strSideXtra	= ''; //'<dt><b>Cat #</b>: '.$this->strReq;
-	$this->strSheet	= KSQ_PAGE_CART;	// default
+	$this->CartObj()->CheckData();	// check for any form data (added items, recalculations, etc.)
     }
     public function DoContent() {
-	echo $this->objCart->Render();
+	echo $this->CartObj()->Render();
+    }
+/*
+    public function NavArray() {
+	return NULL;
+    }
+*/
+    public function CartObj() {
+	//return $this->objCart;	// document where this is set!
+	return $this->App()->Session()->CartObj_forShopping();
     }
 }
 class clsSessions_StoreUI extends clsShopSessions {
@@ -73,8 +68,8 @@ class clsSessions_StoreUI extends clsShopSessions {
 	parent::__construct($iDB);
 	  $this->ClassSng('clsSession_StoreUI');
     }
-
-    public function Page(clsVbzSkin $iPage=NULL) {
+/* 2013-10-14 Why does the Session need to know the Page? And if it does need it, shouldn't it get it from the Engine?
+    public function Page(clsVbzPage $iPage=NULL) {
 	if (!is_null($iPage)) {
 	    $this->objPage = $iPage;
 	}
@@ -83,10 +78,25 @@ class clsSessions_StoreUI extends clsShopSessions {
 	}
 	return $this->objPage;
     }
+*/
 }
+/*%%%%
+  HISTORY:
+    2013-10-13 I don't even remember why I needed this to be separate
+      from the base class, except that any UI methods should be here
+      rathar than there... but the only two methods here (IsCartUsable and 
+      CartObj) do not seem to do any UI... so I am moving them back to
+      the base class, in order to minimize confusion.
+*/
 class clsSession_StoreUI extends clsShopSession {
     /*----
       RETURNS: TRUE if the cart is usable within the current context
+	This now means that it just asks the cart if it's locked.
+	Locked = not usable.
+	The rules used to be more complex; keeping them around until
+	  I understand if they were really necessary or not.
+
+      OLD RULES:
 	If we're displaying checkout stuff, it's okay to use a cart
 	  which has already been turned into an order.
 	If we're still in the cart-editing phase, then we need to
@@ -95,45 +105,4 @@ class clsSession_StoreUI extends clsShopSession {
 	  create completely new order...).
       NOTE: This is actually a UI function, even though it just returns a boolean.
     */
-    private function IsCartUsable($iCart) {
-	if ($this->Table()->Page()->inCkout) {
-	    // for voided, still need a new cart; ordered is ok
-	    return !$iCart->IsVoided();
-	} else {
-	    // ordered or voided means we need a new cart
-	    return !$iCart->IsLocked();
-	}
-    }
-    /*
-      NOTE: This is actually a store UI function, even though it returns an object.
-	If any non-store-UI code needs to get a cart object, they should get it more
-	  directly (via Order, Session, etc.)
-    */
-    public function CartObj() {
-// if there's a cart for this session, load it; otherwise create a new one but don't save it:
-	if (!isset($this->objCart)) {
-	    $objCarts = $this->objDB->Carts();
-	    if (!is_null($this->ID_Cart)) {
-		$objCart = $objCarts->GetItem($this->ID_Cart);
-/*
-		// KLUGE for testing - should not normally be necessary:
-		if ($this->objCart->ID_Sess==0) {
-		    $this->objCart->ID_Sess = $this->ID;
-		    $this->objCart->Update(array('ID_Sess'=>$this->ID));
-		}
-*/
-		if (!$this->IsCartUsable($objCart)) {
-		    $this->ID_Cart = NULL;	// get a new cart if the order is locked
-		}
-	    }
-	    if (is_null($this->ID_Cart)) {
-		$objCart = $this->objDB->Carts()->SpawnItem();
-		$objCart->InitNew($this->ID);
-	    }
-	}
-	assert('is_object($objCart);');	// we should always have a cart at this point
-	$this->objCart = $objCart;
-	return $objCart;
-    }
-
 }

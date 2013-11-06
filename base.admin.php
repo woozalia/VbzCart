@@ -82,6 +82,10 @@ class clsVbzAdminData extends clsVbzData {
     public function Sessions() {
 	return $this->Make('VbzAdminSessions');
     }
+    // this duplicates clsVbzData_Shop
+    public function Clients($id=NULL) {
+	return $this->Make('clsShopClients',$id);
+    }
     public function Carts() {
 	return $this->Make('VbzAdminCarts');
     }
@@ -142,9 +146,11 @@ class clsVbzAdminData extends clsVbzData {
     public function CustCards() {
 	return $this->Make('VbzAdminCustCards');
     }
+/* needed for shopping too
     public function CustEmails() {
 	return $this->Make('clsAdminCustEmails');
     }
+*/
     public function CustPhones() {
 	return $this->Make('clsAdminCustPhones');
     }
@@ -154,4 +160,17 @@ class clsVbzAdminData extends clsVbzData {
     public function Catalogs() {
 	return $this->Make('VbzAdminCatalogs');
     }
+
+// specialized functions
+
+    /*----
+      RETURNS: clsShopSessions::GetCurrent() - current session object, or NULL
+    */
+/*
+    public function Session() {
+	$tSess = $this->Sessions();
+	$oSess = $tSess->GetCurrent();
+	return $oSess;
+    }
+*/
 }

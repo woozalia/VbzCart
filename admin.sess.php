@@ -19,6 +19,6 @@ class VbzAdminSessions extends clsShopSessions {
 }
 class VbzAdminSession extends clsShopSession {
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
 }

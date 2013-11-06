@@ -1,14 +1,14 @@
 <?php
-/*
+/* ####
   FILE: page-search.php
   HISTORY:
     2012-07-13 extracting search page class from search/index.php
 */
-
-clsLibMgr::Add('vbz.pages',	KFP_LIB_VBZ.'/pages.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzSkin_Standard','vbz.pages');
-
-class clsPageSearch extends clsVbzSkin_Standard {
+/*
+  CLASS: clsPageSearch
+  PURPOSE: search catalog database
+*/
+class clsPageSearch extends clsVbzPage_Browse {
     private $arReq;
     private $strSearch;
 
@@ -19,18 +19,26 @@ class clsPageSearch extends clsVbzSkin_Standard {
 	$strSearchRaw = NzArray($this->arReq,'search');
 	$this->strSearch = $this->Data()->SafeParam($strSearchRaw);
     }
-    /*-----
-      IMPLEMENTATION: do the database search
-    */
+    public function TitleStr($iText=NULL) {
+	return 'Catalog Search';
+    }
+    public function TCtxtStr($iText=NULL) {
+	return '';
+    }
+    protected function NameStr($iText=NULL) {
+	return 'search the catalog';
+    }
+/*
     protected function HandleInput() {
 	parent::HandleInput();
 	$this->strWikiPg	= 'search';
 	$this->strTitle		= 'Catalog Search';
-	$this->strName		= 'search the catalog';
+	$this->strName		= 
 	$this->strTitleContext	= '';
 	$this->strHdrXtra	= '';
 	//$this->strSideXtra	= '<dt><b>Cat #</b>: '.$this->strReq;
     }
+*/
     public function DoContent() {
 	echo '<table class=catalog-summary><tr><td>';	// LATER: use a more appropriate style-name
 
@@ -54,7 +62,7 @@ class clsPageSearch extends clsVbzSkin_Standard {
 	    $out = 'Please enter some text to search for.';
 	} else {
 	    // create object to handle title list
-	    $lstTitles = new clsTitleList($this->Data()->Titles(),$this->Data()->Images());
+	    $lstTitles = new clsTitleLister($this->Data()->Titles(),$this->Data()->Images());
 
 	    // Title name search
 	    $objRows = $objTitles->Search_forText($strFind);
@@ -154,79 +162,5 @@ class clsPageSearch extends clsVbzSkin_Standard {
 	    $out .= '</table>';
 	}
 	echo $out;
-    }
-}
-
-class clsTitleList {
-    private $tblTitles;
-    private $tblImages;
-    private $arTitles;
-
-    public function __construct(clsVbzTitles $iTitles, clsImages $iImages) {
-	$this->tblTitles = $iTitles;
-	$this->tblImages = $iImages;
-	$this->arTitles = NULL;
-    }
-    /*----
-      INPUT:
-	iRow: if not given, row will be retrieved from database at render time.
-	  This is probably more efficient anyway, since it avoids duplicate lookups.
-    */
-    public function Add($id,array $iRow=NULL) {
-	if (!isset($this->arTitles[$id])) {
-	    $this->arTitles[$id] = $iRow;
-	}
-    }
-    public function Reset() {
-	$this->arTitles = array();
-    }
-    public function Count() {
-	return count($this->arTitles);
-    }
-    public function Render() {
-	$tblTitles = $this->tblTitles;
-	$tblImages = $this->tblImages;
-	$arTitles = $this->arTitles;
-	
-	$obj = $tblTitles->SpawnItem();
-	$ftTextActive = NULL;
-	$ftTextRetired = NULL;
-	$ftImgs = NULL;
-	$cntTiAct = 0;
-	$cntTiAll = 0;
-	foreach ($arTitles as $id => $arT) {
-	    if (is_array($arT)) {
-		$obj->Values($arT);
-	    } else {
-		$obj = $tblTitles->GetItem($id);
-	    }
-
-	    $arStats = $obj->Indicia();
-	    $cntTiAll++;
-	    // this is probably going to produce inconsistent results if cnt.active can be >1
-	    $cntTiAct += $arStats['cnt.active'];
-
-	    //$intActive = $arStats['cnt.active'];
-	    $txtCatNum = $arStats['txt.cat.num'];
-	    $ftLine = $arStats['ht.cat.line'];
-	    $htLink = $arStats['ht.link.open'];
-	    $txtName = $obj->Name;
-
-	    if ($cntTiAct) {
-		$ftTextActive .= $ftLine.' - '.$cntTiAct.' item'.Pluralize($cntTiAct).'<br>';
-	    } else {
-		$ftTextRetired .= $ftLine.'<br>';
-	    }
-	    $txtTitle = $txtCatNum.' &ldquo;'.$txtName.'&rdquo;';
-
-	    $ftImgs .= $htLink.$tblImages->Thumbnails($id,array('title'=>$txtTitle)).'</a>';
-	}
-	$arOut['txt.act'] = $ftTextActive;
-	$arOut['txt.ret'] = $ftTextRetired;
-	$arOut['img'] = $ftImgs;
-	$arOut['cnt.act'] = $cntTiAct;
-	$arOut['cnt.all'] = $cntTiAll;
-	$this->Reset();
-	return $arOut;
     }
 }

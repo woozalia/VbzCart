@@ -9,42 +9,16 @@
   2010-06-12 (Wzl) A little cleanup; clsTopic::Titles()
   2010-06-14 (Wzl) clsVbzTable::GetItem() handles non-numeric IDs by creating new object and passing along ID
   2011-01-18 (Wzl) moved clsTopic(s) to topic.php
+  2011-01-25 (Wzl) extracted clsVbzTable and clsVbzRecs to vbz-data.php
   2012-04-18 (Wzl) significant rewriting of cart access
     Removing globals: $fpTools, $fwpLogo
 */
 define('kEmbeddedPagePrefix','embed:');
 
-/*
-if (defined( '__DIR__' )) {
-  $fpThis = __DIR__;
-} else {
-  $fpThis = dirname(__FILE__);
-}
-*/
-if (!defined('LIBMGR')) {
-    require(KFP_LIB.'/libmgr.php');
-}
-clsLibMgr::Add('strings',	KFP_LIB.'/strings.php',__FILE__,__LINE__);
-clsLibMgr::Add('string.tplt',	KFP_LIB.'/StringTemplate.php',__FILE__,__LINE__);
-clsLibMgr::Add('cache'	,	KFP_LIB.'/cache.php',__FILE__,__LINE__);
-clsLibMgr::Add('dtree',		KFP_LIB.'/dtree.php',__FILE__,__LINE__);
-clsLibMgr::Add('events',	KFP_LIB.'/events.php',__FILE__,__LINE__);
-clsLibMgr::Add('vbz.data',	KFP_LIB_VBZ.'/vbz-data.php',__FILE__,__LINE__);
-clsLibMgr::Add('vbz.shop',	KFP_LIB_VBZ.'/shop.php',__FILE__,__LINE__);
-clsLibMgr::Add('vbz.cat',	KFP_LIB_VBZ.'/base.cat.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsCatPages','vbz.cat');
-  clsLibMgr::AddClass('clsCatPage','vbz.cat');
-clsLibMgr::Add('vbz.cat.page',	KFP_LIB_VBZ.'/page-cat.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsTitles_StoreUI','vbz.cat.page');
-clsLibMgr::Add('topic',		KFP_LIB_VBZ.'/topic.php',__FILE__,__LINE__);
-
-clsLibMgr::Load('strings',__FILE__,__LINE__);
-clsLibMgr::Load('string.tplt',__FILE__,__LINE__);
-clsLibMgr::Load('cache',__FILE__,__LINE__);
-clsLibMgr::Load('dtree',__FILE__,__LINE__);
-clsLibMgr::Load('events',__FILE__,__LINE__);
-clsLibMgr::Load('vbz.data',__FILE__,__LINE__);
-clsLibMgr::Load('topic',__FILE__,__LINE__);
+require_once('site.php');
+require_once(KFP_LIB.'/modloader.php');
+require_once('config-libs.php');
+require_once(KFP_LIB.'/config-libs.php');
 
 define('EN_PGTYPE_NOTFND',-1);	// requested item (supp/dept/title) not found
 define('EN_PGTYPE_HOME',1);	// catalog home page
@@ -75,13 +49,14 @@ $intCallDepth = 0;
 // CALCULATED GLOBALS
 //$fpTools = '/tools';
 $fpPages = '';
+/*
 $fwpAbsPages = 'http://'.KS_PAGE_SERVER.$fpPages;
 //$fwpAbsTools = 'http://'.KS_TOOLS_SERVER.$fpTools;
 $fwpCart = $fwpAbsPages.'/cart/';
+clsModule::LoadFunc('NzArray');	// make sure this function is loaded
 $strCurServer = NzArray($_SERVER,'SERVER_NAME');
 
 // SET UP DEPENDENT VALUES
-/*
 if ($strCurServer != KS_TOOLS_SERVER) {
   $fpTools = $fwpAbsTools;
   $fpPages = $fwpAbsPages;
@@ -99,10 +74,13 @@ class clsVbzData extends clsDatabase {
 //    protected $objPages;	// who uses this?
 
     public function __construct($iSpec) {
+	global $vgoDB;
+
 	parent::__construct($iSpec);
 	$this->Open();
+	$vgoDB = $this;
 
-	clsLibMgr::AddClass('clsSuppliers_StoreUI','vbz.cat');
+//	clsLibMgr::AddClass('clsSuppliers_StoreUI','vbz.cat');
     }
     public function App(clsVbzApp $iApp=NULL) {
 	if (!is_null($iApp)) {
@@ -177,22 +155,38 @@ class clsVbzData extends clsDatabase {
     public function Events($id=NULL) {
 	return $this->Make('clsEvents',$id);
     }
+/*
+    public function Users($id=NULL) {
+	return $this->Make('clsVbzUsers',$id);
+    }
+*/
+    // needed for both shopping and admin
+    public function CustEmails() {
+	return $this->Make('clsAdminCustEmails');
+    }
+
+    // SPECIALIZED STUFF
     public function LogEvent($iWhere,$iParams,$iDescr,$iCode,$iIsError,$iIsSevere) {
 	return $this->Events()->LogEvent($iWhere,$iParams,$iDescr,$iCode,$iIsError,$iIsSevere);
     }
-// Page output routines
-/*
-    public function Formatter() {
-	if (!isset($this->objFmt)) {
-	    $this->objFmt = new clsPageOutput();
-	}
-	return $this->objFmt;
-    }
-    public function SectionHdr($iTitle) {
-	$this->Formatter()->Clear();
-	return $this->Formatter()->SectionHdr($iTitle);
-    }
+    public function CryptObj() {
+	if (!isset($this->objCrypt)) {
+//	    $this->objCrypt = new Cipher($this->strCryptKey);
+	    $this->objCrypt = new vbzCipher();
+	    $objVars = $this->VarsGlobal();
+/* 2013-09-09 no longer used
+	    if ($objVars->Exists('crypt_seed')) {
+		$strSeed = $objVars->Val('crypt_seed');
+		$this->objCrypt->Seed($strSeed);
+	    } else {
+		$strSeed = $this->objCrypt->MakeSeed();
+		$objVars->Val('crypt_seed',$strSeed);
+	    }
 */
+	    $intOrdLast = $objVars->Val('ord_seq_prev');
+	}
+	return $this->objCrypt;
+    }
     /*----
       NOTES:
 	2011-02-02 This really should somehow provide a more general service. Right now, it's only used for displaying
@@ -204,14 +198,15 @@ class clsVbzData extends clsDatabase {
 	  * Removed assertion that $objImgs->Res is a resource, because if there are no thumbnails for this title,
 	    then apparently it isn't, and apparently RowCount() handles this properly.
 	  * Also fixed references to qtyForSale -- should be qtyInStock.
+	2013-02-09 commenting out; use clsTitleList::Render()
     */
-    public function ShowTitles($iHdrText,$iList,$objNoImgSect) {
+/*
+    public function ShowTitles($iHdrText,$iList,clsVbzPage $iPage) {
 	$cntImgs = 0;
 	$outImgs = '';
 	foreach ($iList as $i => $row) {
 	    $objTitle = $this->Titles()->GetItem($row['ID']);
 	    $objImgs = $objTitle->ListImages('th');
-	    //assert('is_resource($objImgs->Res); /* TYPE='.get_class($objImgs).' SQL='.$objImgs->sqlMake.' */');
 	    $currMinPrice = $row['currMinPrice'];
 	    $currMaxPrice = $row['currMaxPrice'];
 	    $strPrice = DataCurr($currMinPrice);
@@ -232,28 +227,35 @@ class clsVbzData extends clsDatabase {
 		$outImgs .= $strTitleLink.'<img class="thumb" src="'.$objImgs->WebSpec().'" title="'.$strImgTag.'"></a>';
 	      }
 	    } else {
-		if (!$objNoImgSect->inTbl) {
-		    $objNoImgSect->StartTable('titles without images:');
-		    $objNoImgSect->AddText('<tr class=main><th>Cat. #</th><th>Title</th><th>Price<br>Range</th><th>to<br>order</th><th>status</th></tr>');
-		}
-		$objNoImgSect->RowStart();
-		$objNoImgSect->ColAdd('<b>'.$objTitle->CatNum().'</b>');
-		$objNoImgSect->ColAdd($objTitle->Name);
-		$objNoImgSect->ColAdd($strPrice);
-		$objNoImgSect->ColAdd('<b>[</b>'.$objTitle->Link().'order</a><b>]</b>');
+
+		$iPage->NewSection('titles without images:');
+		$objTbl = $iPage->NewTable();
+		$objRow = $objTbl->NewHeader();
+		$objRow->ClassName('main');
+		$objRow->NewCell('Cat. #');
+		$objRow->NewCell('Title');
+		$objRow->NewCell('Price');
+		$objRow->NewCell('Range');
+		$objRow->NewCell('to<br>order');
+		$objRow->NewCell('status');
+
+		$objRow = $objTbl->NewRow();
+		$objRow->NewCell('<b>'.$objTitle->CatNum().'</b>');
+		$objRow->NewCell($objTitle->Name);
+		$objRow->NewCell($strPrice);
+		$objRow->NewCell('<b>[</b>'.$objTitle->Link().'order</a><b>]</b>');
 		$qtyStk = $row['qtyInStock'];
 		if ($qtyStk) {
 		    $strStock = '<b>'.$qtyStk.'</b> in stock';
 		    if ($row['cntInPrint'] == 0) {
 			$strStock .= ' - OUT OF PRINT!';
 		    }
-		    $objNoImgSect->ColAdd($strStock);
+		    $objRow->NewCell($strStock);
 		} else {
-		    $objNoImgSect->ColAdd('<a title="explanation..." href="'.KWP_HELP_NO_STOCK_BUT_AVAIL.'">available, not in stock</a>');
+		    $objRow->NewCell('<a title="explanation..." href="'.KWP_HELP_NO_STOCK_BUT_AVAIL.'">available, not in stock</a>');
 	// Debugging:
 	//          $objNoImgSect->ColAdd('ID_Title='.$objTitle->ID.' ID_ItTyp='.$objTitle->idItTyp);
 		}
-		$objNoImgSect->RowStop();
 	    }
 	}
 	$out = '';
@@ -263,6 +265,7 @@ class clsVbzData extends clsDatabase {
 	}
 	return $out;
     }
+*/
 }
 
 /* ======================
@@ -333,14 +336,6 @@ class clsGlobalVars extends clsTable {
 	    return $this->SetVar($iName,$iValue);
 	}
     }
-/*
-    public function __set($iName, $iValue) {
-	$this->SetVar($iName,$iValue);
-    }
-    public function __get($iName) {
-	return $this->GetVar($iName);
-    }
-*/
 }
 /* ==================== *\
     UTILITY FUNCTIONS
@@ -402,8 +397,9 @@ function ArrayToAttrs(array $iarAttr=NULL) {
     MISSING FUNCTIONS
 \* ==================== */
 if (!function_exists('http_redirect')) {
-    function http_redirect($iURL) {
-	header('Status: 301 Moved Permanently',TRUE);
+    function http_redirect($iURL,$iMsg='Redirecting') {
+	//header('Status: 301 Moved Permanently',TRUE);
+	header('Status: 303 '.$iMsg);
 	header('Location: '.$iURL,TRUE);
     }
 }

@@ -3,10 +3,10 @@
   HISTORY:
     2012-04-17 extracting from shop.php
 */
-
+/*
 clsLibMgr::Add('vbz.orders',	KFP_LIB_VBZ.'/orders.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsOrderLines', 'vbz.orders');
-
+*/
 class clsShopCartLines extends clsTable {
     const TableName='shop_cart_line';
 
@@ -176,13 +176,14 @@ class clsShopCartLine extends clsDataSet {
 	$this->DescHtml = $htmItemDesc;
 
 // save so cart can figure totals;
-	$idsZone = $iZone->Abbr();
-	$this->ShipPkgDest = $objItem->ShipPricePkg($idsZone);
-	$this->ShipItmDest = $objItem->ShipPriceItem($idsZone);
+	//$idsZone = $iZone->Abbr();
+	$this->ShipPkgDest = $objItem->ShipPricePkg($iZone);
+	$this->ShipItmDest = $objItem->ShipPriceItem($iZone);
 
 // calculate costs:
 	$this->CostItemQty = $this->Qty * $this->PriceItem;
 	$this->CostShipQty = $this->Qty * $this->ShipItmDest;
+
     }
     /*
       ACTION: Render the current cart line using static HTML (no form elements; read-only)
@@ -190,7 +191,6 @@ class clsShopCartLine extends clsDataSet {
 	2011-04-01 adapting this to use clsOrdLine->RenderStatic()
     */
     public function RenderHtml(clsShopCart $iCart) {
-
 	$objOLine = $this->Engine()->OrdLines()->SpawnItem();
 	$objZone = $iCart->ShipZoneObj();
 	$this->RenderCalc($objZone);	// calculate some needed fields

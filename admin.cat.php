@@ -83,7 +83,7 @@ class VbzAdminCatalog extends clsDataSet {
 	2010-10-11 Replaced existing code with call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminLink_name() {
 	$out = $this->AdminLink($this->Name);
@@ -211,19 +211,22 @@ class VbzAdminCatalog extends clsDataSet {
 	$vgPage->UseHTML();
 	$objPage = new clsWikiFormatter($vgPage);
 	//$objSection = new clsWikiAdminSection($strName);
-	$objSection = new clsWikiSection($objPage,$strName);
-	//$out = $objSection->HeaderHtml_Edit();
-	//$objSection->ActionAdd('view');
-	$out = $objSection->Generate();
+	//$objSection = new clsWikiSection($objPage,$strName);
+	$objSection = new clsWikiSection_std_page($objPage,$strName);
+	$objSection->AddLink_local(new clsWikiSectionLink_keyed(array('edit'=>TRUE),'edit'));
+
+	$out = $objSection->Render();
 
 	$wgOut->AddHTML($out); $out = '';
 
 	$this->HandleEntry();
 
 	if (!$isNew) {
-	    $objSection = new clsWikiSection($objPage,'Current Record',NULL,3);
-	    $objSection->ToggleAdd('edit');
-	    $out = $objSection->Generate();
+	    //$objSection = new clsWikiSection($objPage,'Current Record',NULL,3);
+	    //$objSection->ToggleAdd('edit');
+	    $objSection = new clsWikiSection_std_page($objPage,'Current Record',3);
+	    $objSection->AddLink_local(new clsWikiSectionLink_keyed(array('edit'=>TRUE),'edit'));
+	    $out = $objSection->Render();
 	}
 	if ($doEdit || $doSave) {
 	    $this->BuildEditForm();

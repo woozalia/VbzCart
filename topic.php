@@ -113,7 +113,6 @@ class clsTopics extends clsVbzTable {
 	//$this->AddLayer($arLayer,$objRoot,-1);	// build the node tree
 	$ar = $this->LoadTitleStats();
 	$this->AddLayer($arLayer,$objFakeRoot,0,$ar);	// build the node tree
-
 	$out = $objTree->RenderPageHdr();	// this belongs in a different place eventually
 	$out .= $objRoot->RenderTree();
 

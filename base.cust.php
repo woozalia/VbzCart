@@ -14,6 +14,7 @@
   HISTORY:
     2011-02-22 extracted from shop.php
 */
+/*
 class clsCustData {
     public function Custs() {
 	return $this->Make('clsCusts');
@@ -34,6 +35,7 @@ class clsCustData {
 	return $this->Make('clsCustCards_dyn');
     }
 }
+*/
 /* ===================
  CUSTOMER INFO CLASSES
 */
@@ -131,6 +133,7 @@ class clsCusts extends clsTable_key_single {
 	2011-12-17 started
 	2012-04-26 iID can be NULL (code already supports this)
     */
+/* 2013-10-21 DEPRECATED -- this whole area needs rewriting
     public function Make_Script($iID=NULL) {
 	if (is_null($iID)) {
 	    $ar = array(
@@ -146,6 +149,7 @@ class clsCusts extends clsTable_key_single {
 	}
 	return $act;
     }
+*/
     /*-----
       RETURNS: object of class-singular type
       STATUS: DEPRECATED - use scripting instead
@@ -157,6 +161,7 @@ class clsCusts extends clsTable_key_single {
       HISTORY:
 	2011-03-23 renamed - Make_fromObj() -> Make_fromCartAddr()
     */
+/*
     public function Make_fromCartAddr(clsCartAddr $iAddrObj) {
 	$strName = $iAddrObj->Name()->Value();
 
@@ -181,6 +186,7 @@ class clsCusts extends clsTable_key_single {
 	    return NULL;
 	}
     }
+*/
     /*----
       ACTION:
 	Create or find a customer address record from the given address object.
@@ -306,6 +312,17 @@ class clsCust extends clsRecs_key_single {
     public function Addrs() {
 	$tbl = $this->objDB->CustAddrs();
 	$rc = $tbl->GetData('ID_Cust='.$this->KeyValue());
+	return $rc;
+    }
+    /*----
+      RETURNS: recordset of default address for this customer
+    */
+    public function AddrObj() {
+	$id = $this->Value('ID_Addr');
+	$rc = $this->Engine()->CustAddrs($id);
+	if ($rc->HasRows()) {
+	    $rc->NextRow();	// load first row
+	}
 	return $rc;
     }
     /*----
@@ -838,25 +855,32 @@ class clsCustAddr extends clsDataSet {
 	$strZip = $this->Zip;
 	$strCountry = $this->Country;
 
-	$out = $strStreet.$iLineSep.$strTown;
+	$out = $strStreet;
+	if (!empty($out) && !empty($strTown)) {
+	    $out .= $iLineSep.$strTown;
+	}
 	if (!empty($strState)) {
 	    $out .= ', '.$strState;
 	}
 	if (!empty($strZip)) {
 	    $out .= ' '.$strZip;
 	}
-	if (!empty($strCountry)) {
+	if (!empty($strCountry) && !empty($out)) {
 	    $out .= $iLineSep.$strCountry;
 	}
 	return $out;
+    }
+    public function SearchString() {
+	$xts = new xtString($this->AsString(''),TRUE);
+	$xts->ReplaceSequence("\n ",'');	// remove all newlines and spaces
+	$strSearch = strtolower($xts->Value);
+	return $strSearch;
     }
     /*
       RETURNS: array of calculated values to update
     */
     protected function CalcUpdateArray() {
-	$xts = new xtString($this->AsString(''),TRUE);
-	$xts->ReplaceSequence("\n ",'');	// remove all newlines and spaces
-	$strSearch = strtolower($xts->Value);
+	$strSeach = $this->SearchString();
 	$strFull = $this->AsString();
 	$arUpd = array(
 	  'Full'	=> $strFull,
@@ -894,6 +918,48 @@ class clsCustAddr extends clsDataSet {
 }
 // == CUSTOMER EMAIL ADDRESS
 class clsCustEmails extends clsTable {
+
+    // +STATIC
+
+    protected static function AuthURL($idEmail,$sToken) {
+	$sTokenHex = bin2hex($sToken);
+	//$url = 'https://'.$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].'?auth='.$sTokenHex.'&e='.$idEmail;	// old format
+	$url = 'https://'.$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"]."?auth=$idEmail:$sTokenHex";
+	return $url;
+    }
+    /*----
+      NOTE: using $_REQUEST instead of $_GET because the auth token is initially passed by GET
+	(when it is in the emailed URL) but after that it is sent by POST (hidden element in
+	forms). I can't see any security reason not to accept it as a cookie as well, although
+	for now it's probably more secure not to *pass* it that way because of public computers.
+	Restricting it to GET and POST means that when the user closes the window/tab, any
+	incomplete login process is discontinued (unless someone thinks to reopen the tab).
+    */
+    protected static function ParseAuth() {
+	$sAuth = $_REQUEST['auth'];
+
+	$idEmail = strtok($sAuth, ':');	// string before ':' is email ID
+	$sTokHex = strtok(':');			// string after ':' is token (in hexadecimal)
+	//$sToken = hex2bin($sTokHex);		// requires PHP 5.4
+	$sToken = pack("H*",$sTokHex);		// equivalent to hex2bin()
+	$arOut = array(
+	  'auth'	=> $sAuth,	// unparsed -- for forms
+	  'email'	=> $idEmail,
+	  'token'	=> $sToken
+	  );
+	return $arOut;
+    }
+
+    // -STATIC
+    // +BOILERPLATE
+
+    protected function App() {
+	return $this->Engine()->App();
+    }
+
+    // -BOILERPLATE
+    // +DYNAMIC
+
     const TableName='cust_emails';
 
     public function __construct($iDB) {
@@ -908,12 +974,17 @@ class clsCustEmails extends clsTable {
 	2011-09-23 revised to use revised MakeFilt()
 	2012-04-19 iCustID was not being set anywhere; this must have been unused
     */
-    public function Find($iName,$iCustID=NULL) {
+    public function Find($iValue,$iCustID=NULL) {
 	//$strSrch = strtolower($iName);
 	//$objRows = $this->GetData('Email="'.$strSrch.'"');
-	$sqlFilt = $this->MakeFilt_Cust($iName,$iCustID);
+	$sqlFilt = $this->MakeFilt_Cust($iValue,$iCustID);
 	$objRows = $this->GetData($sqlFilt);
 	return $objRows;
+    }
+    public function Find_forCust($iCustID) {
+	$sql = 'ID_Cust='.$iCustID;
+	$rs = $this->GetData($sql);
+	return $rs;
     }
 /* 2011-09-23 this version deprecated until we discover who is using it
     protected function MakeFilt(array $iData) {
@@ -934,6 +1005,53 @@ class clsCustEmails extends clsTable {
 	} else {
 	    return "(ID_Cust=$idCust) AND ($sql)";
 	}
+    }
+    /*----
+      RETURNS: list of Customer IDs having the given email address
+	NULL if none found
+    */
+    public function FindCusts_forAddr($iAddr) {
+	$sql = 'SELECT ID_Cust FROM '.$this->NameSQL().' WHERE Email='.SQLValue($iAddr).' GROUP BY ID_Cust;';
+	$rs = $this->Engine()->DataSet($sql);
+	$arOut = NULL;
+	if ($rs->HasRows()) {
+	    while ($rs->NextRow()) {
+		$arOut[] = $rs->Value('ID_Cust');
+	    }
+	}
+	return $arOut;
+    }
+    /*----
+      ACTIONS: assigns a user ID to all customer records having the given email address
+      USAGE: called after a user authorizes a given email address
+      NOTE: This could probably have been done with a compound statement --
+	  UPDATE ID_User in (customers) WHERE ID IN (SELECT ID_Cust FROM (emails) WHERE Email=(iAddr))
+	but tests indicated that this is very slow -- just a *select* statement takes several seconds to run.
+	Maybe this indicates that something needs optimization... but doing it step-by-step does not seem
+	particularly slow.
+    */
+    public function AssignUser_toAddr($iUser,$iAddr) {
+	$arC = $this->FindCusts_forAddr($iAddr);
+	if (is_null($arC)) {
+	    // this shouldn't happen, because we only get here if ther was a match
+	    throw new exception('Unexpected failure to find email address "'.$iAddr.'".');
+	}
+
+	// build filter for update
+	$sqlIn = NULL;
+	foreach ($arC as $id) {
+	    if (!is_null($sqlIn)) {
+		$sqlIn .= ',';
+	    }
+	    $sqlIn .= $id;
+	}
+	$sqlFilt = 'ID IN ('.$sqlIn.')';
+	$arUpd = array('ID_User'=>$iUser);
+	
+	$tCusts = $this->Engine()->Custs();
+	$tCusts->Update($arUpd,$sqlFilt);
+//echo 'SQL: '.$tCusts->sqlExec;
+	return $this->Engine()->RowsAffected();
     }
     /*----
       RETURNS: Script to add a new email address to a customer that hasn't been created yet
@@ -1302,7 +1420,7 @@ class clsCustCards extends clsTable {
 	} else {
 	    $strDate = $dtExp->format('F').' of '.$dtExp->format('Y').' ('.$dtExp->format('n/y').')';
 	}
-	$out = self::CardTypeName($iNum).' # ends with -'.substr($iNum,-4).' expires in '.$strDate;
+	$out = self::CardTypeName($iNum).' -'.substr($iNum,-4).' expires '.$strDate;
 	return $out;
     }
     public static function Searchable($iRaw) {
@@ -1596,12 +1714,21 @@ class clsCustCards_dyn extends clsCustCards {
 	}
 	return $id;
     }
+*/
     // - encryption methods
+/*
     public function CryptKey($iKey) {
 	$this->strCryptKey = $iKey;
+	$this->Engine()->strCryptKey = $iKey;	// kluge
     }
+*/
+    /*----
+      2013-05-15 moved code to Engine (clsDatabase in store.php)
+    */
     public function CryptObj() {
 	if (!isset($this->objCrypt)) {
+	    $this->objCrypt = $this->Engine()->CryptObj();
+/*
 	    $this->objCrypt = new Cipher($this->strCryptKey);
 	    $objVars = $this->objDB->VarsGlobal();
 	    if ($objVars->Exists('crypt_seed')) {
@@ -1612,13 +1739,13 @@ class clsCustCards_dyn extends clsCustCards {
 		$objVars->Val('crypt_seed',$strSeed);
 	    }
 	    $intOrdLast = $objVars->Val('ord_seq_prev');
+*/
 	}
 	return $this->objCrypt;
     }
     public function CryptReset() {
 	unset($this->objCrypt);
     }
-*/
 }
 class clsCustCard extends clsDataSet {
     public $_strPlain;	// data {to encode}/{decoded}
@@ -1653,7 +1780,8 @@ class clsCustCard extends clsDataSet {
     }
     public function SingleString() {
     // ACTION: Return plain card data as a single parseable string
-	return ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
+	return self::PackCardData($this->CardNum,$this->CardCVV,$this->CardExp);
+	//return ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
     }
     /*----
       RETURNS: card number in a friendly format
@@ -1676,16 +1804,40 @@ class clsCustCard extends clsDataSet {
     public function SafeString() {
 	return clsCustCards::SafeDescr_Short($this->CardNum,$this->CardExp);
     }
+    /*
+    NOTE: whatever separator is used, make sure it doesn't have any special meaning to regex
+      the separator is mainly for human readability; because of the binary salt, we're
+      going to actually treat this as a series of fixed-width fields.
+    */
+    protected static function PackCardData($iNum,$iCVV,$iExp) {
+	$sData =
+	  ':'.sprintf('%16s',$iNum)
+	  .':'.sprintf('%4s',$iCVV)
+	  .':'.$iExp;
+	return $sData;
+    }
     public function Encrypt($iDoSave,$iDoWipe) {
 	if (is_null($this->CardNum)) {
 	    // do nothing (do we want to raise an error?)
 	    // this might happen if card data isn't completely decrypted after a migration or backup
 	} else {
-	    // encrypt numbers
-	    // whatever separator is used, make sure it doesn't have any special meaning to regex
-	    $strRawData = ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
-	    $this->_strPlain = $strRawData;
+/*
+	    $strRawData =
+	      ':'.sprintf('%16s',$this->CardNum)
+	      .':'.sprintf('%4s',$this->CardCVV)
+	      .':'.$this->CardExp;	// .':'. bin2hex($sSalt);
+*/
+	    $strRawData = self::PackCardData($this->CardNum,$this->CardCVV,$this->CardExp);
+
+	    // generate salt of same length
+	    $nDataLen = strlen($strRawData);
+	    $sSalt = openssl_random_pseudo_bytes($nDataLen);
+
+	    $this->_strPlain = $strRawData.':'.$sSalt;
 	    $strEncrypted = $this->CryptObj()->encrypt($strRawData);
+	    if (strlen($strEncrypted) > 256) {
+		throw new exception('Encrypted data length ('.strlen($strEncrypted).') exceeds storage field length.');
+	    }
 	    $this->Encrypted = $strEncrypted;
 
 	    if ($iDoWipe) {
@@ -1694,34 +1846,92 @@ class clsCustCard extends clsDataSet {
 		$this->CardExp = NULL;
 	    }
 	    if ($iDoSave) {
-		$arUpd['Encrypted'] = SQLValue($this->Encrypted);
+		$arUpd['Encrypted'] = SQLValue($strEncrypted);
+		$arUpd['CardSalt'] =  SQLValue($sSalt);
 		if ($iDoWipe) {
 		    $arUpd['CardNum'] = 'NULL';
 		    $arUpd['CardCVV'] = 'NULL';
 		    $arUpd['CardExp'] = 'NULL';
 		}
 		$this->Update($arUpd);
+//echo '<br>SQL='.$this->sqlExec;
 	    }
 	}
     }
-    public function Decrypt($iDoSave) {
+    public function Decrypt($iDoSave,$iPvtKey) {
 	$strEncrypted = $this->Encrypted;
-	$strRawData = $this->CryptObj()->decrypt($strEncrypted);
+
+	$sMsg = NULL;
+	while ($sErr = openssl_error_string()) {
+	    $sMsg .= '<br>PRIOR ERROR: '.$sErr;
+	}
+	$strRawData = $this->CryptObj()->decrypt($strEncrypted,$iPvtKey);
+
+	while ($sErr = openssl_error_string()) {
+	    $sMsg .= '<br>CURRENT ERROR: '.$sErr;
+	}
+	if (!is_null($sMsg)) {
+	    echo $sMsg;
+	    throw new exception('One or more errors were encountered during decryption.');
+	}
+
 	$this->_strPlain = $strRawData;
+
+/* doesn't work with salt
 	$chSep = substr($strRawData,0,1);
 	$strToSplit = substr($strRawData,1);
+*/
+	$sNum = trim(substr($strRawData,1,16));
+	$sCVV = trim(substr($strRawData,18,4));
+	$sExp = trim(substr($strRawData,23,10));
 
-	$arData = preg_split('/'.$chSep.'/',$strToSplit);
+	if (empty($sNum)) {
+		$arUpd = array(
+		  'CardNum' => 'NULL',
+		  'CardCVV' => 'NULL',
+		  'CardExp' => 'NULL',
+		  'CardSafe' => 'NULL'
+		  );
+	} else {
+/*
+	    $arData = preg_split('/'.$chSep.'/',$strToSplit);
 
-	$this->CardNum = $arData[0];
-	$this->CardCVV = $arData[1];
-	$this->CardExp = $arData[2];
+	    $sNum = $arData[0];
+	    $sCVV = $arData[1];
+	    $sExp = $arData[2];
+*/
+//echo "Num=[$sNum] CVV=[$sCVV] Exp=[$sExp]"; die();
+	    $this->CardNum = ($sNum == '')?NULL:$sNum;
+	    $this->CardCVV = ($sCVV == '')?NULL:$sCVV;
+	    $this->CardExp = ($sExp == '')?NULL:$sExp;
 
-	$arUpd = array(
-	  'CardNum' => SQLValue($this->CardNum),
-	  'CardCVV' => SQLValue($this->CardCVV),
-	  'CardExp' => SQLValue($this->CardExp)
-	  );
-	$this->Update($arUpd);
+	    if ($iDoSave) {
+		$arUpd = array(
+		  'CardNum' => SQLValue($this->CardNum),
+		  'CardCVV' => SQLValue($this->CardCVV),
+		  'CardExp' => SQLValue($this->CardExp),
+		  'CardSafe' => SQLValue($this->SafeString())
+		  );
+	    }
+	}
+	if ($iDoSave) {
+	    $this->Update($arUpd);
+	}
+    }
+}
+/*%%%%
+  PURPOSE: cipher class that works with vbz internals
+*/
+class vbzCipher extends Cipher_pubkey {
+    public function encrypt($input) {
+	global $vgoDB;
+
+	if (!$this->PubKey_isSet()) {
+	    $fn = $vgoDB->VarsGlobal()->Val('public_key.fspec');
+	    $fs =  KFP_KEYS.'/'.$fn;
+	    $sKey = file_get_contents($fs);
+	    $this->PubKey($sKey);
+	}
+	return parent::encrypt($input);
     }
 }

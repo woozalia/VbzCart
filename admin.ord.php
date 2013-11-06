@@ -10,13 +10,13 @@ define('KI_ORD_TXTYPE_ITEM_SOLD',11);	// total cost of items sold
 define('KI_ORD_TXTYPE_PERITM_SH',1);	// per-item shipping charge total
 define('KI_ORD_TXTYPE_PERPKG_SH',2);	// per-package shipping charge
 define('KI_ORD_TXTYPE_PAID_CC',6);	// payment: credit card
-
+/*
 clsLibMgr::Add('data-script',		KFP_LIB.'/data-script.php',__FILE__,__LINE__);
 clsLibMgr::Load('data-script'		,__FILE__,__LINE__);
 
 clsLibMgr::Add('vbz.ord',	KFP_LIB_VBZ.'/orders.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsOrders', 'vbz.ord');
-
+*/
 /* ========================== *\
 - CUSTOMER ORDER classes
 \* ========================== */
@@ -156,7 +156,7 @@ class VbzAdminOrder extends clsOrder {
     // === BOILERPLATE: admin link stuff
 
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminLink_name($iPopup=NULL,array $iarArgs=NULL) {
 	if ($this->IsNew()) {
@@ -1194,7 +1194,7 @@ AS OF 2011-11-30, ID_NameBuyer and ID_NameRecip are not being successfully added
     /*----
       ACTION: Displays the normal admin page
     */
-    protected function AdminPage_basic($iDoEdit,clsWikiSection $iSection) {
+    protected function AdminPage_basic($iDoEdit,clsWikiSection2 $iSection) {
 	global $wgOut,$wgRequest;
 	global $vgOut,$vgPage;
 
@@ -1450,13 +1450,23 @@ AS OF 2011-11-30, ID_NameBuyer and ID_NameRecip are not being successfully added
 
 	// do the header, with edit link if appropriate
 	$objPage = new clsWikiFormatter($vgPage);
+/* OLD SECTION FORMAT
 	$objSection = new clsWikiSection($objPage,$strTitle,$strPopup);
 	$objSection->ToggleAdd('receipt','receipt for order #'.$strNum);
 	$objSection->ToggleAdd('email');
 	$objSection->ToggleAdd('edit');
-
 	$objSection->CommandAdd('reload',array());
 	$out = $objSection->Generate();
+*/ // NEW SECTION FORMAT
+    	$objSection = new clsWikiSection_std_page($objPage,$strTitle,2);
+	$objSection->PageKeys(array('page','id'));
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'receipt','rcpt'));
+	  $objLink->Popup('receipt for order #'.$strNum);
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'email'));
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'edit'));
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'reload',''));
+	$out = $objSection->Render();
+
 	if ($doReceipt) {
 	    // display order receipt
 	    $out .= $this->RenderReceipt();
@@ -1681,9 +1691,15 @@ AS OF 2011-11-30, ID_NameBuyer and ID_NameRecip are not being successfully added
 	}
 
 	$objPage = new clsWikiFormatter($vgPage);
+/*
 	$objSection = new clsWikiSection($objPage,'Items',NULL,3);
 	$objSection->ActionAdd('add','add a new item to the order',NULL,'add-item');
 	$out = $objSection->Generate();
+*/
+    	$objSection = new clsWikiSection_std_page($objPage,'Items',3);
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_option(array(),'add-item','do','add'));
+	  $objLink->Popup('add a new item to the order');
+	$out = $objSection->Render();
 
 //	$objTbl = $this->objDB->OrdItems();
 //	$objRows = $objTbl->GetData('ID_Order='.$this->ID,NULL,'Seq');
@@ -2071,7 +2087,7 @@ class VbzAdminOrderItem extends clsOrderLine {
 	2010-10-11 Replaced existing code with call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     /*----
       HISTORY:
@@ -2170,9 +2186,16 @@ class VbzAdminOrderItem extends clsOrderLine {
 	$strTitle = 'Order '.$objOrd->AdminName().' item #'.$this->Value('Seq');
 
 	$objPage = new clsWikiFormatter($vgPage);
+/*
 	$objSection = new clsWikiSection($objPage,$strTitle);
 	$objSection->ToggleAdd('edit');
 	$out = $objSection->Generate();
+*/
+    	$objSection = new clsWikiSection_std_page($objPage,$strTitle,3);
+	//$objSection->PageKeys(array('page','id'));
+	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'edit'));
+	//  $objLink->Popup('receipt for order #'.$strNum);
+	$out = $objSection->Render();
 
 	$wgOut->AddHTML($out); $out = '';
 	$vgOut->AddText($ftSaveStatus);
@@ -2870,7 +2893,7 @@ class VbzAdminOrderMsg extends clsDataSet {
       Boilerplate AdminLink function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     // /boilerplate
 
@@ -3120,6 +3143,106 @@ class VbzAdminOrderChgs extends clsTable {
 	$arArgs['descr'] = $strDescr;
 	$wgOut->AddWikiText($objRows->AdminTable($arArgs),TRUE);
     }
+    /*----
+      NOTE: This code was adapted heavily from VbzAdminCustCards::DoAdminEncrypt. They should probably both use a helper class or something.
+	...except that all the encryption stuff is being rewritten anyway.
+    */
+/* OBSOLETE
+    public function DoAdminEncrypt() {
+	$objLogger = $this->Engine()->Events();
+	$objLogger->LogEvent(__METHOD__,NULL,'encrypting sensitive data in charge log',NULL,FALSE,FALSE);
+
+	$out = NULL;
+
+	$objRow = $this->GetData();
+	if ($objRow->hasRows()) {
+	    $intChecked = 0;
+	    $intChanged = 0;
+	    $out .= 'Encrypting credit card data in charge log:';
+	    $out .= "\n* ".$objRow->RowCount().' records to process';
+	    while ($objRow->NextRow()) {
+		$intChecked++;
+		$row = $objRow->Row;
+
+		$strNumEncrOld = $row['Encrypted'];
+		$objRow->Encrypt(TRUE,FALSE);
+		$strNumEncrNew = $objRow->Encrypted;
+		if ($strNumEncrOld != $strNumEncrNew) {
+		    $intChanged++;
+		}
+	    }
+	    $strStats = $intChecked.' row'.Pluralize($intChecked).' processed, ';
+	    $strStats .= $intChanged.' row'.Pluralize($intChanged).' altered';
+	    $objLogger->LogEvent(__METHOD__,NULL,$strStats,NULL,FALSE,FALSE);
+
+	    $out .= "\n* $intChecked row".Pluralize($intChecked).' processed';
+	    $out .= "\n* $intChanged row".Pluralize($intChanged).' altered';
+
+	} else {
+	    $objLogger->LogEvent(__METHOD__,NULL,'CustCharges: No records found to process',NULL,FALSE,FALSE);
+	    $out = 'No card data currently in charge log.';
+	}
+	return $out;
+    }
+*/
+    /*----
+      NOTE: This code was adapted heavily from VbzAdminCustCards::DoAdminDecrypt. They should probably both use a helper class or something.
+	...except that all the encryption stuff is being rewritten anyway.
+    */
+/* OBSOLETE
+    public function DoAdminDecrypt() {
+	$objLogger = $this->Engine()->Events();
+	$objLogger->LogEvent(__METHOD__,NULL,'decrypting data',NULL,FALSE,FALSE);
+
+	$objRow = $this->GetData();
+	if ($objRow->hasRows()) {
+	    $out = "\n\nDecrypting charges: ";
+	    $intFound = 0;
+	    while ($objRow->NextRow()) {
+		$intFound++;
+		$objRow->Decrypt(TRUE);	// decrypt and save
+		$strNumEncrNew = $objRow->Encrypted;
+	    }
+	    $intRows = $objRow->RowCount();
+	    $intMissing = $intRows - $intFound;
+	    if ($intMissing) {
+		$strStat = $intFound.' row'.Pluralize($intFound).' out of '.$intRows.' not decrypted!';
+		$out .= "'''ERROR''' - $strStat!";
+		$objLogger->LogEvent(__METHOD__,NULL,$strStat,NULL,FALSE,FALSE);
+	    } else {
+		$strStat = $intRows.' row'.Pluralize($intRows);
+		$out .= "'''OK''' - $strStat decrypted successfully";
+		$objLogger->LogEvent(__METHOD__,NULL,$strStat.' decrypted successfully',NULL,FALSE,FALSE);
+	    }
+	} else {
+	    $out = 'No charges to decrypt!';
+	}
+	return $out;
+    }
+*/
+    /*----
+      NOTE: This code was adapted heavily from VbzAdminCustCards::AdminPlainClear. They should probably both use a helper class or something.
+	...except that all the encryption stuff is being rewritten anyway.
+    */
+/* OBSOLETE
+    public function AdminPlainClear() {
+	global $wgOut;
+
+    // ACTION: Clear plaintext data for all rows that have encrypted data
+	$objLogger = $this->Engine()->Events();
+	$objLogger->LogEvent(__METHOD__,NULL,'clearing unencrypted sensitive data',NULL,FALSE,FALSE);
+
+	$arUpd = array(
+	  'CardNumExp' => 'NULL',
+	  );
+	$this->Update($arUpd,'Encrypted IS NOT NULL');
+	$intRows = $this->objDB->RowsAffected();
+	$strStat = $intRows.' row'.Pluralize($intRows).' modified';
+	$out = "\n\n'''OK''': $strStat";
+	$wgOut->addWikiText($out,TRUE);
+	$objLogger->LogEvent(__METHOD__,NULL,'plaintext data cleared from card records, '.$strStat,NULL,FALSE,FALSE);
+    }
+*/
 }
 class VbzAdminOrderChg extends clsDataSet {
     /*####
@@ -3571,40 +3694,6 @@ class VbzAdminOrderChg extends clsDataSet {
 	$out = $this->objForm->Save();
 	$vgOut->AddText($out);
     }
-    /*-----
-      ACTION: Save the user's edits to the package
-      NOTE: This should probably be a method of a form class, not sure which yet
-    */
-/* OBSOLETE
-    private function AdminSave() {
-	global $wgOut;
-
-	// get the form data and note any changes
-	$this->objFields->RecvVals();
-	// get the list of field updates
-	$arUpd = $this->objFields->DataUpdates();
-	// log that we are about to update
-	$strDescr = 'Edited: '.$this->objFields->DescrUpdates();
-	$wgOut->AddWikiText('==Saving Edit==',TRUE);
-	$wgOut->AddWikiText($strDescr,TRUE);
-	//$wgOut->AddHTML('<pre>'.print_r($arUpd,TRUE).'</pre>');
-
-	$arEv = array(
-	  'descr'	=> $strDescr,
-	  'where'	=> __METHOD__,
-	  'code'	=> 'ED'
-	  );
-	$this->StartEvent($arEv);
-	// update the recordset
-	$this->Update($arUpd);
-global $sql;
-$wgOut->AddWikiText('<br>SQL='.$sql,TRUE);
-
-	$this->Reload();
-	// log completion
-	$this->FinishEvent();
-    }
-*/
     /*----
       RETURNS: array of address verification codes
 	array[code letter] = description
@@ -3646,6 +3735,66 @@ $wgOut->AddWikiText('<br>SQL='.$sql,TRUE);
 	$out .= '</select>';
 	return $out;
     }
+
+    /* *****
+      ENCRYPTION
+    */
+
+/* OBSOLETE
+    public function CryptObj() {
+	return $this->Engine()->CryptObj();
+    }
+*/
+    /*----
+      NOTE: This code was adapted heavily from clsCustCard::Encrypt. They should probably both use a helper class or something.
+    */
+/* OBSOLETE
+    public function Encrypt($iDoSave,$iDoWipe) {
+	if (is_null($this->CardNumExp)) {
+	    // do nothing (do we want to raise an error?)
+	    // this might happen if card data isn't completely decrypted after a migration or backup
+	} else {
+	    // encrypt numbers
+	    // whatever separator is used, make sure it doesn't have any special meaning to regex
+	    //$strRawData = ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
+	    $strRawData = $this->Value('CardNumExp');
+	    $this->_strPlain = $strRawData;
+	    $strEncrypted = $this->CryptObj()->encrypt($strRawData);
+	    $this->Encrypted = $strEncrypted;
+//echo 'PLAIN:['.$strRawData.'] ENCRYPTED:['.$strEncrypted.']<br>';
+
+	    if ($iDoWipe) {
+		$this->CardNumExp = NULL;
+	    }
+	    if ($iDoSave) {
+		$arUpd['Encrypted'] = SQLValue($this->Encrypted);
+		if ($iDoWipe) {
+		    $arUpd['CardNumExp'] = 'NULL';
+		}
+		$this->Update($arUpd);
+	    }
+	}
+    }
+*/
+    /*----
+      NOTE: This code was adapted heavily from clsCustCard::Encrypt. They should probably both use a helper class or something.
+    */
+/* OBSOLETE
+    public function Decrypt($iDoSave) {
+	$sEncrypted = $this->Encrypted;
+	if (empty($sEncrypted)) {
+	    $sDecrypted = NULL;
+	} else {
+	    $sDecrypted = $this->CryptObj()->decrypt($sEncrypted);
+	}
+	$this->CardNumExp = $sDecrypted;
+
+	if ($iDoSave) {
+	    $arUpd['CardNumExp'] = SQLValue($sDecrypted);
+	    $this->Update($arUpd);
+	}
+    }
+*/
 }
 class VbzAdminOrderEvents extends clsEvents {
     public function __construct($iDB) {

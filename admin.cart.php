@@ -5,9 +5,10 @@
     2010-10-15 Extracted shopping cart classes from SpecialVbzAdmin.php
     2011-12-24 DataScripting brought closer to sanity; mostly working.
 */
+/*
 clsLibMgr::Add('vbz.cart.lines',	KFP_LIB_VBZ.'/cart-lines.php',__FILE__,__LINE__);
   clsLibMgr::AddClass('clsShopCartLines', 'vbz.cart.lines');
-
+*/
 /* ****
   SECTION: cart preprocessed data
     This is data from the cart table which has been reorganized and packaged into objects.
@@ -604,7 +605,6 @@ class clsName_admin_WHO_USES /* extends clsCartField_admin */ {
 	2012-01-02 created
     */
     protected function Wrap_Script(Script_Element $iScript) {
-//echo 'GOT TO HERE';
 	$acts = new Script_Script();
 	$objPerson = $this->Person();
 	$actCont = $objPerson->Script_forContact();
@@ -680,7 +680,7 @@ class VbzAdminCart extends clsShopCart {
 	2010-10-11 Replaced existing code with call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function SessObj() {
 	$idSess = $this->ID_Sess;
@@ -912,7 +912,7 @@ class VbzAdminCartLine extends clsShopCartLine {
 	2010-11-15 created
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
 }
 // SHOPPING CART DATA

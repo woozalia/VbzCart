@@ -305,6 +305,7 @@ class clsOrder extends clsVbzRecs {
       ACTION: Render the receipt in HTML
 	Shows the order as generated from *cart* data, not what's in the order record.
 	...except for the order number.
+      TODO: somehow merge clsShopCart::RenderReceipt() with clsOrder::RenderReceipt()
     */
     public function RenderReceipt() {
 	$out = NULL;
@@ -316,6 +317,7 @@ class clsOrder extends clsVbzRecs {
 	// get core objects, for code clarity/portability
 	$objOrd = $this;
 	$objCart = $this->Cart();
+	$objSess = $objCart->Session();
 	$idOrder = $this->KeyValue();
 	$idCart = $this->Value('ID_Cart');
 	$objData = $objCart->CartData();
@@ -341,17 +343,19 @@ class clsOrder extends clsVbzRecs {
 	$arVars = array(
 	  'ord.num'	=> $objOrd->Number,
 	  'timestamp'	=> date(KF_RCPT_TIMESTAMP),
-	  'cart.id'	=> $objCart->ID,
+	  'cart.id'	=> $objCart->KeyValue(),
+	  'sess.id'	=> $objSess->KeyValue(),
 	  'cart.detail'	=> $objCart->RenderConfirm(),
 	  'ship.name'	=> $objData->ShipAddrName(),
 	  'ship.addr'	=> $objShip->Addr_AsText("\n<br>"),
 	  'pay.name'	=> $objData->CustName(),
 	  'pay.spec'	=> $objPay->SafeDisplay(),
+	  'url.shop'	=> KWP_HOME_REL,
 	  'email.short'	=> 'orders-'.date('Y').'@vbz.net'
 	  );
 	$objStrTplt = new clsStringTemplate_array(NULL,NULL,$arVars);
 	$objStrTplt->MarkedValue(KHT_RCPT_TPLT);
-	$out = "<!-- ORDER ID: [$idOrder] / CART ID from order: [$idCart] -->";
+	$out = "\n<!-- ORDER ID: [$idOrder] / CART ID from order: [$idCart] -->\n";
 	$out .= $objStrTplt->Replace();
 	return $out;
 

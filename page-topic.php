@@ -7,14 +7,16 @@ HISTORY:
   2011-01-25 split off page-topic.php (clsPageTopic only) from topic.php (clsTopic(s))
     to resolve dependency-order conflicts
   2012-05-13 page class now descends from clsVbzSkin_Standard
+  2013-09-16 clsVbzSkin_Standard renamed clsVbzPage_Standard
+  2013-09-17 clsVbzPage_Standard renamed clsVbzPage_Browse
 */
 
-clsLibMgr::Add('vbz.pages',	KFP_LIB_VBZ.'/pages.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzSkin_Standard','vbz.pages');
-clsLibMgr::Add('vbz.base.cat',	KFP_LIB_VBZ.'/base.cat.php',__FILE__,__LINE__);
-  clsLibMgr::AddClass('clsVbzTitle', 'vbz.base.cat');
+class clsPageTopic extends clsVbzPage_Browse {
+    protected function DoContent() {
+	$this->CreateContent();
+	echo $this->Doc()->Render();
+    }
 
-class clsPageTopic extends clsVbzSkin_Standard {
     private function Topics($id=NULL) {
 	$tbl = $this->Data()->Topics();
 	$tbl->Page($this);
@@ -43,23 +45,24 @@ class clsPageTopic extends clsVbzSkin_Standard {
 	if (empty($idTopic)) {
 	    $this->objTopic	= NULL;
 	    $this->strWikiPg	= 'topics';
-	    $this->strTitle	= 'Topic Index';
-	    $this->strName	= 'catalog topic index';
+	    $this->TitleStr('Topic Index');
+	    $this->NameStr('catalog topic index');
 	} else {
 	    $objTopic = $this->Topics($idTopic);
 	    $this->objTopic = $objTopic;
 	    assert('is_object($objTopic); /* ID='.$idTopic.' */');
 	    if ($objTopic->IsNew()) {
 		$this->strWikiPg	= NULL;
-		$this->strTitle	= 'Unknown topic';
-		$this->strName	= 'topic not found';
+	      $this->TCtxtStr('Tomb of the...');
+		$this->TitleStr('Unknown Topic');
+		//$this->NameStr('topic not found');
+		$this->NameStr('topic does not exist');
 	    } else {
 		$this->strWikiPg	= 'topic/'.$objTopic->FldrName();
-		$this->strTitle	= 'Topic: '.$objTopic->NameFull();
-		$this->strName	= $objTopic->NameMeta();
+		$this->TitleStr('Topic: '.$objTopic->NameFull());
+		$this->NameStr($objTopic->NameMeta());
 	    }
 	}
-	$this->CreateContent();
     }
     protected function CreateContent() {
 	$objTbl = $this->NewTable();
@@ -69,6 +72,7 @@ class clsPageTopic extends clsVbzSkin_Standard {
 	if (is_null($this->objTopic)) {
 	    $txt = $this->Topics()->RenderTree(FALSE);
 	} else {
+	    // NOTE: most of the page is built here
 	    $txt = $this->objTopic->DoPage();
 	}
 	$objCell = $objRow->NewCell($txt);
@@ -80,14 +84,16 @@ class clsPageTopic extends clsVbzSkin_Standard {
 	return $out;
     }
 // DIFFERENT TYPES OF PAGES
+/*
     protected function DoNotFound() {
 	$this->strWikiPg	= '';
-	$this->strTitle	= 'Unknown Topic';
-	$this->strName	= 'topic does not exist';
-	$this->strTitleContext	= 'Tomb of the...';
+	$this->TitleStr('Unknown Topic');
+	$this->NameStr('topic does not exist');
+	$this->TCtxtStr('Tomb of the...');
 	$this->strHdrXtra	= '';
 	$this->strSideXtra	= '<dt><b>Topic #</b>: '.$this->strReq;
     }
+*/
 }
 
 class clsTopics_StoreUI extends clsTopics {
@@ -97,7 +103,7 @@ class clsTopics_StoreUI extends clsTopics {
 	parent::__construct($iDB);
 	  $this->ClassSng('clsTopic_StoreUI');
     }
-    public function Page(clsVbzSkin $iPage=NULL) {
+    public function Page(clsVbzPage $iPage=NULL) {
 	if (!is_null($iPage)) {
 	    $this->objPage = $iPage;
 	}
@@ -149,7 +155,7 @@ class clsTopic_StoreUI extends clsTopic {
 		    $objDoc->NewText('<p><i>No active titles for this topic.</i></p>');
 		}
 		if (!empty($ftTextRetired)) {
-		    $objPage->Render_HLine(3);
+		    $objDoc->NewText($objPage->Skin()->Render_HLine(3));
 		    $objPage->NewSection('Titles Not Available',3);
 		    $objTxt = $objDoc->NewText('<p class="catalog-summary">These titles are <b>no longer available</b>:</p>');
 		      $objTxt->ClassName('catalog-summary');
@@ -187,6 +193,8 @@ class clsTopic_StoreUI extends clsTopic {
       RETURNS: list of other topics at same level, formatted for store display page
       HISTORY:
 	2011-02-23 Split off from DoPage() for SpecialVbzCart
+	2013-10-11 It's confusing if we do the format differently depending on how
+	  many entries there are, so let's just always do it the same way. $doBox=TRUE.
     */
     public function DoPiece_Stat_Series() {
 	$out = NULL;
@@ -194,12 +202,8 @@ class clsTopic_StoreUI extends clsTopic {
 	if ($obj->HasRows()) {
 
 	    $cntRows = $obj->RowCount();
-	    $doBox = ($cntRows > 5);	// this number is somewhat arbitrary
-/*
-	    if ($doBox) {
-		$out .= '<table class=border align=right cellpadding=2><tr><td><table><tr><td bgcolor=#000000>';
-	    }
-*/
+	    //$doBox = ($cntRows > 5);	// this number is somewhat arbitrary
+	    $doBox = TRUE;
 	    $out .= '<b>Series</b>:';
 	    while ($obj->NextRow()) {
 		$id = $this->KeyValue();
