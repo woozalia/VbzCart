@@ -230,9 +230,10 @@ DOES ANYTHING USE THIS?
       RETURNS: a datascript for doing the merge
       HISTORY:
 	2012-01-08 started
+	2013-11-06 replacing data-scripting with transactions
     */
     protected function DoMergeInto($idOther) {
-	$acts = new Script_Script();
+	//$acts = new Script_Script();
 
 	$idThis = $this->KeyValue();
 	// always merge into the lower-numbered ID.

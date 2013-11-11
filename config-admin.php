@@ -1,4 +1,7 @@
 <?php
+/*----
+  NOTE: This should probably be renamed config-ckout.php
+*/
 // http query values
 define('KSQ_PAGE_CART','cart');	// shopping cart
 define('KSQ_PAGE_SHIP','ship');	// shipping page

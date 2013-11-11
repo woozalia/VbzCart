@@ -89,14 +89,14 @@ class clsVbzUserRecs extends clsTable {
 
     public function __construct($iDB) {
 	parent::__construct($iDB);
-	  $this->Name('core_users');
+	  $this->Name('user');
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsVbzUserRec');
     }
     /*----
       RETURNS: clsVbzUserRec if login successful, NULL otherwise
     */
-    public static function Login($iUser,$iPass) {
+    public function Login($iUser,$iPass) {
 	$rc = $this->FindUser($iUser);
 	if (is_null($rc)) {
 	    // username not found
@@ -172,6 +172,14 @@ class clsVbzUserRec extends clsDataSet {
 	$sHashed = clsVbzUserRecs::HashPass($sSalt,$iPass);
 	// see if it matches
 	return ($sHashed == $this->Value('PassHash'));
+    }
+    /*----
+      RETURNS: recordset of customers for this user (NULL if none)
+    */
+    public function CustRecs() {
+	$tCusts = $this->Engine()->Custs();
+	$rs = $tCusts->Recs_forUser($this->KeyValue());
+	return $rs;
     }
 }
 

@@ -39,6 +39,7 @@ class clsCartContact_admin_WHO_USES /* extends clsCartContact */ {
     /*----
       HISTORY:
 	2011-12-17 created -- possibly the last piece in the puzzle?
+	2013-11-06 rewriting to use transactions
     */
     public function Save() {
 	//$acts = $this->ScriptRoot();
@@ -216,7 +217,9 @@ class clsPayment_Admin_WHO_USES /* extends clsPayment */ {
 	  to some of the detail records.
       HISTORY:
 	2011-12-18 renamed from SaveThis_core() to SavePost()
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     protected function SavePost() {
 	$acts = new Script_Script();
 
@@ -230,19 +233,20 @@ class clsPayment_Admin_WHO_USES /* extends clsPayment */ {
 	    $acts->Add(new Script_Status('Updating ccard '.$this->SafeDisplay()));
 	    $act = $this->Make_Script($idPerson);
 	    $acts->Add($act);
-/*
-	    $actOrd = $this->ScriptRoot()->Get_byName('ord.upd',TRUE);
 
-	    $actIns = $act->Get_byName('ccard.make',TRUE);
-	    $actCopy = new Script_SQL_Use_ID($actIns,$actOrd,'ID_ChargeCard');
-	    $acts->Add($actCopy);
-*/
+//	    $actOrd = $this->ScriptRoot()->Get_byName('ord.upd',TRUE);
+
+//	    $actIns = $act->Get_byName('ccard.make',TRUE);
+//	    $actCopy = new Script_SQL_Use_ID($actIns,$actOrd,'ID_ChargeCard');
+//	    $acts->Add($actCopy);
+
 	} else {
 	    $acts->Add(new Script_Status('Adding ccard - '.$this->SafeDisplay()));
 	    $acts->Add($this->Make_Script());
 	}
 	return $acts;
     }
+*/
     protected function Person() {
 	return $this->Parent();
     }
@@ -398,7 +402,9 @@ class clsCartAddr_Admin_WHO_USES /* extends clsCartAddr */ {
 	2011-09-23 written for script-based import process
 	2011-11-29 moved from clsCustAddrs (base.cust.php) to clsCartAddr_Admin (admin.cart.php)
 	2011-12-15 this couldn't have been working right, because it referred to an object that didn't exist
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Make_Script() {
 //throw new exception('How do we get here? DO we get here?');
 	$acts = new Script_Script();
@@ -447,7 +453,7 @@ class clsCartAddr_Admin_WHO_USES /* extends clsCartAddr */ {
 	}
 	return $acts;
     }
-
+*/
     /*----
       ACTION: Ensures that the given customer data is recorded.
 	The following tables may be affected:
@@ -462,6 +468,7 @@ class clsCartAddr_Admin_WHO_USES /* extends clsCartAddr */ {
 	  * moved from clsCusts to clsCartAddr_Admin (which was basically created for it)
 	  * renamed from Make_fromCartAddr_SQL() to Contact_Make_Script()
 	  * code modified to handle new class context
+	2013-11-06 commenting this out because data-scripting is being removed
     */
 /* 2011-11-29 this was take 1
     public function Contact_Make_Script() {
@@ -576,7 +583,8 @@ abstract class clsCartField_admin_WHO_USES /* extends clsCartField */ {
 //throw new exception('How did we get here?');
 	return $this->Wrap_Script($act);
     }
-    protected function Wrap_Script(Script_Element $iScript) { return $iScript; }	// default: add nothing
+//    protected function Wrap_Script(Script_Element $iScript) { return $iScript; }	// default: add nothing
+
 }
 class clsEmail_admin_WHO_USES /* extends clsCartField_admin */ {
     protected function Table() {
@@ -604,6 +612,7 @@ class clsName_admin_WHO_USES /* extends clsCartField_admin */ {
       HISTORY:
 	2012-01-02 created
     */
+/*
     protected function Wrap_Script(Script_Element $iScript) {
 	$acts = new Script_Script();
 	$objPerson = $this->Person();
@@ -613,6 +622,7 @@ class clsName_admin_WHO_USES /* extends clsCartField_admin */ {
 
 	return $acts; 
     }
+*/
 }
 /* ****
   SECTION: shopping cart classes
@@ -993,35 +1003,34 @@ class VbzAdminCartData extends clsTable {
 }
 class VbzAdminCartDatum extends clsDataSet {
     static $arTypeNames = array (
-    KSI_SHIP_ZONE		=> 'ship zone',
-    KSI_ADDR_SHIP_NAME		=> 'ship-to name',
-    KSI_ADDR_SHIP_STREET	=> 'ship-to street',
-    KSI_ADDR_SHIP_CITY		=> 'ship-to city',
-    KSI_ADDR_SHIP_STATE		=> 'ship-to state',
-    KSI_ADDR_SHIP_ZIP		=> 'ship-to zipcode',
-    KSI_ADDR_SHIP_COUNTRY	=> 'ship-to country',
-    KSI_SHIP_MESSAGE		=> 'ship-to message',
-    KSI_SHIP_TO_SELF		=> 'ship to self?',
-    KSI_SHIP_IS_CARD		=> 'ship to = card?',
-    KSI_CUST_SHIP_EMAIL		=> 'ship-to email',
-    KSI_CUST_SHIP_PHONE		=> 'ship-to phone',
-//    KSI_SHIP_MISSING		=> 'ship-to missing info',
+      KI_SHIP_ZONE		=> 'ship zone',
+      KI_RECIP_NAME		=> 'ship-to name',
+      KI_RECIP_STREET		=> 'ship-to street',
+      KI_RECIP_CITY		=> 'ship-to city',
+      KI_RECIP_STATE		=> 'ship-to state',
+      KI_RECIP_ZIP		=> 'ship-to zipcode',
+      KI_RECIP_COUNTRY		=> 'ship-to country',
+      KI_RECIP_MESSAGE		=> 'ship-to message',
+      KI_RECIP_IS_BUYER		=> 'ship to self?',
+      KSI_SHIP_IS_CARD		=> 'ship to = card?',
+      KI_RECIP_EMAIL		=> 'ship-to email',
+      KI_RECIP_PHONE		=> 'ship-to phone',
 // -- payment
-    KSI_CUST_CARD_NUM		=> 'card number',
-    KSI_CUST_CARD_EXP		=> 'card expiry',
-    KSI_ADDR_CARD_NAME		=> 'card owner',
-    KSI_ADDR_CARD_STREET	=> 'card street address',
-    KSI_ADDR_CARD_CITY		=> 'card address city',
-    KSI_ADDR_CARD_STATE		=> 'card address state',
-    KSI_ADDR_CARD_ZIP		=> 'card zipcode',
-    KSI_ADDR_CARD_COUNTRY	=> 'card country',
-    KSI_CUST_CHECK_NUM		=> 'check number',
-    KSI_CUST_PAY_EMAIL		=> 'customer email',
-    KSI_CUST_PAY_PHONE		=> 'customer phone',
+      KI_PAY_CARD_NUM		=> 'card number',
+      KI_PAY_CARD_EXP		=> 'card expiry',
+      KI_PAY_CARD_NAME		=> 'card owner',
+      KI_PAY_CARD_STREET	=> 'card street address',
+      KI_PAY_CARD_CITY		=> 'card address city',
+      KI_PAY_CARD_STATE		=> 'card address state',
+      KI_PAY_CARD_ZIP		=> 'card zipcode',
+      KI_PAY_CARD_COUNTRY	=> 'card country',
+      KI_PAY_CHECK_NUM		=> 'check number',
+      KI_BUYER_EMAIL		=> 'customer email',
+      KI_BUYER_PHONE		=> 'customer phone',
 
-    KSI_ITEM_TOTAL		=> 'item total',
-    KSI_PER_ITEM_TOTAL		=> 's/h per-item total',
-    KSI_PER_PKG_TOTAL		=> 's/h package total',
+      KI_CALC_SALE_TOTAL	=> 'item total',
+      KI_CALC_PER_ITEM_TOTAL	=> 's/h per-item total',
+      KI_CALC_PER_PKG_TOTAL	=> 's/h package total',
     );
 
     public function ValueText() {

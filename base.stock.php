@@ -22,6 +22,16 @@ class clsStkItems extends clsVbzTable {
 	$objStock->Table = $this;
 	return $objStock;
     }
+    /*----
+      RETURNS: number of items in stock
+    */
+    public function Count_inStock() {
+	$sql = 'SELECT SUM(QtyForSale) AS Qty FROM qryStkItms_for_sale';
+	$rc = $this->Engine()->Make('clsRecs_generic');
+	$rc->Query($sql);
+	$rc->NextRow();
+	return $rc->Value('Qty');
+    }
 /* (2010-06-15) This doesn't seem to be used anywhere, and possibly does not work.
     public function QtyInStock_forItem($iItemID) {
 	$sql = 'SELECT SUM(s.Qty) AS Qty FROM stk_items AS s LEFT JOIN stk_bins AS sb ON s.ID_Bin=sb.ID WHERE (s.ID_Item='.$iItemID.') AND (s.WhenRemoved IS NULL) AND (sb.WhenVoided IS NULL) AND (sb.isForSale) GROUP BY s.ID_Item';

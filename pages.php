@@ -113,24 +113,32 @@ abstract class clsVbzPage extends clsPage {
 	parent::__construct();
 	$this->Skin($this->NewSkin());
     }
-    protected abstract function NewSkin();
 
-    /*-----
-      USAGE: Normal main entry point -- should be called from index.php
+    // ++SECTION: new methods
+
+    /*----
+      INPUT:
+	$iRequire:
+	  TRUE = make sure there is a cart (create if there isn't one already)
+	  FALSE = just return the existing cart or NULL if there isn't one
     */
-/*
-    public function DoPage() {
-	parent::DoPage();
-	//echo $this->Doc()->Render();
-	try {
-	    $this->DoPreContent();
-	    $this->DoContent();
-	    $this->DoPostContent();
-	} catch(exception $e) {
-	    $this->DoEmailException($e);
+    public function CartObj($iRequire) {
+	$oSess = $this->App()->Session();
+	if ($iRequire) {
+	    return $oSess->CartObj_toUse();
+	} else {
+	    return $oSess->CartObj_Current();
 	}
     }
-*/
+    public function HasCart() {
+	return $this->App()->Session()->HasCart();
+    }
+
+    protected abstract function NewSkin();
+
+    // --SECTION: new methods
+    // ++SECTION: redefinitions
+
     /*----
       PURPOSE: Renders HTML up to beginning of BODY.
       HISTORY:
@@ -203,6 +211,18 @@ abstract class clsVbzPage extends clsPage {
 	  );
 
 	$out = $this->Exception_Message_toEmail($arErr);	// generate the message to email
+	if (count($_GET) > 0) {
+	    $out .= "\n_GET:\n".print_r($_GET,TRUE);
+	    $msg .= '<br>GET:<pre>'.print_r($_GET,TRUE).'</pre>';
+	}
+	if (count($_POST) > 0) {
+	    $out .= "\n_POST:\n".print_r($_POST,TRUE);
+	    $msg .= '<br>POST:<pre>'.print_r($_POST,TRUE).'</pre>';
+	}
+	if (count($_COOKIE) > 0) {
+	    $out .= "\n_COOKIE:\n".print_r($_COOKIE,TRUE);
+	    $msg .= '<br>COOKIE:<pre>'.print_r($_COOKIE,TRUE).'</pre>';
+	}
 	$subj = $this->Exception_Subject_toEmail($arErr);
 	$ok = mail(KS_TEXT_EMAIL_ADDR_ERROR,$subj,$out);	// email the message
 
@@ -340,12 +360,15 @@ if ($objCache->dtNewest) {
     $timeSidebarBuild = NULL;
 }
 */
-$timeSidebarBuild = NULL;
-$statsQtyTitlesAvail = 2245;
-$statsQtyStockPieces = 1395;
-$statsQtyStockItems = 753;
-$statsQtyArtists = 136;
-$statsQtyTopics = 1048;
+//$timeSidebarBuild = NULL;
+
+// this displays how many items can be searched, but the number is how many pieces are in stock.
+// TODO: fix later
+$statsQtyTitlesAvail = $this->Data()->StkItems()->Count_inStock();
+//$statsQtyStockPieces = 1395;
+//$statsQtyStockItems = 753;
+//$statsQtyArtists = 136;
+//$statsQtyTopics = 1048;
 //---------
 
 	$out = NULL;
@@ -414,7 +437,7 @@ $statsQtyTopics = 1048;
 	$strServer = $_SERVER['SERVER_SOFTWARE'];
 	echo $strServer.' .. ';
 	echo 'PHP '.phpversion().' .. Generated in <b>'.$fltUserTime.'</b> seconds (script execution '.$fltExecTime.' sec.) .. ';
-	$strWikiPg = $this->strWikiPg;
+	$strWikiPg = Nz($this->strWikiPg);	// TODO: make this less klugey
 	if ($strWikiPg) {
 	    echo 'wiki: <a href="'.KWP_WIKI.kEmbeddedPagePrefix.$this->strWikiPg.'">'.$strWikiPg.'</a> .. ';
 	}
@@ -506,6 +529,15 @@ class clsVbzApp extends clsApp {
 	}
 	return $this->oData;
     }
+    public function Skin() {
+	return $this->Page()->Skin();
+    }
+    public function User() {
+	return $this->Session()->UserObj();
+    }
+
+    // changeable objects
+
     public function Session() {
 	//return $this->Page()->CartObj()->Session();
 	//return $this->Data()->Session();
@@ -513,12 +545,12 @@ class clsVbzApp extends clsApp {
 	$oSess = $tSess->GetCurrent();
 	return $oSess;
     }
-    public function Skin() {
-	return $this->Page()->Skin();
+/* 2013-11-10 I just wrote this, but let's avoid using it unless it really seems necessary.
+  Most objects need to be able to get to the Session object anyway, so just use that.
+    public function Cart($iRequire) {
+	return $this->Session()->CartObj($iRequire);
     }
-    public function User() {
-	return $this->Session()->UserObj();
-    }
+*/
 /*
     public function User(clsVbzUserRec $iUser=NULL) {
 	if (!is_null($iUser)) {

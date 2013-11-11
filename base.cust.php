@@ -48,6 +48,10 @@ class clsCusts extends clsTable_key_single {
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsCust');
     }
+    public function Recs_forUser($idUser) {
+	$rs = $this->GetData('(ID_Repl IS NULL) AND (ID_User='.$idUser.')');
+	return $rs;
+    }
     /*----
       ACTION: Ensures that the given customer data is recorded.
 	The following tables may be affected:
@@ -242,6 +246,35 @@ class clsCusts extends clsTable_key_single {
 }
 class clsCust extends clsRecs_key_single {
     /*----
+      RETURNS: HTML for a drop-down list of all the customers
+	in the current recordset
+    */
+    public function Render_DropDown($iName) {
+	$out = "\n<select name=\"$iName\">";
+	while ($this->NextRow()) {
+	    $htRow = NULL;
+
+	    $sTag = $this->Value('Title');
+	    if (!is_null($sTag)) {
+		$htRow .= htmlspecialchars($sTag).': ';
+	    }
+
+	    $oName = $this->NameObj();
+	    $oAddr = $this->AddrObj();
+
+	    $htRow .= $oName->ShortDescr();
+	    if (is_null($oAddr)) {
+		$htRow .= ' (no address)';
+	    } else {
+		$htRow .= ' - '.$oAddr->ShortDescr();
+	    }
+
+	    $id = $this->KeyValue();
+	    $out .= "\n<option value=$id>$htRow</option>";
+	}
+	$out .= "\n</select>";
+    }
+    /*----
       RETURNS: recordset of aliases for this customer ID
       HISTORY:
 	2012-01-09 created for admin page
@@ -305,23 +338,78 @@ class clsCust extends clsRecs_key_single {
 	}
     }
     /*----
-      RETURNS: recordset of Addresses for this Customer
+      RETURNS: recordset of Names for this Customer
       HISTORY:
-	2012-01-08 split off from AdminAddrs
+	2012-01-08 split off from AdminNames
     */
-    public function Addrs() {
-	$tbl = $this->objDB->CustAddrs();
-	$rc = $tbl->GetData('ID_Cust='.$this->KeyValue());
+    public function Names() {
+	$tbl = $this->objDB->CustNames();
+	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
+	return $rs;
+    }
+    /*----
+      RETURNS: recordset of only active Names for this Customer
+      HISTORY:
+	2013-11-09 Created for user-based checkout, but then not used.
+    */
+/*
+    public function NamesActive() {
+	return $this->Names('isActive');
+    }
+*/
+    /*----
+      RETURNS: recordset of default name for this customer
+      HISTORY:
+	2013-11-09 Created for user-based checkout.
+    */
+    public function NameObj() {
+	$id = $this->Value('ID_Name');
+	if (is_null($id)) {
+	    $rc = NULL;
+	} else {
+	    $rc = $this->Engine()->CustNames($id);
+	}
 	return $rc;
     }
     /*----
+      RETURNS: recordset of all Addresses for this Customer, optionally filtered
+      HISTORY:
+	2012-01-08 split off from AdminAddrs
+	2013-11-08 Added optional $iFilt parameter.
+	2013-11-09 Moved most of the code to clsCusts::Recs_forCust()
+    */
+    public function Addrs($iFilt=NULL) {
+	$tbl = $this->objDB->CustAddrs();
+	$id = $this->KeyValue();
+	$rc = $tbl->Recs_forCust($id,$iFilt);
+	return $rc;
+    }
+    /*----
+      RETURNS: recordset of only active Addresses for this Customer
+      HISTORY:
+	2013-11-08 Created for user-based checkout.
+    */
+    public function AddrsActive() {
+	return $this->Addrs('(WhenVoid IS NULL) AND NOT (WhenExp < NOW())');
+    }
+    /*----
       RETURNS: recordset of default address for this customer
+	If ID_Addr is not set, returns first active record found.
+	If there are no active records, returns NULL.
+      HISTORY:
+	2013-11-09 Added check for ID_Addr = NULL.
     */
     public function AddrObj() {
 	$id = $this->Value('ID_Addr');
-	$rc = $this->Engine()->CustAddrs($id);
-	if ($rc->HasRows()) {
-	    $rc->NextRow();	// load first row
+	if (is_null($id)) {
+	    $rc = $this->AddrsActive();
+	    if ($rc->RowCount == 0) {
+		$rc = NULL;
+	    } else {
+		$rc->NextRow();		// load the first record
+	    }
+	} else {
+	    $rc = $this->Engine()->CustAddrs($id);
 	}
 	return $rc;
     }
@@ -342,16 +430,6 @@ class clsCust extends clsRecs_key_single {
     */
     public function Phones() {
 	$tbl = $this->objDB->CustPhones();
-	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
-	return $rs;
-    }
-    /*----
-      RETURNS: recordset of Names for this Customer
-      HISTORY:
-	2012-01-08 split off from AdminNames
-    */
-    public function Names() {
-	$tbl = $this->objDB->CustNames();
 	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
 	return $rs;
     }
@@ -490,6 +568,7 @@ class clsCustNames extends clsTable {
       HISTORY:
 	2011-09-23 Created so we can inspect SQL before executing
     */
+/* 2013-11-09 removing all data-scripting
     public function Make_Script($iCustID,$iValue) {
 	if (is_null($iCustID)) {
 	    $isFnd = FALSE;
@@ -511,6 +590,17 @@ class clsCustNames extends clsTable {
 	$act->Name('name.data');
 	return $act;
     }
+*/
+    public function Recs_forCust($idCust,$iFilt=NULL) {
+	$tbl = $this->objDB->CustAddrs();
+	$sqlFilt = 'ID_Cust='.$idCust;
+	if (!is_null($iFilt)) {
+	    $sqlFilt = '('.$sqlFilt.') AND ('.$iFilt.')';
+	}
+	$rc = $tbl->GetData($sqlFilt);
+	return $rc;
+    }
+
 }
 class clsCustName extends clsDataSet {
     public function CustID() {
@@ -827,6 +917,15 @@ throw new exception('Path to here is...?');
 	return $acts;
     }
 */
+    public function Recs_forCust($idCust,$iFilt=NULL) {
+	$tbl = $this->objDB->CustAddrs();
+	$sqlFilt = 'ID_Cust='.$idCust;
+	if (!is_null($iFilt)) {
+	    $sqlFilt = '('.$sqlFilt.') AND ('.$iFilt.')';
+	}
+	$rc = $tbl->GetData($sqlFilt);
+	return $rc;
+    }
 }
 class clsCustAddr extends clsDataSet {
     public function CustID() {
@@ -878,9 +977,11 @@ class clsCustAddr extends clsDataSet {
     }
     /*
       RETURNS: array of calculated values to update
+      HISTORY:
+	2013-11-07 $strSearch was being set as $strSeach; fixed.
     */
     protected function CalcUpdateArray() {
-	$strSeach = $this->SearchString();
+	$strSearch = $this->SearchString();
 	$strFull = $this->AsString();
 	$arUpd = array(
 	  'Full'	=> $strFull,
@@ -1057,9 +1158,11 @@ class clsCustEmails extends clsTable {
       RETURNS: Script to add a new email address to a customer that hasn't been created yet
       HISTORY:
 	2011-09-23 Created so we can inspect SQL before executing
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Script_forAdd($iValue, Script_Tbl_Insert $iCustInsert_Script) {
-	$acts = new Script_Script();
+	//$acts = new Script_Script();
 
 	$ar = $this->Add_SQL_base($iValue);
 	$ar['WhenEnt'] = 'NOW()';
@@ -1068,6 +1171,7 @@ class clsCustEmails extends clsTable {
 	$acts->Add($actIns,'cust.email.add');
 	return $acts;
     }
+*/
     /*----
       ACTION: Generates base array for adding email address
 	Customer ID is not yet known
@@ -1302,7 +1406,9 @@ class clsCustPhones extends clsTable {
       RETURNS: Script to add a new email address to a customer that hasn't been created yet
       HISTORY:
 	2011-10-05 adapted from clsCustEmails
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Script_forAdd($iValue, Script_Tbl_Insert $iCustInsert_Script) {
 	$acts = new Script_Script();
 
@@ -1313,6 +1419,7 @@ class clsCustPhones extends clsTable {
 	$acts->Add($actIns,'cust.phone.add');
 	return $acts;
     }
+*/
     /*----
       PURPOSE: fills in the INSERT array with everything we know by default
       HISTORY:
@@ -1582,7 +1689,9 @@ class clsCustCards_dyn extends clsCustCards {
 	2011-11-21 commented out until we can confirm that this is being used somewhere
 	2011-12-18 it wasn't being used, but now is needed as part of the tree-based rewrite
 	2011-12-18 is this a duplicate of functionality in admin.cart.php clsPayment_admin::Make_Script?
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Script_Make(
       $iData,
       Script_RowObj $iCustInsert_Script,
@@ -1618,7 +1727,7 @@ class clsCustCards_dyn extends clsCustCards {
 	$acts->Add($actRec,'ccard.make');
 	return $acts;
     }
-
+*/
     /*----
       ACTION: Generates base array for adding/updating credit card
 	Customer ID is not yet known

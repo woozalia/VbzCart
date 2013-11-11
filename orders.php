@@ -25,7 +25,7 @@ define('KSI_ORD_MSG_INT',	8);	// internal use - stored, not sent
 /* ======================
 */
 class clsOrders extends clsTable {
-    const TableName='core_orders';
+    const TableName='orders';
 
     public function __construct($iDB) {
 	parent::__construct($iDB);
@@ -64,9 +64,12 @@ class clsOrders extends clsTable {
 	return $intOrdThis;
     }
     /*-----
-    | FUNCTION: Populate()
+    | FUNCTION: CopyCart()
     | ACTION: fill in the order record with data from the cart
+    | DEPRECATED 2013-11-06, unless it turns out to be used
+    |	somewhere *besides* the checkout process.
     */
+/*
     public function CopyCart($iOrdID, clsShopCart $iCartObj) {
 	assert('$iOrdID > 0');
 
@@ -94,6 +97,7 @@ class clsOrders extends clsTable {
 
 	return $objOrd;	// this is used by the checkout process
     }
+*/
 }
 class clsOrder extends clsVbzRecs {
     /*----
@@ -150,21 +154,6 @@ class clsOrder extends clsVbzRecs {
 	return $this->Log()->EventListing();
     }
     //====
-/*
-    protected function FinishEvent(array $iArgs=NULL) {
-	$this->objDB->Events()->FinishEvent($iArgs);
-    }
-*/
-    /*----
-      HISTORY:
-	2010-10-08 Moved here from VbzAdminOrder; supercedes existing protected function
-	  which might not have been working properly anyway (no idEvent)
-    */
-/* 2011-03-27 this is now redundant
-    public function FinishEvent(array $iArgs=NULL) {
-	$this->objDB->Events()->FinishEvent($this->idEvent,$iArgs);
-    }
-*/
     /*-----
       TO DO: Explain why this object sometimes doesn't know what the cart is yet
 	(presumably happens during the cart->order transfer process)
@@ -202,27 +191,41 @@ class clsOrder extends clsVbzRecs {
 	$this->CopyCartData($iCartObj);
 	$this->CopyCartLines($iCartObj);
     }
-    /* =====
+    /*----
       ACTION: Copy over basic cart information (totals, etc.)
       HISTORY:
 	2010-10-06 added cart ID to update -- otherwise final order confirmation page can't find cart data
 	2012-05-25 major revision to cart data access -- now using $iCartObj->CartData()
+	2013-11-06 this will now import the full order data as well, creating or updating customer records
+	  as needed
+      TODO:
+	card data in cart must be *encrypted* after copying
     */
     private function CopyCartData(clsShopCart $iCartObj) {
 	$objData = $iCartObj->CartData();
 
-	$curItemTotal = $objData->CostTotalItem();
+	$curItemTotal = $objData->CostTotalSale();
 	$curShipItem = $objData->CostTotalPerItem();
 	$curShipPkg = $objData->CostTotalPerPkg();
 
 	$idCart = $iCartObj->ID;
 	$this->Value('ID_Cart',$idCart);
 
+	$idBuyer	= $objData->Value('ID_Buyer');
+	$idRecip	= $objData->Value('ID_Recip');
+	$sBuyerName	= $objData->BuyerName();
+	$sRecipName	= $objData->RecipName();
+
 	$arUpd = array(
 	  'ID_Cart'		=> $idCart,
 	  'WebTotal_Merch'	=> SQLValue($curItemTotal),
 	  'WebTotal_Ship' 	=> SQLValue($curShipItem+$curShipPkg),
-	  'WebTotal_Final'	=> SQLValue($curItemTotal+$curShipItem+$curShipPkg)
+	  'WebTotal_Final'	=> SQLValue($curItemTotal+$curShipItem+$curShipPkg),
+	  'ID_Buyer'		=> $idBuyer,
+	  'ID_Recip'		=> $idRecip,
+	  'BuyerName'		=> SQLValue($sBuyerName),
+	  'RecipName'		=> SQLValue($sRecipName),
+	  'RecipAddr'		=> SQLValue($sRecipAddr)
 	  );
 	$this->StartEvent_Simple('CDC','Copying data from cart ID='.$idCart,__METHOD__);
 	$this->Update($arUpd);	// we're assuming the order record exists at this point
@@ -346,9 +349,9 @@ class clsOrder extends clsVbzRecs {
 	  'cart.id'	=> $objCart->KeyValue(),
 	  'sess.id'	=> $objSess->KeyValue(),
 	  'cart.detail'	=> $objCart->RenderConfirm(),
-	  'ship.name'	=> $objData->ShipAddrName(),
+	  'ship.name'	=> $objData->RecipName(),
 	  'ship.addr'	=> $objShip->Addr_AsText("\n<br>"),
-	  'pay.name'	=> $objData->CustName(),
+	  'pay.name'	=> $objData->BuyerName(),
 	  'pay.spec'	=> $objPay->SafeDisplay(),
 	  'url.shop'	=> KWP_HOME_REL,
 	  'email.short'	=> 'orders-'.date('Y').'@vbz.net'

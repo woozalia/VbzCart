@@ -55,13 +55,13 @@ class clsPackage extends clsDataSet {
       BOILERPLATE: self-linking
     */
     public function AdminURL($iarArgs=NULL) {
-	return clsAdminData::_AdminURL($this,$iarArgs);
+	return clsAdminData_helper::_AdminURL($this,$iarArgs);
     }
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminRedirect($iarArgs=NULL) {
-	return clsAdminData::_AdminRedirect($this,$iarArgs);
+	return clsAdminData_helper::_AdminRedirect($this,$iarArgs);
     }
     // no, this isn't really a boilerplate function, but we'll make it one eventually
     public function AdminLink_name($iPopup=NULL,array $iarArgs=NULL) {

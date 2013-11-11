@@ -28,6 +28,8 @@ define('KWP_TOOLS_DTREE',KWP_TOOLS.'/aux/dtree');
 define('KWP_LOGO_HEADER',KWP_TOOLS.'/img/logos/v/');
 define('KS_PAGE_SERVER','vbz.net');	// domain or IP of server where pages are kept
 
+define('KS_USER_SESSION_KEY','vbzcart-session');	// name of cookie for storing session key
+
 define('KWP_STORE_SECURE','https://'.KS_PAGE_SERVER.'/');
 define('KWP_CKOUT',KWP_STORE_SECURE.'checkout/');
 define('KWP_LOGIN',KWP_STORE_SECURE.'login/');
@@ -112,17 +114,6 @@ LINK=33FF33"
 VLINK=33CCFF"
 ALINK=FFCC00"
 */
-);
-// shopping cart
-//define('KHT_CART_MSG','Please <a href="http://wiki.vbz.net/Contact">let me know</a> if you have any questions.');
-define('KHT_CART_FTR', <<<__END__
-<tr><td colspan=9><input type=submit name=recalc value="Recalculate">
-<input type=submit name=finish value="Check Out >>>" class=btn-next>
-</form></tr></td></tr>
-<tr><td colspan=9>
-<hr>Please <a href="http://wiki.vbz.net/Contact">let me know</a> if you have any questions.
-</td></tr></table><td></tr></table>
-__END__
 );
 /*
 define('KHT_CART_MSG', <<<__END__

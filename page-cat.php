@@ -490,8 +490,6 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	$idTitle = $this->KeyValue();
 	$out = NULL;
 
-	//$sql = 'SELECT * FROM qryTitles_ItTyps_ItTyps WHERE (ID_Title='.$idTitle.') ORDER BY ItTyp_Sort IS NULL, ItTyp_Sort;';
-	//$sql = 'SELECT * FROM _title_ittyps WHERE (ID_Title='.$idTitle.') ORDER BY ItTypSort IS NULL, ItTypSort;';
 	$sql = 'SELECT * FROM'
 	  .' (cat_items AS i'
 	  .' LEFT JOIN cat_ittyps AS it ON i.ID_ItTyp=it.ID)'
@@ -507,11 +505,12 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	    } else {
 	      $urlCart = KWP_CART_REL;
 	    }
-	    $out .= '<form method=post action="'.$urlCart.'"><input type=hidden name=from value=browse-multi>';
+//	    $out .= '<form method=post action="'.$urlCart.'"><input type=hidden name=from value=browse-multi>';
+	    $out .= "\n<form method=post action=\"$urlCart\">";
 
 	    $flagDisplayTogether = false;	// hard-coded for now
 
-	    $txtTblHdr = $tblItems->Render_TableHdr();
+	    $txtTblHdr = clsItems::Render_TableHdr();
 	    $txtInStock = $txtOutStock = $txtBoth = '';
 
 	    $idItTyp_old = NULL;
@@ -519,16 +518,91 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	    $this->cntInStk = 0;
 	    $this->cntOutStk = 0;
 
+
+	    // build nested array
+	    while ($rs->NextRow()) {
+		$id = $rs->KeyValue();
+		$row = $rs->Values();
+		//$arAll[$id] = $row;
+
+		// determine status and set array key
+		$qtyInStk = $rs->Value('QtyIn_Stk');
+		$isForSale = $rs->Value('isForSale');
+		$sStatKey = ($qtyInStk > 0)?'istk':'ostk';
+
+		// get item type
+		$idTyp = $rs->Value('ID_ItTyp');
+
+		// put this item into the nested array
+		$ar[$sStatKey][$idTyp][$id] = $row;
+	    }
+
+	    // some constants for formatting output
+	    $arStatDesc = array(
+	      'istk'	=> 'in stock',
+	      'ostk'	=> '<a href="'.KWP_HELP_NO_STOCK_BUT_AVAIL.'"><b>not in stock</b></a>'
+	      );
+	    $arStatClass = array(
+	      'istk'	=> 'inStock',
+	      'ostk'	=> 'noStock'
+	      );
+	    $htTblHdr = "\n<!-- ITEM TABLE -->\n<table class=main><tbody>";
+	    $htTblFtr = "\n<tr><td colspan=4 align=right><input name='"
+	      .KSF_CART_BTN_ADD_ITEMS
+	      ."' value='Add to Cart' type='submit'></td></tr>"
+	      ."\n</tbody></table>";
+
+	    // generate output from nested table
+	    foreach ($ar as $sStat => $arTyp) {
+
+		// calculate how many items are in this status group
+		$nQty = 0;
+		foreach ($arTyp as $idTyp => $arItm) {
+		    $nQty += count($arItm);	// how many items are in this type?
+		}
+		if ($nQty > 0) {
+		    $out .= $htTblHdr;
+		    $sNoun = Pluralize($nQty,'This item is','These items are');
+		    $sStatDesc = $arStatDesc[$sStat];
+		    $sStatClass = $arStatClass[$sStat];
+		    $out .= "<tr class=$sStatClass><td colspan=5>$sNoun $sStatDesc</td></tr>";
+		    $out .= $txtTblHdr;
+		    foreach ($arTyp as $idTyp => $arItm) {
+			foreach ($arItm as $id => $row) {
+			    $rs->Values($row);	// stuff row values into an object for easier access
+			    $out .= $rs->Render_TableRow();
+			}
+		    }
+		    $out .= $htTblFtr;
+		}
+	    }
+	    $out .= '</form>';
+/*
 	    while ($rs->NextRow()) {
 		$idItTyp = $rs->Value('ID_ItTyp');
 		if ($idItTyp_old != $idItTyp) {
+		    // new item type
+
 		    $idItTyp_old = $idItTyp;
-		    // new type -- render type headers
+
+		    // render type header
+		    $htTypPlur = htmlspecialchars($rs->Value('NamePlr'));
+		    $htLine = "\n<tr class=typeHdr><td colspan=3><b>$htTypPlur</b>:</td></tr>";
+
 		    $ar = $this->ShopPage_Items_TypeSection($rs);
 		    $txtInStock .= NzArray($ar,'in');
 		    $txtOutStock .= NzArray($ar,'out');
 		    $txtBoth .= NzArray($ar,'both');
 		}
+
+		// determine availability status
+		$qtyInStk = $rs->Value('QtyIn_Stk');
+		$isForSale = $rs->Value('isForSale');
+		$isOutStk = (($qtyInStk == 0) && $isForSale); 
+
+
+
+
 
 		$strGrp = $rs->Value('GrpDescr');
 		$qtyStk = $rs->Value('QtyIn_Stk');
@@ -570,14 +644,15 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	    } // END while next row
 
 // format all the accumulated bits of text into one large string:
-	    $txtTblOpen = '<table class=main><tbody>';
-	    $txtTblFtr = '<tr><td colspan="4" align="right"><input value="Add to Cart" type="submit"></td></tr>';
-	    $txtTblShut = '</tbody></table>';
+	    $txtTblOpen = "\n<!-- ITEM TABLE -->\n<table class=main><tbody>";
+	    $txtTblFtr = "\n<tr><td colspan=4 align=right><input name='".KSF_CART_BTN_ADD_ITEMS."' value='Add to Cart' type='submit'></td></tr>";
+	    $txtTblShut = "\n</tbody></table>";
 
 	    if ($flagDisplayTogether) {
 // Display in-stock and backordered items together
 		$out .= $txtTblOpen.$txtTblHdr.$txtBoth.$txtTblFtr.$txtTblShut;
 	    } else {
+// Display in-stock table first, then restockable table:
 		if ($this->cntInStk) {
 		    $txtClause = Pluralize($qtyStk,'This item is','These items are');
 		    $out .= $txtTblOpen;
@@ -601,12 +676,14 @@ class clsTitle_StoreUI extends clsVbzTitle {
 		}
 	    }
 	    $out .= '</form>';
+*/
 	} else {
 	    $objPage = $this->Table()->Page();
 	    $out .= $objPage->NewSection('This title is currently unavailable');
 	}
 	return $out;
     }
+/*
     protected function ShopPage_Items_TypeSection($rs) {
 	$txtTypPlur = $rs->Value('NamePlr');
 
@@ -637,139 +714,7 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	}
 	return $arOut;
     }
-    protected function ShopPage_Items_OLD() {
-	$idTitle = $this->KeyValue();
-	$out = NULL;
-
-	//$sql = 'SELECT * FROM qryTitles_ItTyps_ItTyps WHERE (ID_Title='.$idTitle.') ORDER BY ItTyp_Sort IS NULL, ItTyp_Sort;';
-	$sql = 'SELECT * FROM _title_ittyps WHERE (ID_Title='.$idTitle.') ORDER BY ItTypSort IS NULL, ItTypSort;';
-	$rsTypes = $this->Engine()->DataSet($sql);
-	$isItem = FALSE;
-	if ($rsTypes->hasRows()) {
-	    if (KF_CART_ABSOLUTE) {
-	      $urlCart = KWP_CART_ABS;
-	    } else {
-	      $urlCart = KWP_CART_REL;
-	    }
-	    $out .= '<form method=post action="'.$urlCart.'"><input type=hidden name=from value=browse-multi>';
-
-	    $flagDisplayTogether = false;	// hard-coded for now
-
-	    //$objStk = $this->Engine()->Items_Stock();
-	    $tblItems = $this->Engine()->Items();
-	    //$txtTblHdr = '<tr><th align=left>Option</th><th>Status</th><th align=right class=title-price>Price</th><th align=center class=orderQty>Order<br>Qty.</th><th><i>list<br>price</th></tr>';
-	    $txtTblHdr = $tblItems->Render_TableHdr();
-	    $txtInStock = $txtOutStock = '';
-
-	    while ($rsTypes->NextRow()) {
-		$idItTyp = $rsTypes->Value('ID_ItTyp');
-		assert('$idItTyp');
-		$sqlFilt = '(ID_Title='.$idTitle.') AND (ID_ItTyp='.$idItTyp.')';
-		$sqlSort = 'GrpSort,GrpDescr,ItOpt_Sort';
-		$rsItems = $tblItems->GetData($sqlFilt,NULL,$sqlSort);
-		//$idItType = 0;
-
-		$txtLine = '<tr class=typeHdr><td colspan=3><b>'.$rsTypes->Value('ItTypNamePlr').'</b>:</td></tr>';
-
-		if ($flagDisplayTogether) {
-// displaying all items in a single listing
-		    $txtBoth .= $txtLine;
-		} else {
-// set flags to determine which stock-status sections to show
-		    $cntInStock = $rsTypes->Value('cntInStock');
-		    $cntForSale = $rsTypes->Value('cntForSale');
-		    $cntOutStock = $cntForSale - $cntInStock;
-
-		    if ($cntInStock > 0) {
-			$txtInStock .= $txtLine;
-		    }
-		    if ($cntOutStock > 0) {
-			$txtOutStock .= $txtLine;
-		    }
-		}
-// iterate through items for this type:
-		$strGrpLast = '';
-		while ($rsItems->NextRow()) {
-		    $strGrp = $rsItems->Value('GrpDescr');
-		    $qtyStk = $rsItems->Value('QtyIn_Stk');
-		    if ($strGrp != $strGrpLast) {
-			$strGrpLast = $strGrp;
-			$strGrpCode = $rsItems->Value('GrpCode');
-			$out = '<tr class="group">';
-			$out .= '<td colspan=5> &mdash; '.$strGrp;
-			if ($strGrpCode) {
-			    $out .= ' <font color=#666666>(<font color=#666699>'.$strGrpCode.'</font>)</font>';
-			}
-			$out .= '</td>';
-			$out .= '</tr>';
-// this should probably be a subroutine...
-			if ($flagDisplayTogether) {
-			  $txtBoth .= $out;
-			} else {
-			  if ($qtyStk > 0) {
-			    $txtInStock .= $out;
-			  } else {
-			    $txtOutStock .= $out;
-			  }
-			}
-		    }
-//echo '<br>GOT TO #1 - qty='.$qtyStk;
-		    if ($rsItems->Value('isForSale')) {
-			$isItem = TRUE;
-			$txtLine = $rsItems->Render_TableRow();
-
-			if ($flagDisplayTogether) {
-			    $txtBoth .= $txtLine;
-			} else {
-			    if ($qtyStk > 0) {
-				$txtInStock .= $txtLine;
-			    } else {
-				$txtOutStock .= $txtLine;
-			    }
-			}
-		    }
-		}
-	    }
-
-	    if ($isItem) {
-// format all the accumulated bits of text into one large string:
-		$txtTblOpen = '<table class=main><tbody>';
-		$txtTblFtr = '<tr><td colspan="4" align="right"><input value="Add to Cart" type="submit"></td></tr>';
-		$txtTblShut = '</tbody></table>';
-
-		if ($flagDisplayTogether) {
-// Display in-stock and backordered items together
-		    $out .= $txtTblOpen.$txtTblHdr.$txtBoth.$txtTblFtr.$txtTblShut;
-		} else {
-		    if ($txtInStock != '') {
-			$txtClause = Pluralize($cntInStock,'This item is','These items are');
-			$out .= $txtTblOpen;
-			$out .= '<tr class=inStock><td colspan=5>'.$txtClause.' in stock:</td></tr>';
-			$out .= $txtTblHdr.$txtInStock.$txtTblFtr.$txtTblShut;
-		    }
-
-		    if (!empty($txtOutStock)) {
-			if (!empty($txtInStock)) {
-			    $out .= '<p>';
-			}
-			$txtClause = Pluralize($cntOutStock,'This item is','These items are');
-
-			$out .= $txtTblOpen;
-			$out .= '<tr><td colspan=5>'.$txtClause.' <a href="'.KWP_HELP_NO_STOCK_BUT_AVAIL.'"><b>not in stock</b></a>';
-
-			$txtClause = Pluralize($cntOutStock,'it','them');
-
-			$out .= ', but we can (probably) <a href="'.KWP_HELP_POLICY_SHIP.'">get '.$txtClause.'</a>:</td></tr>';
-			$out .= $txtTblHdr.$txtOutStock.$txtTblFtr.$txtTblShut;
-		    } /**/
-		}
-	    } else {
-		$out .= clsPageOutput::SectionHeader('This title is currently unavailable');
-	    }
-	    $out .= '</form>';
-	}
-	return $out;
-    }
+*/
 }
 /*%%%%
   PURPOSE: extends clsImages to handle store UI interactions

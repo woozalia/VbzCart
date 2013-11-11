@@ -86,15 +86,10 @@ class clsVbzSkin_browse extends clsVbzSkin {
 	$out .= "\n</tr></table>\n</td></tr></table>\n<!-- end html header -->\n";
 	return $out;
     }
+
+/*
     public function RenderNavbar() {
 // TODO: these should be pulled from the [stats] table
-/*
-if ($objCache->dtNewest) {
-    $timeSidebarBuild=$objCache->dtNewest;
-} else {
-    $timeSidebarBuild = NULL;
-}
-*/
     $timeSidebarBuild = NULL;
 $statsQtyTitlesAvail = 2245;
 $statsQtyStockPieces = 1395;
@@ -108,17 +103,12 @@ $statsQtyTopics = 1048;
 	$out .= '<table class=sidebar bgcolor="#ffffff" cellpadding=5><tr><td>';
 	$out .= '<table border=0 class=menu-title width="100%"><tr><td class=menu-title><a href="/">Home</a></td></tr></table>';
 	$out .= '<span class=menu-text><dl>';
-/*
-<span class=menu-text><p style="background: #eeeeee;"><dl>
-*/
+//<span class=menu-text><p style="background: #eeeeee;"><dl>
+
 	$out .= $this->RenderLinkList();
 //  echo '</p></span></dl>';
 	$out .= '</dl>';
-/*
-	if (!is_null($iSide)) {
-	    $out .= '<dl style="background: #eeeeee;">'.$iSide.'</dl>';
-	}
-*/
+
 	$out .= '<form action="/search/">';
 	$out .= 'Search '.$statsQtyTitlesAvail.' items:<br>';
 	$out .= '
@@ -141,6 +131,7 @@ $statsQtyTopics = 1048;
 	$out .= '</span></td></tr></table></td></tr></table>';
 	return $out;
     }
+*/
     protected function RenderLinkList() {
 	$out = NULL;
 	$arLinks = $this->Page()->NavArray();

@@ -162,7 +162,7 @@ class clsPageUser extends clsPageCkout {
 	    }
 	} elseif ($this->IsLoggedIn()) {
 	    if ($this->DidTryLogin()) {
-		echo $oSkin->RenderSuccess('Log in successful -- <b>welcome, '.$this->App()->User()->RecObj()->FullName().'!</b>');
+		echo $oSkin->RenderSuccess('Log in successful -- <b>welcome, '.$this->App()->User()->FullName().'!</b>');
 	    }
 	    echo 'You may now access your <a href="'.KWP_UACCT.'" title="view and manage your account">user profile</a>.';
 	    echo '<ul>'
@@ -221,8 +221,16 @@ class clsPageUser extends clsPageCkout {
 
 	//$oNav->States(NULL,clsNavLink::KI_DEFAULT,NULL);	// default state
 	$oNav->States(NULL,clsNavLink::KI_DEFAULT,NULL);	// debug
-	$oNav->Node($sPgNav)->State(clsNavLink::KI_CURRENT);	// override parent class
-	$oNav->CSSClass('nav-link-current',clsNavLink::KI_CURRENT);	// use 'nav-link-current' for whichever link is current
+	$oNode = $oNav->Node($sPgNav);
+	if (is_object($oNode)) {
+	    $oNav->Node($sPgNav)->State(clsNavLink::KI_CURRENT);	// override parent class
+	    $oNav->CSSClass('nav-link-current',clsNavLink::KI_CURRENT);	// use 'nav-link-current' for whichever link is current
+	} else {
+/* For now, we'll just ignore invalid page keys, but here's an error message if we need it:
+	    echo 'Navbar structure:'.$oNav->DumpHTML();
+	    throw new exception('Internal error: trying to access nonexistent page-key "'.$sPgNav.'".');
+*/
+	}
 
 	echo $this->Skin()->RenderNavbar_H($oNav);
     }
@@ -238,16 +246,17 @@ class clsPageUser extends clsPageCkout {
 	    $oi->Popup('return to checkout / finish your order');
 
 	if ($this->IsLoggedIn()) {
-	    $oi = new clsNavLink($oNav,'lgi','setup');
-	      $oi->URL(KWP_LOGIN);
-	      $oi->Popup('log in or set up your user account');
-	      $oi->State(clsNavLink::KI_CURRENT);	// active
 	    $oi = new clsNavLink($oNav,'acc','account');
 	      $oi->URL(KWP_UACCT);
 	      $oi->Popup('manage your user account');
 	    $oi = new clsNavLink($oNav,'lgo','log out');
 	      $oi->URL(KWP_LOGOUT);
 	      $oi->Popup('log out of the system - browser will forget who you are');
+	} else {
+	    $oi = new clsNavLink($oNav,'lgi','setup');
+	      $oi->URL(KWP_LOGIN);
+	      $oi->Popup('log in or set up your user account');
+	      $oi->State(clsNavLink::KI_CURRENT);	// active
 	}
 	$oNav->Decorate('[',']',' ... ');
 	$oNav->CSSClass('nav-item',		clsNavLink::KI_DEFAULT);

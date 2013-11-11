@@ -823,7 +823,7 @@ class clsCtgGroup extends clsDataSet {
 	2010-10-11 Replaced existing code with call to static function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     /*----
       ACTION: Redirect to the url of the admin page for this object
@@ -1295,7 +1295,7 @@ class clsCtgTitle extends clsDataSet {
 	2010-11-06 Added boilerplate function
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     public function AdminList() {
 	global $vgOut;

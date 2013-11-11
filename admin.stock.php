@@ -2312,7 +2312,7 @@ class VbzAdminStkItem extends clsDataSet {
       BOILERPLATE: self-linking
     */
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsAdminData::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
     // ==== /BOILERPLATE
 

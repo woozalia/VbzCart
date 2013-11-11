@@ -1653,6 +1653,8 @@ class clsAdminRstkReqItem extends clsRstkReqItem {
 		$dtCre = strtotime($txtWhenCre);
 		$yrCre = date('Y',$dtCre);
 
+		clsModule::LoadFunc('Date_DefaultYear');
+
 		$txtWhenOrd = $objReq->Value('WhenOrdered');
 		$ftWhenOrd = Date_DefaultYear($txtWhenOrd,$yrCre);
 

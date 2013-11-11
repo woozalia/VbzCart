@@ -8,7 +8,7 @@
     2013-09-13 extracted constants to cart-const.php
 */
 
-require_once('cart-const.php');
+require_once('vbz-const-cart.php');
 require_once('config-admin.php');
 
 class clsCartVars extends clsTable_indexed {
@@ -20,34 +20,33 @@ class clsCartVars extends clsTable_indexed {
     protected $objCust, $objShip, $objPay;
 
     protected static $arFormIdxs = array(
-      KSI_SHIP_ZONE		=> KSF_SHIP_ZONE,
+      KI_SHIP_ZONE	=> KSF_SHIP_ZONE,
 
-      //KSI_SHIP_TO_SELF		=> KSF_SHIP_TO_SELF,
-      KSI_SHIP_IS_CARD		=> KSF_SHIP_IS_CARD,
-      KSI_SHIP_MESSAGE		=> KSF_SHIP_MESSAGE,
-      KSI_ADDR_SHIP_NAME	=> KSF_ADDR_SHIP_NAME,
-      KSI_ADDR_SHIP_STREET	=> KSF_ADDR_SHIP_STREET,
-      KSI_ADDR_SHIP_CITY	=> KSF_ADDR_SHIP_CITY,
-      KSI_ADDR_SHIP_STATE	=> KSF_ADDR_SHIP_STATE,
-      KSI_ADDR_SHIP_ZIP		=> KSF_ADDR_SHIP_ZIP,
-      KSI_ADDR_SHIP_COUNTRY	=> KSF_ADDR_SHIP_COUNTRY,
-      KSI_CUST_SHIP_EMAIL	=> KSF_CUST_SHIP_EMAIL,
-      KSI_CUST_SHIP_PHONE	=> KSF_CUST_SHIP_PHONE,
+      KSI_SHIP_IS_CARD	=> KSF_SHIP_IS_CARD,
+      KI_RECIP_IS_BUYER	=> KSF_RECIP_IS_BUYER,
+      KI_RECIP_MESSAGE	=> KSF_SHIP_MESSAGE,
+      KI_RECIP_NAME	=> KSF_RECIP_NAME,
+      KI_RECIP_STREET	=> KSF_RECIP_STREET,
+      KI_RECIP_CITY	=> KSF_RECIP_CITY,
+      KI_RECIP_STATE	=> KSF_RECIP_STATE,
+      KI_RECIP_ZIP	=> KSF_RECIP_ZIP,
+      KI_RECIP_COUNTRY	=> KSF_RECIP_COUNTRY,
+      KI_RECIP_EMAIL	=> KSF_RECIP_EMAIL,
+      KI_RECIP_PHONE	=> KSF_RECIP_PHONE,
 
       // -- payment
-      KSI_CUST_CARD_NUM		=> KSF_CUST_CARD_NUM,
-      KSI_CUST_CARD_EXP		=> KSF_CUST_CARD_EXP,
-      KSI_CUST_CARD_NAME	=> KSF_CUST_CARD_NAME,
-      KSI_CUST_CARD_STREET	=> KSF_CUST_CARD_STREET,
-      KSI_CUST_CARD_CITY	=> KSF_CUST_CARD_CITY,
-      KSI_CUST_CARD_STATE	=> KSF_CUST_CARD_STATE,
-      KSI_CUST_CARD_ZIP		=> KSF_CUST_CARD_ZIP,
-      KSI_CUST_CARD_COUNTRY	=> KSF_CUST_CARD_COUNTRY,
-      KSI_CUST_CHECK_NUM	=> KSF_CUST_CHECK_NUM,
-      KSI_CUST_PAY_EMAIL	=> KSF_CUST_PAY_EMAIL,
-      KSI_CUST_PAY_PHONE	=> KSF_CUST_PAY_PHONE,
+      KI_PAY_CARD_NUM		=> KSF_PAY_CARD_NUM,
+      KI_PAY_CARD_EXP		=> KSF_PAY_CARD_EXP,
+      KI_PAY_CARD_NAME		=> KSF_PAY_CARD_NAME,
+      KI_PAY_CARD_STREET	=> KSF_PAY_CARD_STREET,
+      KI_PAY_CARD_CITY		=> KSF_PAY_CARD_CITY,
+      KI_PAY_CARD_STATE		=> KSF_PAY_CARD_STATE,
+      KI_PAY_CARD_ZIP		=> KSF_PAY_CARD_ZIP,
+      KI_PAY_CARD_COUNTRY	=> KSF_PAY_CARD_COUNTRY,
+      KI_PAY_CHECK_NUM		=> KSF_PAY_CHECK_NUM,
+      KI_BUYER_EMAIL		=> KSF_BUYER_EMAIL,
+      KI_BUYER_PHONE		=> KSF_BUYER_PHONE,
       );
-
 
     public function __construct($iDB) {
 	$objIdx = new clsIndexer_Table_multi_key($this);
@@ -155,42 +154,40 @@ class clsCartVars extends clsTable_indexed {
 	switch($iPage) {
 	  case KSQ_PAGE_SHIP:	// shipping / payment-type page
 	    $arInUse = array(
-//	      KSI_SHIP_TO_SELF,
-	      KSI_SHIP_IS_CARD,
-	      KSI_ADDR_SHIP_NAME,
-	      KSI_ADDR_SHIP_STREET,
-	      KSI_ADDR_SHIP_CITY,
-	      KSI_ADDR_SHIP_STATE,
-	      KSI_ADDR_SHIP_ZIP,
-	      KSI_ADDR_SHIP_COUNTRY,
-	      KSI_SHIP_ZONE,
-	      KSI_CUST_SHIP_EMAIL,
-	      KSI_CUST_SHIP_PHONE,
-	      KSI_SHIP_MESSAGE,
-	      // payment type
-	      KSI_SHIP_IS_CARD,
+	      KI_RECIP_IS_BUYER,
+	      KSI_SHIP_IS_CARD,		// is this redundant?
+	      KI_RECIP_NAME,
+	      KI_RECIP_STREET,
+	      KI_RECIP_CITY,
+	      KI_RECIP_STATE,
+	      KI_RECIP_ZIP,
+	      KI_RECIP_COUNTRY,
+	      KI_SHIP_ZONE,
+	      KI_RECIP_EMAIL,
+	      KI_RECIP_PHONE,
+	      KI_RECIP_MESSAGE,
 	      );
 	    break;
 	  case KSQ_PAGE_PAY:	// payment page
 	    $arInUse = array(
-	      KSI_CUST_CARD_NUM,
-	      KSI_CUST_CARD_EXP,
-	      KSI_CUST_CARD_NAME,
-	      KSI_CUST_CARD_STREET,
-	      KSI_CUST_CARD_CITY,
-	      KSI_CUST_CARD_STATE,
-	      KSI_CUST_CARD_ZIP,
-	      KSI_CUST_CARD_COUNTRY,
-	      KSI_CUST_CHECK_NUM,
-	      KSI_CUST_PAY_EMAIL,
-	      KSI_CUST_PAY_PHONE,
+	      KI_PAY_CARD_NUM,
+	      KI_PAY_CARD_EXP,
+	      KI_PAY_CARD_NAME,
+	      KI_PAY_CARD_STREET,
+	      KI_PAY_CARD_CITY,
+	      KI_PAY_CARD_STATE,
+	      KI_PAY_CARD_ZIP,
+	      KI_PAY_CARD_COUNTRY,
+	      KI_PAY_CHECK_NUM,
+	      KI_BUYER_EMAIL,
+	      KI_BUYER_PHONE,
 	      KSI_SHIP_IS_CARD,	// editing the card's address can override this
 	      );
 	    break;
 	  case KSQ_PAGE_CART:
 	  default:	// cart may not pass a page name (not sure why not)
 	    $arInUse = array(
-	      KSI_SHIP_ZONE,
+	      KI_SHIP_ZONE,
 	      );
 	}
 	foreach ($arInUse as $index) {
@@ -265,26 +262,25 @@ class clsCartVars extends clsTable_indexed {
 	// if using shipping address for payee, we still want to record cardholder name separately
 	$useCardName = $iAsPayee && $this->ShipToCard();
 	if ($useCardName) {
-	    $objFld = new clsFormIndex(KSF_CUST_CARD_NAME,	KSI_ADDR_CARD_NAME);
+	    $objFld = new clsFormIndex(KSF_PAY_CARD_NAME,	KI_PAY_CARD_NAME);
 	} else {
-	    $objFld = new clsFormIndex(KSF_ADDR_SHIP_NAME,	KSI_ADDR_SHIP_NAME);
+	    $objFld = new clsFormIndex(KSF_RECIP_NAME,	KI_RECIP_NAME);
 	}
 */
-	$objFld = new clsFormIndex(KSF_ADDR_SHIP_NAME,	KSI_ADDR_SHIP_NAME);
+	$objFld = new clsFormIndex(KSF_RECIP_NAME,	KI_RECIP_NAME);
 	if (is_null($this->objShip)) {
 	    $arFields = array(
 	      $objFld,
-	      new clsFormIndex(KSF_ADDR_SHIP_STREET,	KSI_ADDR_SHIP_STREET),
-	      new clsFormIndex(KSF_ADDR_SHIP_CITY,	KSI_ADDR_SHIP_CITY),
-	      new clsFormIndex(KSF_ADDR_SHIP_STATE,	KSI_ADDR_SHIP_STATE),
-	      new clsFormIndex(KSF_ADDR_SHIP_ZIP,	KSI_ADDR_SHIP_ZIP),
-	      new clsFormIndex(KSF_ADDR_SHIP_COUNTRY,	KSI_ADDR_SHIP_COUNTRY),
-	      new clsFormIndex(KSF_CUST_SHIP_EMAIL,	KSI_CUST_SHIP_EMAIL),
-	      new clsFormIndex(KSF_CUST_SHIP_PHONE,	KSI_CUST_SHIP_PHONE),
+	      new clsFormIndex(KSF_RECIP_STREET,	KI_RECIP_STREET),
+	      new clsFormIndex(KSF_RECIP_CITY,	KI_RECIP_CITY),
+	      new clsFormIndex(KSF_RECIP_STATE,	KI_RECIP_STATE),
+	      new clsFormIndex(KSF_RECIP_ZIP,	KI_RECIP_ZIP),
+	      new clsFormIndex(KSF_RECIP_COUNTRY,	KI_RECIP_COUNTRY),
+	      new clsFormIndex(KSF_RECIP_EMAIL,	KI_RECIP_EMAIL),
+	      new clsFormIndex(KSF_RECIP_PHONE,	KI_RECIP_PHONE),
 	      // additional stuff to store
 	      new clsFormIndex(KSF_SHIP_IS_CARD,	KSI_SHIP_IS_CARD),
-	      //new clsFormIndex(KSF_SHIP_TO_SELF,	KSI_SHIP_TO_SELF),
-	      new clsFormIndex(KSF_SHIP_MESSAGE,	KSI_SHIP_MESSAGE)
+	      new clsFormIndex(KSF_SHIP_MESSAGE,	KI_RECIP_MESSAGE)
 	      );
 	    $this->objShip = new clsPerson($this->Engine(),$this->arData,$arFields);
 	}
@@ -297,12 +293,12 @@ class clsCartVars extends clsTable_indexed {
 
 	if (is_null($this->objCust)) {
 	    $arFields = array(
-	      new clsFormIndex(KSF_CUST_CARD_NAME,	KSI_ADDR_CARD_NAME),
-	      new clsFormIndex(KSF_CUST_CARD_STREET,	KSI_ADDR_CARD_STREET),
-	      new clsFormIndex(KSF_CUST_CARD_CITY,	KSI_ADDR_CARD_CITY),
-	      new clsFormIndex(KSF_CUST_CARD_STATE,	KSI_ADDR_CARD_STATE),
-	      new clsFormIndex(KSF_CUST_CARD_ZIP,	KSI_ADDR_CARD_ZIP),
-	      new clsFormIndex(KSF_CUST_CARD_COUNTRY,	KSI_ADDR_CARD_COUNTRY),
+	      new clsFormIndex(KSF_PAY_CARD_NAME,	KI_PAY_CARD_NAME),
+	      new clsFormIndex(KSF_PAY_CARD_STREET,	KI_PAY_CARD_STREET),
+	      new clsFormIndex(KSF_PAY_CARD_CITY,	KI_PAY_CARD_CITY),
+	      new clsFormIndex(KSF_PAY_CARD_STATE,	KI_PAY_CARD_STATE),
+	      new clsFormIndex(KSF_PAY_CARD_ZIP,	KI_PAY_CARD_ZIP),
+	      new clsFormIndex(KSF_PAY_CARD_COUNTRY,	KI_PAY_CARD_COUNTRY),
 	      NULL,NULL,	// no email or phone for customer (yet); they go with the shipping info
 	      );
 	    $this->objCust = new clsPerson($this->Engine(),$this->arData,$arFields);
@@ -342,9 +338,9 @@ class clsCartVars extends clsTable_indexed {
 	}
 	if (is_null($this->objPay)) {
 	    $arFields = array(
-	      new clsFormIndex(KSF_CUST_CARD_NUM,	KSI_CUST_CARD_NUM),
-	      new clsFormIndex(KSF_CUST_CARD_EXP,	KSI_CUST_CARD_EXP),
-	      new clsFormIndex(KSF_CUST_CHECK_NUM,	KSI_CUST_CHECK_NUM),
+	      new clsFormIndex(KSF_PAY_CARD_NUM,	KI_PAY_CARD_NUM),
+	      new clsFormIndex(KSF_PAY_CARD_EXP,	KI_PAY_CARD_EXP),
+	      new clsFormIndex(KSF_PAY_CHECK_NUM,	KI_PAY_CHECK_NUM),
 	      );
 	    $this->objPay = new clsPayment($this->Engine(),$this->arData,$arFields,$this->BillObj());
 	}
@@ -407,7 +403,10 @@ class clsCartVars extends clsTable_indexed {
       ACTION: generate datascript to import the free-form cart data into normalized order/contact data
       INPUT:
 	$idCust,$idShip: contact IDs to use for buyer and ship-to, respectively; 'new' = create new record
+      HISTORY:
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Script_forImport($idCust,$idShip) {
 	$acts = new Script_Script();		// create root script
 
@@ -422,13 +421,16 @@ class clsCartVars extends clsTable_indexed {
 
 	return $acts;
     }
-
+*/
   /*####
     SECTION: data-item specific access methods
     SUBSECTION: READ/WRITE methods
   */
+
+    // SHIP TO info
+
     public function ShipZone($iZone=NULL) {
-	return $this->FieldVal(KSI_SHIP_ZONE,$iZone);
+	return $this->FieldVal(KI_SHIP_ZONE,$iZone);
     }
     public function ShipToSelf($iFlag=NULL) {
 	if (is_null($iFlag)) {
@@ -436,20 +438,9 @@ class clsCartVars extends clsTable_indexed {
 	} else {
 	    $strFlag = $iFlag?'on':'off';
 	}
-	$val = $this->FieldVal(KSI_SHIP_TO_SELF,$strFlag);
+	$val = $this->FieldVal(KI_RECIP_IS_BUYER,$strFlag);
 	return ($val == 'on');
     }
-/*
-    public function ShipToCard($iFlag=NULL) {
-	if (is_null($iFlag)) {
-	    $strFlag = NULL;
-	} else {
-	    $strFlag = $iFlag?'on':'off';
-	}
-	$val = $this->FieldVal(KSI_SHIP_IS_CARD,$strFlag);
-	return ($val == 'on');
-    }
-*/
     public function ShipToCard($iFlag=NULL) {
 	if (is_null($iFlag)) {
 	    $strFlag = NULL;
@@ -459,54 +450,66 @@ class clsCartVars extends clsTable_indexed {
 	$val = $this->FieldVal(KSI_SHIP_IS_CARD,$strFlag);
 	return (!empty($val));
     }
-    public function ShipAddrName($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_NAME,$iText);
+    public function RecipName($iText=NULL) {
+	return $this->FieldVal(KI_RECIP_NAME,$iText);
     }
     public function ShipAddrStreet($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_STREET,$iText);
+	return $this->FieldVal(KI_RECIP_STREET,$iText);
     }
     public function ShipAddrTown($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_CITY,$iText);
+	return $this->FieldVal(KI_RECIP_CITY,$iText);
     }
     public function ShipAddrState($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_STATE,$iText);
+	return $this->FieldVal(KI_RECIP_STATE,$iText);
     }
     public function ShipAddrZip($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_ZIP,$iText);
+	return $this->FieldVal(KI_RECIP_ZIP,$iText);
     }
     public function ShipAddrCountry($iText=NULL) {
-	return $this->FieldVal(KSI_ADDR_SHIP_COUNTRY,$iText);
+	return $this->FieldVal(KI_RECIP_COUNTRY,$iText);
     }
     public function ShipEmail($iText=NULL) {
-	return $this->FieldVal(KSI_CUST_SHIP_EMAIL,$iText);
+	return $this->FieldVal(KI_RECIP_EMAIL,$iText);
     }
     public function ShipPhone($iText=NULL) {
-	return $this->FieldVal(KSI_CUST_SHIP_PHONE,$iText);
+	return $this->FieldVal(KI_RECIP_PHONE,$iText);
     }
     public function ShipMsg($iText=NULL) {
-	return $this->FieldVal(KSI_SHIP_MESSAGE,$iText);
+	return $this->FieldVal(KI_RECIP_MESSAGE,$iText);
     }
+
+    // BUYER info
+
     public function CardNum($iText=NULL) {
-	return $this->FieldVal(KSI_CUST_CARD_NUM,$iText);
+	return $this->FieldVal(KI_PAY_CARD_NUM,$iText);
     }
     public function CardExp($iText=NULL) {
-	return $this->FieldVal(KSI_CUST_CARD_EXP,$iText);
+	return $this->FieldVal(KI_PAY_CARD_EXP,$iText);
     }
     public function CheckNum($iText=NULL) {
-	return $this->FieldVal(KSI_CUST_CHECK_NUM,$iText);
+	return $this->FieldVal(KI_PAY_CHECK_NUM,$iText);
     }
-    public function CustName() {
-	return $this->FieldVal(KSI_CUST_CARD_NAME,NULL);
+    public function BuyerID() {
+	return $this->FieldVal(KI_BUYER_ID,NULL);
     }
     /*----
-      TODO: This should be KSI_CUST_PAY_EMAIL OSLT, but right now we don't record
+      LATER: Cardholder name (PayCardName()) should be separate from buyer's name.
+    */
+    public function BuyerName() {
+	return $this->PayCardName();
+    }
+    public function PayCardName() {
+	return $this->FieldVal(KI_PAY_CARD_NAME,NULL);
+    }
+    /*----
+      TODO: This should be KI_BUYER_EMAIL OSLT, but right now we don't record
 	separate emails/phonesfor sender/recipient
     */
     public function CustEmail() {
-	return $this->FieldVal(KSI_CUST_SHIP_EMAIL);
+	return $this->FieldVal(KI_RECIP_EMAIL);
     }
     /*----
-      TODO: This should be KSI_CUST_PAY_PHONE OSLT, but right now we don't record
+      TODO: This should be KI_BUYER_PHONE OSLT, but right now we don't record
 	separate emails/phonesfor sender/recipient
     */
   /*####
@@ -525,16 +528,16 @@ class clsCartVars extends clsTable_indexed {
     }
     // these could be converted to read/write if needed
     public function CustPhone() {
-	return $this->FieldVal(KSI_CUST_SHIP_PHONE);
+	return $this->FieldVal(KI_RECIP_PHONE);
     }
-    public function CostTotalItem() {
-	return $this->FieldVal(KSI_ITEM_TOTAL);
+    public function CostTotalSale() {
+	return $this->FieldVal(KI_CALC_SALE_TOTAL);
     }
     public function CostTotalPerItem() {
-	return $this->FieldVal(KSI_PER_ITEM_TOTAL);
+	return $this->FieldVal(KI_CALC_PER_ITEM_TOTAL);
     }
     public function CostTotalPerPkg() {	// "Total" is something of a misnomer here...
-	return $this->FieldVal(KSI_PER_PKG_TOTAL);
+	return $this->FieldVal(KI_CALC_PER_PKG_TOTAL);
     }
 }
 class clsCartVar extends clsRecs_indexed {
@@ -791,7 +794,10 @@ class clsPerson extends clsCartDataGrp {
       NOTES:
 	A logistical issue to keep in mind: this creates the customer record if it doesn't exist. Email and Phone objects will
 	  not be able to do this. Maybe we need to handle them in here too?
+      HISTORY:
+	2013-11-06 commenting this out because data-scripting is being removed
     */
+/*
     public function Script_forImport($idCont) {
 	$strAddr = $this->Addr_forSearch();
 	$tbl = $this->objDB->CustAddrs();
@@ -841,6 +847,7 @@ class clsPerson extends clsCartDataGrp {
 	$actRoot->Add($actCust,'addr.make');
 	return $actRoot;
     }
+*/
     /*----
       HISTORY:
 	2012-05-16 copied from old clsPerson, but will probably need significant rewriting
@@ -976,6 +983,9 @@ __END__;
 	return $out;
     }
     public function Capture(clsPageCkout $iPage) {
+
+throw new exception('Who calls this? (2013-11-07)');
+
 	$objCart = $iPage->CartObj();
 	$objZone = $objCart->ShipZoneObj();
 	$objVars = $iPage->CartData();
@@ -1038,19 +1048,19 @@ Defined in $this->Init():
 	  $objShipZone->Abbr($shipZone);
 	$custShipToSelf	= $iCart->GetFormItem(KSF_SHIP_TO_SELF);
 	$custShipIsCard	= $iCart->GetFormItem(KSF_SHIP_IS_CARD);
-	$custName	= $iCart->GetFormItem(KSF_ADDR_SHIP_NAME);
-	$custStreet	= $iCart->GetFormItem(KSF_ADDR_SHIP_STREET);
-	$custCity	= $iCart->GetFormItem(KSF_ADDR_SHIP_CITY);
-	$custState	= $iCart->GetFormItem(KSF_ADDR_SHIP_STATE);
-	$custZip	= $iCart->GetFormItem(KSF_ADDR_SHIP_ZIP);
-	$custCountry	= $iCart->GetFormItem(KSF_ADDR_SHIP_COUNTRY);
-	$custEmail	= $iCart->GetFormItem(KSF_CUST_SHIP_EMAIL);
-	$custPhone	= $iCart->GetFormItem(KSF_CUST_SHIP_PHONE);
+	$custName	= $iCart->GetFormItem(KSF_RECIP_NAME);
+	$custStreet	= $iCart->GetFormItem(KSF_RECIP_STREET);
+	$custCity	= $iCart->GetFormItem(KSF_RECIP_CITY);
+	$custState	= $iCart->GetFormItem(KSF_RECIP_STATE);
+	$custZip	= $iCart->GetFormItem(KSF_RECIP_ZIP);
+	$custCountry	= $iCart->GetFormItem(KSF_RECIP_COUNTRY);
+	$custEmail	= $iCart->GetFormItem(KSF_RECIP_EMAIL);
+	$custPhone	= $iCart->GetFormItem(KSF_RECIP_PHONE);
 	$custMessage	= $iCart->GetFormItem(KSF_SHIP_MESSAGE);
 
 
 	$objCD->ShipZone($shipZone);
-	$objCD->ShipAddrName($custName);
+	$objCD->RecipName($custName);
 	$objCD->ShipAddrStreet($custStreet);
 	$objCD->ShipAddrTown($custCity);
 	$objCD->ShipAddrState($custState);

@@ -3,10 +3,11 @@
   PURPOSE: shopping cart stuff -- base
   HISTORY:
     2012-04-17 extracted from shop.php
-    2013-09-13 now using cart-const.php
+    2013-09-13 now using vbz-const-ckout.php (formerly cart-const.php)
 */
 
-require_once('cart-const.php');
+require_once('vbz-const-cart.php');
+require_once('vbz-const-ckout.php');
 
 // ShopCart
 class clsShopCarts extends clsTable {
@@ -19,6 +20,128 @@ class clsShopCarts extends clsTable {
 	  $this->ClassSng('clsShopCart');
 	  $this->ActionKey('cart');
     }
+    protected function LinesTable() {
+	return $this->Engine()->CartLines();
+    }
+    protected function SessObj() {
+	return $this->Engine()->App()->Session();
+    }
+    protected function CartExists() {
+	return $this->SessObj()->HasCart();
+    }
+    protected function CartObj($iRequire) {
+	//return $this->SessObj()->CartObj_toUse($doRequire);
+	$oSess = $this->SessObj();
+	if ($iRequire) {
+	    return $oSess->CartObj_toUse();
+	} else {
+	    return $oSess->CartObj_Current();
+	}
+    }
+    /*----
+      ACTION: creates a new Cart record
+      INPUT: $idSess = value for ID_Sess
+      RETURNS: ID of new record
+      USAGE: called from Session object (cVbzSession)
+	because all requests for carts ultimately go through there
+      HISTORY:
+	2013-11-09 significant redesign of initialization process for carts and sessions
+    */
+    public function Create($idSess) {
+	$arIns = array(
+	  'WhenCreated'	=> 'NOW()',
+	  'ID_Sess'	=> $idSess
+	  );
+	$idNew = $this->Insert($arIns);
+	if ($idNew === FALSE) {
+	    throw new exception('Could not add new cart record in database for Session ID '.$idSess.'.');
+	}
+	return $idNew;
+    }
+    /*----
+      ACTION: Check form input to see if anything needs to be done to the current Cart.
+      HISTORY:
+	2013-11-09 moved from clsShopCart to clsShopCarts
+    */
+    public function CheckData() {
+// check for buttons
+	$doAddItems	= array_key_exists(KSF_CART_BTN_ADD_ITEMS,$_POST);
+	$doRecalc	= array_key_exists(KSF_CART_BTN_RECALC,$_POST);
+	$doShipZone	= array_key_exists(KSF_SHIP_ZONE,$_POST);
+	$doModify	= array_key_exists(KSF_CART_CHANGE,$_GET);
+	$doCheckout	= array_key_exists(KSF_CART_BTN_CKOUT,$_POST);
+	$isCart = ($doRecalc || $doCheckout);	// there must already be a cart under these conditions
+	$doItems = ($doAddItems || $doRecalc);	// if true, there are items to process
+	$isZoneSet = FALSE;	// have we set the zone from stored data?
+	$db = $this->Engine();
+	$oCart = $this->CartObj(TRUE);	// get the current cart (create if absent)
+// check for specific actions
+	if ($doItems) {
+	    if ($isCart) {
+		// zero out all items, so only items in visible cart will be retained:
+		$oCart->ZeroAll();
+	    }
+	    // get the list of items posted
+	    $arItems = $_POST[KSF_CART_ITEM_ARRAY_NAME];
+	    // add each non-empty item
+	    foreach ($arItems as $key => $val) {
+		if (!empty($val)) {
+		    $sqlCatNum = $db->SafeParam($key);
+		    $oCart->AddItem($sqlCatNum,$val);
+		}
+	    } // END for each item
+	// END do add items
+	} elseif ($doShipZone) {
+	    $custShipZone	= $_POST[KSF_SHIP_ZONE];
+	    $oCart->ShipZoneObj()->Abbr($custShipZone);
+	    $isZoneSet = TRUE;
+	} elseif ($doModify) {
+	    // these actions operate on an existing cart
+	    if ($this->CartExists()) {
+		$strDo = $_GET[KSF_CART_CHANGE];
+		switch ($strDo) {
+		  case KSF_CART_EDIT_DEL_LINE:
+		    $idLine = $_GET[KSF_CART_EDIT_LINE_ID];
+		    $oCart->DelLine($idLine);
+		    $idCart = $oCart->KeyValue();
+		    $oCart->LogEvent('del',"deleting line ID $idLine");
+		    break;
+		  case KSF_CART_EDIT_DEL_CART;
+		    $oCart->LogEvent('clr','voiding cart');
+		    //$this->ID = -1;
+		    $this->SessObj()->DropCart();
+		    break;
+		}
+	    } else {
+		throw new exception('Attempted operation "'.$strDo.'" without a cart.');
+	    }
+	}
+	if (!$isZoneSet && $isCart) {
+	    // reload the shipping zone if we don't already know it
+	    // 2013-11-10 Is this a kluge? Why wouldn't we already know it?
+	    $oCart->ShipZoneObj()->Abbr($oCart->CartData()->ShipZone());
+	}
+	if ($doCheckout) {
+	    $oCart->LogEvent('ck1','going to checkout');
+	    http_redirect(KWP_CKOUT);
+	    $oCart->LogEvent('ck2','sent redirect to checkout');
+	}
+    }
+    /*----
+      HISTORY:
+	2013-11-10 Significant change to assumptions. A cart object now only exists
+	  to represent a cart record in the database. The cart table object now handles
+	  situations where there is no cart record.
+    */
+    public function RenderCart() {
+	if ($this->CartExists()) {
+	    $out = $this->CartObj(FALSE)->Render();
+	} else {
+	    $out = "<font size=4>You have not put anything in your cart yet.</font>";
+	    $this->LogEvent('disp','displaying cart - nothing yet; zone '.$this->ShipZoneObj()->Abbr());
+	}
+	return $out;
+    }
 }
 class clsShopCart extends clsDataSet {
     protected $objShipZone;
@@ -26,6 +149,7 @@ class clsShopCart extends clsDataSet {
     private $arDataItem;
     protected $objOrder;
     private $oSess;
+    private $oLines;
 
     protected $hasDetails;	// customer details have been loaded?
 
@@ -48,6 +172,7 @@ class clsShopCart extends clsDataSet {
 	$this->ID_Order = NULL;
 	$this->ID_Cust = NULL;
 	$this->oSess = NULL;
+	$this->oLines = NULL;
     }
     /*====
       BLOCK: EVENT HANDLING
@@ -75,9 +200,37 @@ class clsShopCart extends clsDataSet {
 	global $vgUserName;
 
 	$strUser = is_null($iUser)?$vgUserName:$iUser;
-	$this->objDB->CartLog()->Add($this,$iCode,$iDescr,$strUser);
+	$this->Engine()->CartLog()->Add($this,$iCode,$iDescr,$strUser);
     }
     //====
+    /*----
+      USAGE: called by clsShopCarts->CheckData() when items are found in _POST input
+      HISTORY:
+	2013-11-10 Removed call to Make(), since we're now assuming that there is a record if we're here.
+    */
+    public function AddItem($iCatNum,$iQty) {
+	$oLines = $this->Engine()->CartLines();
+	$oLines->Add($this->KeyValue(),$iCatNum,$iQty);
+	$this->LogEvent('add','adding to cart: cat# '.$iCatNum.' qty '.$iQty);
+    }
+    /*----
+      ACTION:
+	* Checks to make sure the given ID is a line currently in this cart
+	* If so, sets the quantity of that line to zero, effectively deleting it.
+    */
+    public function DelLine($idLine) {
+	$oLine = $this->Engine()->CartLines($idLine);
+	$idCartMe = $this->KeyValue();
+	$idCartDel = $oLine->CartID();
+	if ($idCartDel == $idCartMe) {
+	    // matches -- okay to delete line
+	    $oLine->Qty(0);	// zero the qty
+	    $oLine->Save();	// save the change
+	} else {
+	    // mismatch -- either an internal bug or a hacking attempt
+	    throw new exception("Attempted to delete item line ID $idLine, which is in cart ID $idCartDel not in cart ID $idCartMe.");
+	}
+    }
     /*----
       HISTORY:
 	2010-12-31 Created so placed orders do not get "stuck" in user's browser
@@ -105,7 +258,17 @@ class clsShopCart extends clsDataSet {
 	2011-03-27 written for improved handling of cart status at checkout
     */
     public function IsVoided() {
-	return !(is_null($this->WhenVoided));
+	return !(is_null($this->Value('WhenVoided')));
+    }
+    /*----
+      ACTION: Void this cart.
+      USAGE: This only marks the record as void, not the
+	object fields, so caller must reload the record if
+	anything further is to be done with the object.
+    */
+    public function DoVoid() {
+	$ar = array('WhenVoided'=>'NOW()');
+	$this->Update($ar);
     }
     /*----
       NOTE: Cart ID will be null when we haven't yet been assigned a new cart record.
@@ -125,12 +288,15 @@ class clsShopCart extends clsDataSet {
 	return $this->objCartData;
     }
 // == STATUS
+/*
     public function HasCart() {
 	return $this->IsCreated();	// may use different criteria later on
     }
+*/
     /*----
       TODO: Figure out why $this->HasField('ID_Sess') would ever *not* be true.
     */
+/*
     public function HasSession() {
 	$ok = FALSE;
 	if ($this->HasField('ID_Sess')) {	// why would this ever *not* be true?
@@ -140,20 +306,27 @@ class clsShopCart extends clsDataSet {
 	}
 	return $ok;
     }
+*/
     /*----
       NOTE: This is only private because nothing else needs it yet.
 	Okay to open it up if something does.
       ASSUMES: row is set
     */
+/* 2013-11-10 What uses this? Document it.
+
     private function SessID() {
 	return $this->Value('ID_Sess');
     }
+*/
     /*----
       HISTORY:
 	2013-10-13
 	  * renamed from Session() to SessObj() for consistency
 	  * added caching of session object
     */
+/* 2013-11-10 This needs to be explained, if it is actually needed.
+    Shouldn't requests for sessions be going to App()->Session() or something?
+
     public function SessObj() {
 	if ($this->HasSession()) {
 	    $doNew = TRUE;
@@ -168,16 +341,18 @@ class clsShopCart extends clsDataSet {
 		$oSess = $tSess->GetItem($this->ID_Sess);
 		$this->oSess = $oSess;
 	    }
-	    return $jSess;
+	    return $oSess;
 	} else {
-	    $this->oSess = NULL;
-	    return NULL;
+	    $this->oSess = $this->App()->Session();
+	    return $this->oSess;
 	}
     }
-    // DEPRECATED - use OrderObj()
+*/
+/*    // DEPRECATED - use OrderObj()
     public function Order() {
 	return $this->OrderObj();
     }
+*/
     /*----
       RETURNS: Order object
     */
@@ -196,10 +371,8 @@ class clsShopCart extends clsDataSet {
     public function ShipZoneObj() {
 	if (is_null($this->objShipZone)) {
 	    $this->objShipZone = new clsShipZone();
-	    if ($this->HasCart()) {
-		$idZone = $this->CartData()->ShipZone();
-		$this->objShipZone->Abbr($idZone);
-	    }
+	    $idZone = $this->CartData()->ShipZone();
+	    $this->objShipZone->Abbr($idZone);
 	}
 	if (is_null($this->objShipZone)) {
 	    throw new exception('Internal error: object not created.');
@@ -207,20 +380,27 @@ class clsShopCart extends clsDataSet {
 	return $this->objShipZone;
     }
     public function HasLines() {
-	$objLines = $this->GetLines();
-	if (is_null($objLines)) {
+	$oLines = $this->LinesObj();
+	if (is_null($oLines)) {
 	    return FALSE;
 	} else {
-	    return $objLines->hasRows();
+	    return $oLines->hasRows();
 	}
     }
     public function LineCount() {
 	if ($this->HasLines()) {
-	    return $this->objLines->RowCount();
+	    return $this->LinesObj()->RowCount();
 	} else {
 	    return 0;
 	}
     }
+    public function LinesObj() {
+	if (is_null($this->oLines)) {
+	    $this->oLines = $this->Engine()->CartLines()->GetData('(ID_Cart='.$this->KeyValue().') AND (Qty>0)');
+	}
+	return $this->oLines;
+    }
+/*
     public function GetLines($iRefresh=TRUE) {
 	if ($iRefresh || (!isset($this->objLines))) {
 	    if ($this->IsCreated()) {
@@ -232,104 +412,19 @@ class clsShopCart extends clsDataSet {
 	}
 	return $this->objLines;
     }
+*/
     public function IsCreated() {
 	return ($this->ID > 0);
     }
 // == FORM HANDLING STUFF
-    /*----
-      NOTE: If shipping zone requested by customer isn't affecting the cart, the
-	problem is probably happening here.
-    */
-    public function CheckData() {
-// check for buttons
-	$doCheckout = isset($_POST['finish']);
-	$isCart = (isset($_POST['recalc']) || $doCheckout);
-	$isZoneSet = FALSE;	// have we set the zone from stored data?
-// check for specific actions
-	if (isset($_GET['action'])) {
-	    $strDo = $_GET['action'];
-	    switch ($strDo) {
-	      case 'del':
-		$intItem = 0+$_GET['item'];
-		$this->GetLines();
-		$this->objLines->Update(array('Qty'=>0),'ID_Item='.$intItem);
-		$this->LogEvent('del','deleting from cart: ID '.$intItem);
-		break;
-	      case 'delcart';
-		$this->LogEvent('clr','voiding cart');
-		$this->ID = -1;
-		$this->objSess->DropCart();
-		break;
-	    }
-	} else {
-	    foreach ($_POST as $key => $val) {
-    // check for added items:
-		if (substr($key,0,4) == 'qty-') {
-		    if (($val != '') && ($val != 0)) {
-			$sqlCatNum = $this->objDB->SafeParam(substr($key,4));
-			if ($isCart) {
-			    // zero out all items, so only items in visible cart will be retained:
-			    $this->ZeroAll();
-			}
-			$this->AddItem($sqlCatNum,$val);
-		    }
-		} elseif ($key == KSF_SHIP_ZONE) {
-//		    $custShipZone	= $this->GetFormItem(KSF_SHIP_ZONE);
-		    $custShipZone	= $val;
-		    $this->ShipZoneObj()->Abbr($custShipZone);
-		    $isZoneSet = TRUE;
-		}
-	    }
-	}
-	if (!$isZoneSet) {
-	    // reload the shipping zone if we don't already know it
-	    if ($this->HasCart()) {
-		$this->ShipZoneObj()->Abbr($this->CartData()->ShipZone());
-	    }
-	}
-	if ($doCheckout) {
-	    $this->LogEvent('ck1','going to checkout');
-	    $objSess = $this->Session();
-	    http_redirect(KWP_CKOUT);
-	    $this->LogEvent('ck2','sent redirect to checkout');
-	}
-    }
     public function ZeroAll() {
 	$this->Update(array('Qty'=>0),'ID_Cart='.$this->ID);
     }
-    public function AddItem($iCatNum,$iQty) {
-	$this->Build();	// make sure there's a record for the cart, get ID
-	$objCartLines = $this->objDB->CartLines();
-	$objCartLines->Add($this->ID,$iCatNum,$iQty);
-	$this->LogEvent('add','adding to cart: cat# '.$iCatNum.' qty '.$iQty);
-    }
-    /*-----
-      ACTION:
-	* make sure there is a cart record
-	* update the quantity, if there is one
-    */
-    public function Build() {
-	$id = $this->ID;
-	if (empty($id)) {
-	    $this->Create();
-	}
-    }
-    public function Create() {
-	$sql =
-	  'INSERT INTO `'.clsShopCarts::TableName.'` (WhenCreated,ID_Sess)'.
-	  'VALUES(NOW(),'.$this->ID_Sess.');';
-	$this->objDB->Exec($sql);
-	$this->ID = $this->objDB->NewID('carts.create');
-	$objSess = $this->objDB->Sessions()->GetCurrent();
-	if (!is_object($objSess->Table)) {
-	    throw new exception('Session object has no table for Cart ID='.$this->Value('ID'));
-	}
-	$objSess->SetCart($this->ID);
-    }
     public function RenderHdr() {
-	$out = "\n\n".'<!-- Cart ID='.$this->KeyValue().' | Session ID='.$this->ID_Sess." -->";
+	$urlCart = KWP_CART_REL;	// remove any query data
+	$out = "\n\n".'<!-- Cart ID='.$this->KeyValue().' | Session ID='.$this->Value('ID_Sess')." -->";
 	$out .= "\n<center><table class=border><tr><td><table class=cart><tr><td align=center valign=middle>";
-	$out .= "\n<form method=post action='./'>";
+	$out .= "\n<form method=post action='$urlCart'>";
 	$out .= "\n<table class=cart-data>\n";
 	return $out;
     }
@@ -387,8 +482,8 @@ class clsShopCart extends clsDataSet {
     public function RenderOrder_Text() {
 // copy any needed constants over to variables for parsing:
 	$ksShipMsg	= KSF_SHIP_MESSAGE;
-	$ksfCustCardNum = KSF_CUST_CARD_NUM;
-	$ksfCustCardExp = KSF_CUST_CARD_EXP;
+	$ksfCustCardNum = KSF_PAY_CARD_NUM;
+	$ksfCustCardExp = KSF_PAY_CARD_EXP;
 
 	$objData = $this->CartData();
 // get non-address field data:
@@ -411,7 +506,7 @@ class clsShopCart extends clsDataSet {
 
 // the exact routes by which some fields are fetched may need tweaking...
 
-	$strShipName = $objData->ShipAddrName();
+	$strShipName = $objData->RecipName();
 
 	$objShip = $objData->ShipObj(FALSE);
 	$objCust = $objData->CustObj();
@@ -457,7 +552,7 @@ class clsShopCart extends clsDataSet {
 	  .'<th><small>pkg s/h<br>min.</small></th>'
 	  .'</tr>';
 
-	$rsLine = $this->objLines;
+	$rsLine = $this->LinesObj();
 	while ($rsLine->NextRow()) {
 	    if ($iAsForm) {
 		$out .= $rsLine->RenderForm($this);
@@ -474,7 +569,7 @@ class clsShopCart extends clsDataSet {
 // save official totals for order creation:
 // TO DO: are CostTotalItem and CostTotalShip referenced anywhere else? Make them local if not.
 //	But if they are, then why isn't shipMinCost also a field?
-	$this->CartData()->CostTotalItem();
+	$this->CartData()->CostTotalSale();
 	$this->CartData()->CostTotalPerItem();
 	$this->CartData()->CostTotalPerPkg();
 
@@ -487,16 +582,15 @@ class clsShopCart extends clsDataSet {
 	$strTotalDesc = 'order total if shipping to '.$strShipZone.':';
 	$strOrdTotal = FormatMoney($this->CostTotalItem + $this->CostTotalShip + $shipMinCost);
 
-	//$objSess = $this->Session();	// 2013-10-14 never used
-	
 	if ($iAsForm) {
-	    $htDelAll = '<span class=text-btn>[<a href="?action=delcart" title="remove all items from cart">remove all</a>]</span>';
+	    $htDelAll = '<span class=text-btn>[<a href="?'.KSF_CART_CHANGE.'='.KSF_CART_EDIT_DEL_CART.'" title="remove all items from cart">remove all</a>]</span>';
 	    $htFirstTot = "<td align=left>$htDelAll</td><td align=right class=total-desc colspan=4>totals:</td>";
 	    $htZoneCombo = 'Shipping destination: '.$this->objShipZone->ComboBox();
 	} else {
 	    $htFirstTot = '<td align=right class=total-desc colspan=5>totals:</td>';
 	    $htZoneCombo = 'Shipping costs shown assume shipment to <b>'.$this->objShipZone->Text().'</b> address.';
 	}
+// NOTE: Center-aligning the arrows doesn't work aesthetically because the pkg cost is right-aligned.
 	$out .= <<<__END__
 <tr>$htFirstTot
 <td align=right class=total-amount>$strTotalMerch</td>
@@ -595,35 +689,23 @@ __END__;
 	}
 	return $out;
     }
+    /*----
+      RETURNS: HTML rendering of cart, including current contents and form controls
+      HISTORY:
+	2013-11-10 Significant change to assumptions. A cart object now only exists
+	  to represent a cart record in the database. Any functions that need to work
+	  when there is no record are now handled by the cart table object.
+    */
     public function Render() {
-// return rendering of current contents of cart
-	$ok = FALSE;
-	if ($this->ID) {
-	    if ($this->HasLines()) {
-		$ok = TRUE;
-	    }
-	}
-
-	if ($ok) {
+	if ($this->HasLines()) {
 # get information for that destination type:
 	    $out = $this->RenderHdr();
 	    $out .= $this->RenderCore(TRUE);
 	    $out .= "\n<!-- ".__FILE__." line ".__LINE__." -->";
 	    $out .= $this->RenderFtr();
 	} else {
-	    if ($this->IsCreated()) {
-		if (is_null($this->objLines)) {
-		    $out = "<font size=4>Internal error - cart data not available!</font>";
-		    $this->LogEvent('disp',"can't display cart - no data!");
-		    $this->objDB->Events()->LogEvent('cart.render','','cart data unavailable','cdna',TRUE,TRUE);
-		} else {
-		    $out = "<font size=4>Your cart is empty.</font>";
-		    $this->LogEvent('disp','displaying cart - empty; zone '.$this->ShipZoneObj()->Abbr());
-		}
-	    } else {
-		$out = "<font size=4>You have not put anything in your cart yet.</font>";
-		$this->LogEvent('disp','displaying cart - nothing yet; zone '.$this->ShipZoneObj()->Abbr());
-	    }
+	    $out = "<font size=4>Your cart is empty.</font>";
+	    $this->LogEvent('disp','displaying cart - empty; zone '.$this->ShipZoneObj()->Abbr());
 	}
 	return $out;
     }
@@ -637,7 +719,7 @@ __END__;
 	} else {
 	    // log error - you shouldn't be able to get to this point with an empty cart
 	    $txtParams = 'Cart ID='.$this->ID.' Order ID='.$this->ID_Order;
-	    $this->objDB->LogEvent('cart.renderconf',$txtParams,'cart empty at confirmation','cec',TRUE,TRUE);	// also sends email alert
+	    $this->Engine()->LogEvent('cart.renderconf',$txtParams,'cart empty at confirmation','cec',TRUE,TRUE);	// also sends email alert
 	    $out = '<font color=red>INTERNAL ERROR</font>: cart data has become separated from browser. The webmaster has been notified.';
 	}
 	return $out;

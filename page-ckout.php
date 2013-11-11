@@ -16,20 +16,17 @@ require_once('config-admin.php');
   PURPOSE: subclass for generating checkout pages
 */
 class clsPageCkout extends clsVbzPage_Admin {
-
-    // STATIC ++
-    protected static $intColumns;
-
-    // /STATIC --
-    // DYNAMIC ++
-    protected $doesCartMatchShip;
+    private $isLogin;	// this is an attempt to log in
 
     /*----
-      NOTE: needs to be public so clsPerson can access it
+      ACTION: get cart object - throw exception if there isn't one
     */
-    public function CartObj() {
-	//return $this->objCart;	// document where this is set!
-	return $this->App()->Session()->CartObj_forShopping();
+    protected function CartObj_req() {
+	if ($this->HasCart()) {
+	    return $this->CartObj(TRUE);
+	} else {
+	    throw new exception('Cart is missing in checkout.');
+	}
     }
     /*----
       OUTPUT:
@@ -61,9 +58,14 @@ class clsPageCkout extends clsVbzPage_Admin {
 	    $this->pgData = NULL;	// Currently not expecting any data from a "GET" query
 	    $this->pgShow = $_GET[KSQ_ARG_PAGE_DEST];
 	}
+	$this->isLogin = FALSE;	// default
 	if (!$gotPgDest) {
 	// destination page unknown, so calculate it from data/source page:
-	    if (nz($_POST['btn-go-prev'])) {
+	    if (nz($_POST['btnLogin'])) {
+		// this is a login attempt
+		$this->isLogin = TRUE;
+		$this->pgShow = $this->pgData;	// stay on same page
+	    } elseif (nz($_POST['btn-go-prev'])) {
 		switch ($this->pgData) {
 		  case KSQ_PAGE_CART:
 		    $this->pgShow = KSQ_PAGE_CART;	// can't go back any further
@@ -106,7 +108,7 @@ class clsPageCkout extends clsVbzPage_Admin {
 	}
 
 //	$this->GetObjects();
-	if (!($this->CartObj()->ID > 0)) {
+	if (!$this->HasCart()) {
 	    // if cart is not set, don't go past cart display
 	    $this->pgShow = KSQ_PAGE_CART;
 	    // this could happen if the user loads the checkout URL directly without a cart -- so log the error, but don't raise an exception
@@ -120,11 +122,16 @@ class clsPageCkout extends clsVbzPage_Admin {
 	$this->strWikiPg	= '';
 	$this->strSheet	= 'ckout';	// default
 
-	$this->CartObj()->LogEvent('page','showing page "'.$this->pgShow.'"');
+	$this->CartObj(FALSE)->LogEvent('page','showing page "'.$this->pgShow.'"');
 	$this->formShow = $this->pgShow;
 	$this->doNavBar = TRUE;
 	$this->doBackBtn = TRUE;
 	$this->doRefrBtn = FALSE;
+
+	if ($this->isLogin) {
+	    // try to log user in
+	    $this->SessObj()->UserLogin($this->sUser,$this->sPass);
+	}
     }
     /*----
       OUTPUT:
@@ -203,7 +210,7 @@ class clsPageCkout extends clsVbzPage_Admin {
 	if (empty($this->pgData)) {
 	    $out = '';
 	} else {
-	    $this->CartObj()->LogEvent('save','saving data from page '.$this->pgData);
+	    $this->CartObj_req()->LogEvent('save','saving data from page '.$this->pgData);
 	    switch ($this->pgData) {
 	      case KSQ_PAGE_CART:	// shopping cart
 		$out = $this->CaptureCart();
@@ -300,7 +307,7 @@ class clsPageCkout extends clsVbzPage_Admin {
 
 	//echo "\n</td></tr></table><!-- ".__LINE__." -->";
 	echo $out;
-	$oCart = $this->CartObj();
+	$oCart = $this->CartObj_req();
 	$idSess = $this->SessObj()->KeyValue();
 	$idCart = $oCart->KeyValue();
 	$idOrd = $oCart->Value('ID_Order');
@@ -353,9 +360,12 @@ class clsPageCkout extends clsVbzPage_Admin {
       HISTORY:
 	2011-03-27 fixed bug which was preventing order number from being written to cart.
 	  Looking at the cart data, this bug apparently happened on 2010-10-28.
+	2013-11-06 Most of the work was being pushed out to clsOrders::CopyCart(),
+	  but this seems unnecessary so I'm pulling it back in here.
     */
     protected function MakeOrder() {
-	$objCart = $this->CartObj();
+throw new exception('Does anything call this? 2013-11-11');
+	$objCart = $this->CartObj_req();
 
 	assert('is_object($objCart);');
 	assert('$objCart->ID > 0;');
@@ -392,7 +402,26 @@ class clsPageCkout extends clsVbzPage_Admin {
 
 	    $objCart->Value('ID_Order',$idOrd);
 	}
-	return $objOrders->CopyCart($idOrd,$objCart);	// populate and return new order object
+	//return $objOrders->CopyCart($idOrd,$objCart);	// populate and return new order object
+	$objOrd = $objOrders->GetItem($iOrdID);
+	$objOrd->CopyCart($objCart);	// copy the actual data to the order record
+
+// should this code be in $objOrd->CopyCart?
+	// in session object, set Order ID and clear Cart ID
+	// 2011-03-27 wrong. just set Order ID.
+	$arUpd = array(
+	  'ID_Order'	=> $iOrdID,
+	  //'ID_Cart'	=> 'NULL'
+	  );
+	$objCart->Session()->Update($arUpd);
+	// log the event
+	$this->Engine()->LogEvent(
+	  __METHOD__,
+	  '|ord ID='.$iOrdID.'|cart ID='.$objCart->KeyValue(),
+	  'Converted cart to order; SQL='.SQLValue($objCart->Session()->sqlExec),
+	  'C>O',FALSE,FALSE);
+
+	return $objOrd;	// this is used by the checkout process
     }
   /* ****
     SECTION: checkout pages
@@ -408,11 +437,11 @@ class clsPageCkout extends clsVbzPage_Admin {
   **** */
     public function RenderCart() {
 	unset($this->strMissing);
-	if ($this->CartObj()->HasLines()) {
+	if ($this->CartObj_req()->HasLines()) {
 	    $out = "\n<!-- +".__METHOD__."() in ".__FILE__." -->";
 	    $out .= "\n<table>";
 	    $out .= "\n<!-- ".__FILE__." line ".__LINE__." -->";
-	    $out .= $this->CartObj()->RenderCore(TRUE);
+	    $out .= $this->CartObj_req()->RenderCore(TRUE);
 	    $out .= "\n<!-- ".__FILE__." line ".__LINE__." -->";
 	    $out .= "\n</table>";
 	    $out .= "\n<!-- -".__METHOD__."() in ".__FILE__." -->\n";
@@ -454,7 +483,16 @@ class clsPageCkout extends clsVbzPage_Admin {
 
 	$objAddrShip = $objCartData->ShipObj(FALSE);
 
-	if (!$this->IsLoggedIn()) {
+	$isUser = $this->IsLoggedIn();
+
+	if ($isUser) {
+	    // allow user to select from existing recipient profiles
+	    $tCusts = $this->User()->CustRecs();
+	    $out .= '<tr><td colspan=2><b>You can ship to an existing address:</b>'
+	      .$tCusts->Render_DropDown()
+	      .'<hr></td></tr>';
+	} else {
+	    // make it easy for user to log in
 	    $out .= '<tr><td colspan=2><b>Shopped here before?</b>'
 	      .' '.$this->Skin()->RenderLogin()
 	      .' or <a href="'.KWP_LOGIN.'" title="login options: reset password, create account">more options</a>.'
@@ -548,8 +586,8 @@ __END__;
 	$objCartData = $this->CartData();
 
 // copy any needed constants over to variables for parsing:
-	$ksfCustCardNum = KSF_CUST_CARD_NUM;
-	$ksfCustCardExp = KSF_CUST_CARD_EXP;
+	$ksfCustCardNum = KSF_PAY_CARD_NUM;
+	$ksfCustCardExp = KSF_PAY_CARD_EXP;
 	$ksfCardIsShip = KSF_SHIP_IS_CARD;
 
 	$custCardNum = $this->CartData()->CardNum();
@@ -623,7 +661,7 @@ __END__;
 	went into the order record.
     */
     public function RenderOrder($iEditable) {
-	$objCart = $this->CartObj();
+	$objCart = $this->CartObj_req();
 
 	assert('is_object($objCart)');
 	assert('$objCart->ID != 0; /* ID='.$objCart->ID.' */');
@@ -717,7 +755,7 @@ __END__;
 	On page 3 (confirmation), all fields are read-only
     */
     protected function RenderAddress(clsPerson $iAddr, array $iOpts) {
-	$objCart = $this->CartObj();
+	$objCart = $this->CartObj_req();
 	$objZone = $objCart->ShipZoneObj();
 	assert('is_object($objCart)');
 	assert('is_object($objZone)');
@@ -810,7 +848,7 @@ __END__;
 	}
     }
     public function CartData() {
-	return $this->CartObj()->CartData();
+	return $this->CartObj_req()->CartData();
     }
     public function AddrCard() {
     // REQUIRES: GetDetailObjs() must be called first - (2013-04-12 not sure if this is still true)
@@ -820,7 +858,7 @@ __END__;
     SECTION: form-capturing methods
   */
     public function CaptureCart() {
-	return $this->CartObj()->CheckData();	// check for any cart data changed
+	return $this->Data()->Carts()->CheckData();	// check for any cart data changed
     }
     /*----
       ACTION: Receive user form input, and update the database
@@ -831,21 +869,21 @@ __END__;
 	$this->ReconcileCardAndShppg();	// not sure if this puts the flag in the right place, but it's a start. TODO: verify.
 	$objCD->SaveCart();	// update the db from form data
 
-	$objShipZone = $this->Cart()->ShipZoneObj();
+	$objShipZone = $this->CartObj_req()->ShipZoneObj();
 
-	$custName	= $objCD->FormValue(KSI_ADDR_SHIP_NAME);
-	$custStreet	= $objCD->FormValue(KSI_ADDR_SHIP_STREET);
-	$custState	= $objCD->FormValue(KSI_ADDR_SHIP_STATE);
-	$custCity	= $objCD->FormValue(KSI_ADDR_SHIP_CITY);
-	$custCountry	= $objCD->FormValue(KSI_ADDR_SHIP_COUNTRY);
-	$custEmail	= $objCD->FormValue(KSI_CUST_SHIP_EMAIL);
+	$custName	= $objCD->FormValue(KI_RECIP_NAME);
+	$custStreet	= $objCD->FormValue(KI_RECIP_STREET);
+	$custState	= $objCD->FormValue(KI_RECIP_STATE);
+	$custCity	= $objCD->FormValue(KI_RECIP_CITY);
+	$custCountry	= $objCD->FormValue(KI_RECIP_COUNTRY);
+	$custEmail	= $objCD->FormValue(KI_RECIP_EMAIL);
 
-	$shipZone	= $objCD->FormValue(KSI_SHIP_ZONE);
+	$shipZone	= $objCD->FormValue(KI_SHIP_ZONE);
 	  $objShipZone->Abbr($shipZone);
-	$custShipToSelf	= $objCD->FormValueNz(KSI_SHIP_TO_SELF);
+	$custShipToSelf	= $objCD->FormValueNz(KI_RECIP_IS_BUYER);
 	$custShipIsCard	= $objCD->FormValueNz(KSI_SHIP_IS_CARD);
-	$custZip	= $this->GetFormItem(KSF_ADDR_SHIP_ZIP);
-	$custPhone	= $this->GetFormItem(KSF_CUST_SHIP_PHONE);
+	$custZip	= $this->GetFormItem(KSF_RECIP_ZIP);
+	$custPhone	= $this->GetFormItem(KSF_RECIP_PHONE);
 	$custMessage	= $this->GetFormItem(KSF_SHIP_MESSAGE);
 
 	$objCD = $this->CartData();
@@ -868,20 +906,20 @@ __END__;
 	$out = $objCD->CaptureData($this->pgData);
 	$objCD->SaveCart();	// update the db from form data
 
-	$custCardNum	= $this->GetFormItem(KSF_CUST_CARD_NUM);
-	$custCardExp	= $this->GetFormItem(KSF_CUST_CARD_EXP);
+	$custCardNum	= $this->GetFormItem(KSF_PAY_CARD_NUM);
+	$custCardExp	= $this->GetFormItem(KSF_PAY_CARD_EXP);
 
 	# check for missing data
 	$this->CheckField("card number",$custCardNum);
 	$this->CheckField("expiration date",$custCardExp);
 
 	if (!$this->CartData()->ShipToCard()) {
-	    $custCardName	= $this->GetFormItem(KSF_CUST_CARD_NAME);
-	    $custCardStreet	= $this->GetFormItem(KSF_CUST_CARD_STREET);
-	    $custCardCity	= $this->GetFormItem(KSF_CUST_CARD_CITY);
-	    $custCardState	= $this->GetFormItem(KSF_CUST_CARD_STATE);
-	    $custCardZip	= $this->GetFormItem(KSF_CUST_CARD_ZIP);
-	    $custCardCountry	= $this->GetFormItem(KSF_CUST_CARD_COUNTRY);
+	    $custCardName	= $this->GetFormItem(KSF_PAY_CARD_NAME);
+	    $custCardStreet	= $this->GetFormItem(KSF_PAY_CARD_STREET);
+	    $custCardCity	= $this->GetFormItem(KSF_PAY_CARD_CITY);
+	    $custCardState	= $this->GetFormItem(KSF_PAY_CARD_STATE);
+	    $custCardZip	= $this->GetFormItem(KSF_PAY_CARD_ZIP);
+	    $custCardCountry	= $this->GetFormItem(KSF_PAY_CARD_COUNTRY);
 
 	    # check for missing data
 	    $this->CheckField("cardholder's name",$custCardName);
@@ -890,10 +928,10 @@ __END__;
 	}
 	
 	if (!$this->CartData()->ShipToSelf()) {
-	    $custEmail	= $this->GetFormItem(KSF_CUST_PAY_EMAIL);
-	    $custPhone	= $this->GetFormItem(KSF_CUST_PAY_PHONE);
+	    $custEmail	= $this->GetFormItem(KSF_BUYER_EMAIL);
+	    $custPhone	= $this->GetFormItem(KSF_BUYER_PHONE);
 	}
-	$custCheckNum	= $this->GetFormItem(KSF_CUST_CHECK_NUM);
+	$custCheckNum	= $this->GetFormItem(KSF_PAY_CHECK_NUM);
     }
 //-----
     protected function HtmlEditLink($iPage,$iText='edit',$iPfx='[',$iSfx=']') {
@@ -901,7 +939,7 @@ __END__;
 	return $out;
     }
     private function Order() {
-	return $this->CartObj()->Order();
+	return $this->CartObj_req()->Order();
     }
 //=== handling of missing fields
     public function AddMissing($iText) {
