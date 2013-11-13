@@ -35,7 +35,7 @@ class clsPageUser extends clsPageCkout {
 	$this->sAuth = NULL;
 	$this->doReset = FALSE;
 
-	$isLogin = !empty($_POST['btnLogIn']);
+	$isLogin = !empty($_POST[KSF_USER_BTN_LOGIN]);
 	$isReset = !empty($_POST['btnSetLogIn']);
 	$isEmReq = !empty($_POST['btnPassReset']);
 	$doGetLogin = $isLogin || $isReset;

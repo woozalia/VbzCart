@@ -1,0 +1,9 @@
+# security credentials
+site-creds.php
+
+## standard things to ignore
+# backup files
+*~
+# anything in NOT USED folder
+/NOT USED/*
+

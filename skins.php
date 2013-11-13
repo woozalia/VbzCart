@@ -251,7 +251,7 @@ echo 'PG=['.$pg.']<pre>'.print_r($arLinks,TRUE).'</pre>';
 	$out =
 	  ' Username:<input name=uname size=10 value="'.$iUName.'">'
 	  .' Password:<input type=password name=upass size=10>'
-	  .' <input type=submit value="Log In" name=btnLogIn>';
+	  .' <input type=submit value="Log In" name="'.KSF_USER_BTN_LOGIN.'">';
 	return $out;
     }
     public function RenderLogout($iText='log out') {

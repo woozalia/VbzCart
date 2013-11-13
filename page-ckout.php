@@ -10,6 +10,7 @@
 */
 
 require_once('config-admin.php');
+require_once('vbz-const-user.php');
 
 /*=====
   CLASS: clsPageCkOut
@@ -61,7 +62,7 @@ class clsPageCkout extends clsVbzPage_Admin {
 	$this->isLogin = FALSE;	// default
 	if (!$gotPgDest) {
 	// destination page unknown, so calculate it from data/source page:
-	    if (nz($_POST['btnLogin'])) {
+	    if (nz($_POST[KSF_USER_BTN_LOGIN])) {
 		// this is a login attempt
 		$this->isLogin = TRUE;
 		$this->pgShow = $this->pgData;	// stay on same page
@@ -131,6 +132,7 @@ class clsPageCkout extends clsVbzPage_Admin {
 	if ($this->isLogin) {
 	    // try to log user in
 	    $this->SessObj()->UserLogin($this->sUser,$this->sPass);
+echo __FILE__.' line '.__LINE__.'<br>';
 	}
     }
     /*----
