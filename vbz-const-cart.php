@@ -3,6 +3,17 @@
   PURPOSE: constants for adding items to cart
   HISTORY:
     2013-11-10 created
+  NAMING CONVENTIONS:
+    KF = boolean flag
+    KI = integer
+    KHT = HTML string
+    KS = plaintext string
+    KSF = string used in a form
+    - paths:
+    KWP = web path (URL including protocol)
+    KFP = file path
+    KRP = relative path
+
 */
 
 // ==========================================
@@ -28,8 +39,12 @@ define('KHT_CART_FTR',
   "\n<tr><td colspan=9>"
   ."\n<input type=submit name=".KSF_CART_BTN_RECALC.' value="Recalculate">'
   ."\n<input type=submit name=".KSF_CART_BTN_CKOUT.' value="Check Out >>>" class=btn-next>'
-  ."\n</form>\n</tr>\n</td></tr>"	// where was the form opened?
+  ."\n</td></tr>\n</table>\n</td></tr>"
   ."\n<tr><td colspan=9>"
   ."\n<hr>".KHT_CART_MSG
-  ."\n</td></tr></table>\n<td></tr></table>"
+  ."\n</td></tr></table>"
+  ."\n</td></tr></table>"
+  ."\n</form>"
+  ."\n</center>"
+  ."\n<!-- END CART -->"
   );

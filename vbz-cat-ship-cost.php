@@ -65,6 +65,7 @@ class clsShipCost extends clsDataSet {
     public function PerPkg() {
 	return $this->Value('PerPkg');
     }
+    // TODO: Rename PerItem() -> PerUnit()
     public function PerItem() {
 	return $this->Value('PerItem');
     }

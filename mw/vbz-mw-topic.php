@@ -188,7 +188,7 @@ class clsAdminTopic extends clsTopic {
 	$ftFullName = htmlspecialchars($this->Value('FullName'));
 	$out = $this->AdminLink($this->Value('TreeName'),$ftFullName);
 	if ($this->HasParent()) {
-	    $out .= $iSep.$this->ParentObj()->RenderBranch($iSep);
+	    $out .= $iSep.$this->ParentRecord()->RenderBranch($iSep);
 	}
 	return $out;
     }
@@ -253,7 +253,7 @@ class clsAdminTopic extends clsTopic {
 	    $ctVariants	= $objForm->Render('Variants');
 	    $ctMispeled	= $objForm->Render('Mispeled');
 	} else {
-	    $ctParent	= $this->ParentObj()->AdminLink_name();
+	    $ctParent	= $this->ParentRecord()->AdminLink_name();
 	    $ctName	= $this->Value('Name');
 	    $ctNameTree	= $this->Value('NameTree');
 	    $ctNameFull	= $this->Value('NameFull');

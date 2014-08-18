@@ -35,33 +35,52 @@ class clsCatPages extends clsVbzTable {
 }
 // just for paral;ellism, at this point
 class clsCatPage extends clsDataSet {
+    // object cache
+    private $oItem;
+
+    protected function InitVars() {
+	$this->oItem = NULL;
+	parent::InitVars();
+    }
     /*----
       RETURNS: an object of the appropriate type, as determined by what the current page information record indicates
+      ASSUMES: if there is an object, it's the correct one
     */
     public function ItemObj() {
-	$id = $this->Row['ID_Row'];
-	$objData = $this->Engine();
-	switch ($this->Type) {
-	  case 'S':
-	    $rs = $objData->Suppliers();
-	    break;
-	  case 'D':
-	    $rs = $objData->Depts();
-	    break;
-	  case 'T':
-	    $rs = $objData->Titles();
-	    break;
-	  case 'I':
-	    $rs = $objData->Images();
-	    break;
-	  default:
-	    $rs = NULL;
+	if (is_null($this->oItem)) {
+	    $id = $this->Row['ID_Row'];
+	    $objData = $this->Engine();
+	    switch ($this->Type) {
+	      case 'S':
+		$rs = $objData->Suppliers();
+		break;
+	      case 'D':
+		$rs = $objData->Depts();
+		break;
+	      case 'T':
+		$rs = $objData->Titles();
+		break;
+	      case 'I':
+		$rs = $objData->Images();
+		break;
+	      default:
+		$rs = NULL;
+	    }
+	    if (is_null($rs)) {
+		$rc = NULL;
+	    } else {
+		$rc = $rs->GetItem($id);
+	    }
+	    $this->oItem = $rc;
 	}
-	if (is_null($rs)) {
-	    $rc = NULL;
+	return $this->oItem;
+    }
+    public function TitleStr() {
+	$oItem = $this->ItemObj();
+	if (is_null($oItem)) {
+	    return NULL;
 	} else {
-	    $rc = $rs->GetItem($id);
+	    return $oItem->TitleStr();
 	}
-	return $rc;
     }
 }

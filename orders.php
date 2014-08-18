@@ -7,7 +7,12 @@
     (3) (already done - class VbzAdminOrders) pieces only used by admin system
   HISTORY:
     2012-04-17 extracting from shop.php
+    2013-11-23 moved KS_URL_PAGE_ORDER[S] here from site.php
 */
+// DEPRECATED
+define('KS_URL_PAGE_ORDER',	'ord');	// must be consistent with events already logged
+define('KS_URL_PAGE_ORDERS',	'orders');
+
 // ORDER MESSAGE TYPES
 // these reflect the values in the ord_msg_media table
 /*
@@ -27,16 +32,55 @@ define('KSI_ORD_MSG_INT',	8);	// internal use - stored, not sent
 class clsOrders extends clsTable {
     const TableName='orders';
 
+    // ++ SETUP ++ //
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->Name(self::TableName);
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsOrder');
-	  $this->ActionKey(KS_URL_PAGE_ORDER);
+	  $this->ActionKey(KS_PAGE_KEY_ORDER);
     }
+
+    // -- SETUP -- //
+    // ++ CALCULATIONS ++ //
+
     /*-----
-    | FUNCTION: Create()
-    | ACTION: create the order record (fill in minimal fields)
+     FUNCTION: NextOrdSeq()
+     ACTION: get the next order sequence number
+    */
+    private function NextOrdSeq() {
+	$objVars = $this->Engine()->VarsGlobal();
+	$intOrdLast = $objVars->Val('ord_seq_prev');
+	$intOrdThis = $intOrdLast+1;
+	$objVars->Val('ord_seq_prev',$intOrdThis);
+	return $intOrdThis;
+    }
+
+    // -- CALCULATIONS -- //
+    // ++ SEARCHING ++ //
+
+    protected function Search_forText($sFind) {
+	$sqlFind = SQLValue($sFind.'%');
+	$sqlFilt = "(BuyerName LIKE $sqlFind)"
+	  ." OR (RecipName LIKE $sqlFind)"
+	  ." OR (RecipAddr LIKE $sqlFind)";
+	$rs = $this->GetData($sqlFilt);
+	return $rs;
+    }
+    protected function Search_forOrdNum($sFind) {
+	$sqlFind = SQLValue(strtoupper($sFind));
+	$sqlFilt = "(Number LIKE $sqlFind)";
+	$rs = $this->GetData($sqlFilt);
+	return $rs;
+    }
+
+    // -- SEARCHING -- //
+    // ++ ACTION ++ //
+
+    /*-----
+     FUNCTION: Create()
+     ACTION: create the order record (fill in minimal fields)
     */
     public function Create() {
 	$intSeq = $this->NextOrdSeq();
@@ -51,17 +95,6 @@ class clsOrders extends clsTable {
 	$id = $this->objDB->NewID();
 	assert('$id > 0');
 	return $id;
-    }
-    /*-----
-    | FUNCTION: NextOrdSeq()
-    | ACTION: get the next order sequence number
-    */
-    private function NextOrdSeq() {
-	$objVars = $this->objDB->VarsGlobal();
-	$intOrdLast = $objVars->Val('ord_seq_prev');
-	$intOrdThis = $intOrdLast+1;
-	$objVars->Val('ord_seq_prev',$intOrdThis);
-	return $intOrdThis;
     }
     /*-----
     | FUNCTION: CopyCart()
@@ -100,47 +133,20 @@ class clsOrders extends clsTable {
 */
 }
 class clsOrder extends clsVbzRecs {
-    /*----
-      NOTE: "Code" is now an integer. It used to be a string.
-      HISTORY:
-	2010-10-08 Moved here from VbzAdminOrder
-    */
-/*
-    public function StartEvent($iWhere,$iCode,$iDescr,$iNotes=NULL) {
-	$arEvent = array(
-	  //'type'	=> clsEvents::kTypeOrd,
-	  'type'	=> $this->Table->ActionKey(),
-	  'id'		=> $this->ID,
-	  'where'	=> $iWhere,
-	  'code'	=> $iCode,
-	  'descr'	=> $iDescr
-	  );
-	if (!is_null($iNotes)) {
-	    $arEvent['notes'] = $iNotes;
-	}
-	$this->idEvent = $this->objDB->Events()->StartEvent($arEvent);
+    private $oCart;
+
+    // ++ INITIALIZATION ++ //
+
+    protected function InitVars() {
+	$this->oCart = NULL;
     }
-*/
-    protected function StartEvent_Simple($iCode,$iDescr,$iWhere) {
-	//$this->objDB->OrderLog()->Add($this->ID,$iCode,$iDescr);
-	$arEv = array(
-	  'descr'	=> $iDescr,
-	  'type'	=> $this->Table->ActionKey(),
-	  'id'		=> $this->KeyValue(),
-	  'where'	=> $iWhere,
-	  'code'	=> $iCode);
-//	$this->objDB->Events()->StartEvent($arEv);
-	$this->StartEvent($arEv);
-    }
-    /*====
-      HISTORY:
-	2010-12-05 boilerplate event logging added to VbzAdminSupplier
-	2011-03-23 copied from VbzAdminSupplier to VbzAdminOrder
-	2011-03-27 moved from VbzAdminOrder to clsOrder
-    */
+
+    // -- INITIALIZATION -- //
+    // ++ BOILERPLATE ++ //
+
     public function Log() {
 	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
+	    $this->logger = new clsLogger_DataSet($this,$this->Engine()->App()->Events());
 	}
 	return $this->logger;
     }
@@ -153,7 +159,72 @@ class clsOrder extends clsVbzRecs {
     public function EventListing() {
 	return $this->Log()->EventListing();
     }
-    //====
+
+    // -- BOILERPLATE -- //
+    // ++ EVENT LOGGING ++ //
+
+    protected function StartEvent_Simple($iCode,$iDescr,$iWhere) {
+	//$this->objDB->OrderLog()->Add($this->ID,$iCode,$iDescr);
+	$arEv = array(
+	  'descr'	=> $iDescr,
+	  'type'	=> $this->Table->ActionKey(),
+	  'id'		=> $this->KeyValue(),
+	  'where'	=> $iWhere,
+	  'code'	=> $iCode);
+//	$this->objDB->Events()->StartEvent($arEv);
+	$this->StartEvent($arEv);
+    }
+
+    // -- EVENT LOGGING -- //
+    // ++ STATUS ACCESS ++ //
+
+    protected function HasCart() {
+	return !is_null($this->CartID());
+    }
+
+    // -- STATUS ACCESS -- //
+    // ++ DATA FIELD ACCESS ++ //
+
+    /*----
+      PUBLIC because Package objects need to access it for admin UI
+    */
+    public function Number() {
+	return $this->Value('Number');
+    }
+    /*----
+      NOTE 2014-01-16: this might need to be made writable,
+	but I'm leaving it read-only for now.
+    */
+    protected function CartID() {
+	return $this->Value('ID_Cart');
+    }
+
+    // -- DATA FIELD ACCESS -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function CartsClass() {
+	return 'clsShopCarts';
+    }
+    protected function LinesClass() {
+	return 'clsOrderLines';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLE ACCESS ++ //
+
+    protected function CartTable($id=NULL) {
+	return $this->Engine()->Make($this->CartsClass(),$id);
+    }
+    /*----
+      PUBLIC because Cart calls it during conversion to Order
+    */
+    public function LineTable($id=NULL) {
+	return $this->Engine()->Make($this->LinesClass(),$id);
+    }
+
+    // -- DATA TABLE ACCESS -- //
+    // ++ DATA RECORD ACCESS ++ //
+
     /*-----
       TO DO: Explain why this object sometimes doesn't know what the cart is yet
 	(presumably happens during the cart->order transfer process)
@@ -162,35 +233,58 @@ class clsOrder extends clsVbzRecs {
 	Now used by this class for displaying order receipt.
     */
     protected function Cart($iID=NULL) {
-	if (is_null($iID)) {
-	    $idCart = $this->ID_Cart;
-	} else {
-	    $idCart = $iID;
+	throw new exception('Function call deprecated; use CartRecord().');
+    }
+    protected function CartRecord($iID=NULL) {
+	if (!is_null($iID)) {
+	    throw new exception('Passing the ID to this function is deprecated. Use CartID().');
 	}
 
-	$doLoad = TRUE;
-	if (isset($this->objCart)) {
-	    if ($this->objCart->ID == $idCart) {
-		$doLoad = FALSE;
+	if ($this->HasCart()) {
+	    if (is_null($this->oCart)) {
+		$this->oCart = $this->CartTable($this->CartID());
 	    }
+	    return $this->oCart;
+	} else {
+	    return NULL;
 	}
-	if ($doLoad) {
-	    $objCart = $this->objDB->Carts()->GetItem($idCart);
-//	    $this->objDB->Cart($objCart);	// 2012-04-19 dunno what this did
-	    $this->objCart = $objCart;
-	}
-	return $objCart;
     }
 
     public function Lines() {
-	$objTbl = $this->objDB->OrdLines();
-	$objRows = $objTbl->GetData('ID_Order='.$this->ID);
-	return $objRows;
+	throw new exception('Function call deprecated; use LineRecords().');
     }
+    public function LineRecords() {
+	$tbl = $this->LineTable();
+	$rs = $tbl->GetData('ID_Order='.$this->KeyValue());
+	return $rs;
+    }
+
+    // -- DATA RECORD ACCESS -- //
+    // ++ ACTIONS ++ //
+
+    /*----
+      ACTION: Zero all existing order lines
+	This allows reuse of the line records when the same item
+	is added back in, eliminating gaps in the numbering (which
+	should only happen if there is data corruption).
+    */
+    public function ZeroLines() {
+	$id = $this->KeyValue();
+	$this->LineTable()->Update(
+	  array('QtyOrd'=> 0),	// fields
+	  'ID_Order='.$id	// condition
+	  );
+
+    }
+
+
+    // ++ CONVERSION FROM CART - DEPRECATED ++ //
+/*
     public function CopyCart(clsShopCart $iCartObj) {
 	$this->CopyCartData($iCartObj);
 	$this->CopyCartLines($iCartObj);
     }
+*/
     /*----
       ACTION: Copy over basic cart information (totals, etc.)
       HISTORY:
@@ -201,6 +295,7 @@ class clsOrder extends clsVbzRecs {
       TODO:
 	card data in cart must be *encrypted* after copying
     */
+/*
     private function CopyCartData(clsShopCart $iCartObj) {
 	$objData = $iCartObj->CartData();
 
@@ -231,9 +326,11 @@ class clsOrder extends clsVbzRecs {
 	$this->Update($arUpd);	// we're assuming the order record exists at this point
 	$this->FinishEvent();
     }
+*/
     /*-----
      ACTION: Create order lines from cart lines
     */
+/*
     private function CopyCartLines(clsShopCart $iCartObj) {
 	$objRows = $iCartObj->GetLines();	// shopping cart lines to convert
 	$objTbl = new clsOrderLines($this->objDB);
@@ -291,6 +388,11 @@ class clsOrder extends clsVbzRecs {
 	    // TO DO: send email alerting webmaster; print more helpful message.
 	}
     }
+*/
+
+    // -- CONVERSION FROM CART -- DEPRECATED //
+    // ++ CHECKOUT UI ++ //
+
     /*----
       PURPOSE: nomenclatural purity. I could have just added the display code to RenderReceipt(),
 	but it seemed like a good idea to have a function that just generates the output without
@@ -439,13 +541,13 @@ class clsOrder extends clsVbzRecs {
 	$txtSubj = $iSubj;
 	if (empty($txtSubj)) {
 	    //$objStrTplt->MarkedValue(KS_TEXT_EMAIL_SUBJECT);
-	    $txtSubj = $objStrTplt->Replace(KS_TPLT_EMAIL_SUBJECT);
+	    $txtSubj = $objStrTplt->Replace(KS_TPLT_ORDER_EMAIL_SUBJECT);
 	}
 	$arOut['subj'] = $txtSubj;
 
 	$txtMsgPre = $iMsgPre;
 	if (empty($txtMsgPre)) {
-	    $txtMsgPre = $objStrTplt->Replace(KS_TPLT_EMAIL_MSG_TOP);
+	    $txtMsgPre = $objStrTplt->Replace(KS_TPLT_ORDER_EMAIL_MSG_TOP);
 	}
 	$arOut['msg.pre'] = $txtMsgPre;
 
@@ -453,11 +555,11 @@ class clsOrder extends clsVbzRecs {
 	$objStrTplt->List = $arVars;
 
 	//$objStrTplt->MarkedValue(KS_TEXT_EMAIL_ADDR_SELF);
-	$txtAddr_Self = $objStrTplt->Replace(KS_TPLT_EMAIL_ADDR_SELF);
+	$txtAddr_Self = $objStrTplt->Replace(KS_TPLT_ORDER_EMAIL_ADDR_SELF);
 	$arOut['addr.self'] = $txtAddr_Self;
 
 	//$objStrTplt->MarkedValue(KS_TEXT_EMAIL_ADDR_CUST);
-	$txtAddr_Cust = $objStrTplt->Replace(KS_TPLT_EMAIL_ADDR_CUST);
+	$txtAddr_Cust = $objStrTplt->Replace(KS_TPLT_ORDER_EMAIL_ADDR_CUST);
 	$arOut['addr.cust'] = $txtAddr_Cust;
 
 	// Calculate text of email to send:
@@ -507,7 +609,7 @@ class clsOrder extends clsVbzRecs {
 	$out .= "<tr><td align=right><b>Subject</b>:</td><td>$htSubj</td></tr>";
 	$out .= "<tr><td align=right><b>Copying to customer?</td><td>$txtCustCopy</td></tr>";
 	$out .= '</table>';
-      
+
 	$out .= '<pre>'.$htEmailBody.'</pre>';
 	if (!$doSend) {
 	    $out .= '<form method=post>';
@@ -581,6 +683,8 @@ class clsOrder extends clsVbzRecs {
 	  $iSubject,
 	  $iMessage);
     }
+
+    // -- CHECKOUT UI -- //
 }
 class clsOrderLines extends clsTable {
     const TableName='ord_lines';
@@ -590,6 +694,12 @@ class clsOrderLines extends clsTable {
 	  $this->Name(self::TableName);
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsOrderLine');
+    }
+    public function Find_byOrder_andItem($idOrder,$idItem) {
+ 	$sqlFilt = "(ID_Order=$idOrder) AND (ID_Item=$idItem)";
+	$rc = $this->GetData($sqlFilt);
+	$rc->NextRow();		// load the row
+	return $rc;
     }
 }
 class clsOrderLine extends clsDataSet {

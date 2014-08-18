@@ -10,8 +10,8 @@
   2010-12-29 added ID_Supp to 1.3
   2011-01-02 added update of cat_items.Descr
 */
-require_once('../site.php');
-require_once('../../data.php');
+require_once '/var/www/vbz/local.php';				// basic library paths
+require_once(KFP_LIB_VBZ.'/config-libs.php');
 
 $arSQL_CtgBuild = array(
 /* STAGE 1: Clear/refill the two temporary tables from which cat_items is updated. */
@@ -20,11 +20,36 @@ $arSQL_CtgBuild = array(
   /* == Fill temp tables == */
     /* -- generated source data: */
   '1.3 fill update table 1/2 with source data'
-   => 'INSERT INTO ctg_upd1 SELECT
-	CatSfx, isCloseOut, ID_CTG_Title, ID_CTG_Item, ID_Supplier AS ID_Supp, ID_Title, ID_ItTyp, ID_ItOpt, ID_ShipCost, PriceBuy, PriceSell, PriceList,
-	ItOpt_Descr_part, NameSng, TitleName, GrpItmDescr, TitleGroupDescr, OptionDescr, ItOpt_Sort,
-	GrpCode, GrpDescr, GrpSort, IDS_Item, CatNum, ItOpt_Descr 
-      FROM qryCtg_src;',
+   => <<<__END__
+INSERT INTO ctg_upd1
+SELECT DISTINCT
+  CatSfx,
+  isCloseOut,
+  ID_CTG_Item,
+  ID_Supplier AS ID_Supp,
+  ID_Title,
+  ID_ItTyp,
+  ID_ItOpt,
+  ID_ShipCost,
+  PriceBuy,
+  PriceSell,
+  PriceList,
+  ItOpt_Descr_part,
+  NameSng,
+  TitleName,
+  GrpItmDescr,
+  TitleGroupDescr,
+  OptionDescr,
+  ItOpt_Sort,
+  GrpCode,
+  GrpDescr,
+  GrpSort,
+  IDS_Item,
+  CatNum,
+  ItOpt_Descr
+FROM qryCtg_src;
+__END__
+,
     /* -- existing catalog data indexed for JOINing: */
   '1.4 fill update table 2/2 with pre-join data'
     => 'INSERT INTO ctg_upd2 SELECT *, 0 AS cntDups

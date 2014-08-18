@@ -12,35 +12,78 @@ class cVbzSessions extends clsUserSessions {
     }
 }
 class cVbzSession extends clsUserSession {
-    private $oCart;
+    private $rcCart;
 
+    // ++ SETUP ++ //
+
+    protected function InitVars() {
+	parent::InitVars();
+	$this->rcCart = NULL;
+    }
+    public function InitNew() {
+	parent::InitNew();
+	$this->ValuesSet(array('ID_Cart'=>NULL));
+    }
+
+    // -- SETUP -- //
+    // ++ CLASS NAMES ++ //
+
+    /*----
+      NOTE: This doesn't actually work the way it should, because it is
+	first called *before* the dropins are loaded.
+    */
+    protected function UsersClass() {
+	if (clsDropInManager::ModuleLoaded('vbz.users')) {
+	    return KS_CLASS_ADMIN_USER_ACCOUNTS;
+	} else {
+	    return 'clsVbzUserTable';
+	}
+    }
+
+
+    // ++ FIELD ACCESS ++ //
+
+    /* 2014-07-06 is this really needed still?
     public function SetCart($iID) {
 	$this->Value('ID_Cart',$iID);
 	$this->Update(array('ID_Cart'=>$iID));
-    }
-    protected function CartID() {
-	return $this->Value('ID_Cart');
+    }*/
+    protected function CartID($id=NULL) {
+	return $this->Value('ID_Cart',$id);
     }
     /*----
       RETURNS: TRUE iff a cart is currently attached to this session
     */
     public function HasCart() {
-	return (!is_null($this->CartID()));
+	if ($this->IsNew()) {
+	    return FALSE;	// not sure if this will work
+	} else {
+	    return (!is_null($this->CartID()));
+	}
     }
+
+    // -- FIELD ACCESS -- //
+    // ++ RECORD ACCESS ++ //
+
     /*----
       ACTION: return an object for the current cart ID, or NULL if ID is NULL.
       ASSUMES: If there is a cart object already, it is the correct one for this session.
+      HISTORY:
+	2013-11-24 when the cart is new, apparently there is no ID_Cart field here.
+	  Calling $this->HasValue('ID_Cart') causes an error.
     */
-    public function CartObj_Current() {
-	$oCart = $this->oCart;
-	if (is_null($oCart)) {
-	    $tCarts = $this->Engine()->Carts();
-	    if (!is_null($this->Value('ID_Cart'))) {
-		$oCart = $tCarts->GetItem($this->CartID());
+    public function CartRecord_Current() {
+	$rcCart = $this->rcCart;
+	if (is_null($rcCart)) {
+	    if (!$this->IsNew()) {
+		$idCart = $this->CartID();
+		if (!is_null($idCart)) {
+		    $rcCart = $this->Engine()->Carts($idCart);
+		}
 	    }
 	}
-	$this->oCart = $oCart;
-	return $oCart;
+	$this->rcCart = $rcCart;
+	return $rcCart;
     }
     /*----
       ACTION: Return a cart object. If there isn't an associated cart yet, or if
@@ -54,29 +97,34 @@ class cVbzSession extends clsUserSession {
       ASSUMES: If there is a cart object already, it is the correct one for this session
 	-- unless the order has been locked, in which case we'll get a new one.
     */
-    public function CartObj_toUse() {
+    public function CartRecord_toUse() {
 // if there's a cart for this session, load it; otherwise create a new one but don't save it:
 
-	$oCart = $this->CartObj_Current();
-	if (is_null($oCart) || !$oCart->HasRows() || $oCart->IsLocked()) {
+	$rcCart = $this->CartRecord_Current();
+	if (is_null($rcCart) || !$rcCart->HasRows() || $rcCart->IsLocked()) {
 	    // if no cart, or cart is locked, get a new one:
-	    //$oCart = $this->Engine()->Carts()->SpawnItem();
-	    //$oCart->InitNew($this->ID);
-	    //$idCart = $oCart->KeyValue();
 	    $idSess = $this->KeyValue();
 	    $idCart = $this->Engine()->Carts()->Create($idSess);
-	    $this->SetCart($idCart);
-	    $this->oCart = $oCart;
+	    $this->CartID($idCart);
+	    $this->Save();
+	    $rcCart = $this->CartRecord_Current();
+	    $this->rcCart = $rcCart;
 	}
-	return $oCart;
+	return $rcCart;
     }
+
+    // -- RECORD ACCESS -- //
+    // ++ ACTIONS ++ //
+
     /*----
       ACTION: Permanently detach the cart from this session.
     */
     public function DropCart() {
-	$oCart = $this->CartObj_Current();
+	$oCart = $this->CartRecord_Current();
 	$oCart->DoVoid();
 	$ar = array('ID_Cart'=>'NULL');
 	$this->Update($ar);
     }
+
+    // -- ACTIONS -- //
 }

@@ -231,7 +231,7 @@ class VbzAdminTitle extends clsVbzTitle {
 	    $ftCatKey = htmlspecialchars($this->CatKey);
 	    $ftSuppCN = htmlspecialchars($this->Supplier_CatNum);
 	    $ftSupp = $objSupp->AdminLink_name();
-	    $objDept = $this->DeptObj(); 
+	    $objDept = $this->DeptObj();
 	    if (is_object($objDept)) {
 		$ftDept = $objDept->AdminLink($objDept->Name);
 	    } else {
@@ -658,7 +658,7 @@ class VbzAdminTitles_info_Cat extends VbzAdminTitles {
 
 		    $txtTitle = $txtCatNum.' &ldquo;'.htmlspecialchars($txtName).'&rdquo;';
 		    $ftImg = $tblImgs->Thumbnails($id,array('title'=>$txtTitle));
-		    $ftImgs .= '<a href="'.$obj->AdminURL().'">'.$ftImg.'</a>'; 
+		    $ftImgs .= '<a href="'.$obj->AdminURL().'">'.$ftImg.'</a>';
 		}
 		$out .= '</td></tr></table>'.$ftImgs;
 	    }

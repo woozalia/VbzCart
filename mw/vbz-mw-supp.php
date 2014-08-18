@@ -362,7 +362,7 @@ class VbzAdminSupplier extends clsSupplier {
 		  'Name'	=> SQLValue($name),
 		  'CatKey'	=> SQLValue($catnum),
 		  'ID_Supp'	=> $id,
-		  'DateAdded'	=> 'NOW()'		  
+		  'DateAdded'	=> 'NOW()'
 		  );
 		$ok = $tblTitles->Insert($arIns);
 		if ($ok) {
@@ -428,7 +428,7 @@ class VbzAdminSupplier extends clsSupplier {
 		$strPrSell = nz($data['$sell']);
 		$strQty = nz($arOut['qty']);
 		$out .= "<tr$htAttr><td></td><td>$strScat</td><td>$strInvTitle</td><td align=center>$strQty</td><td align=right>$strPrice</td></tr>";
-		
+
 	    }
 	} else {
 	    $out  = 'No titles entered.';
@@ -464,7 +464,7 @@ class VbzAdminSupplier extends clsSupplier {
 		$ftStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$htAttr = ' style="'.$ftStyle.'"';
 		$isOdd = !$isOdd;
-	    
+
 		$idItem = nz($row['id']);
 		$strOCat = nz($row['ocat']);
 		$strSCat = nz($row['scat']);
@@ -534,7 +534,7 @@ class VbzAdminSupplier extends clsSupplier {
 		}
 
 		$htQty = $strQty.'<input type=hidden name="qty['.$idx.']" value='.$strQty.'>';
-		
+
 		$htPrBuy = $strPrBuy.'<input type=hidden name="$buy['.$idx.']" value="'.$strPrBuy.'">';
 		$htPrSell = $strPrSell.'<input type=hidden name="$sell['.$idx.']" value="'.$strPrSell.'">';
 

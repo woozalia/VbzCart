@@ -42,16 +42,83 @@ class clsCustData {
 class clsCusts extends clsTable_key_single {
     const TableName='core_custs';
 
+    // ++ SETUP ++ //
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->Name(self::TableName);
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsCust');
     }
+
+    // -- SETUP -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function NamesClass() {
+	return 'clsCustNames';
+    }
+    protected function AddrsClass() {
+	return 'clsCustAddrs';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLE ACCESS ++ //
+
+    protected function NameTable() {
+	return $this->Engine()->Make($this->NamesClass());
+    }
+    protected function AddrTable() {
+	return $this->Engine()->Make($this->AddrsClass());
+    }
+
+    // -- DATA RECORDS ACCESS -- //
+
     public function Recs_forUser($idUser) {
 	$rs = $this->GetData('(ID_Repl IS NULL) AND (ID_User='.$idUser.')');
 	return $rs;
     }
+
+    // -- DATA RECORDS ACCESS -- //
+    // ++ ACTIONS ++ //
+
+    /*----
+      ACTION: Creates records for customer, name, and address --
+	everything needed to record a new customer.
+    */
+    public function CreateCustomer($idUser,$sName,clsPerson $oPerson) {
+	$id = $this->CreateRecord($idUser);
+
+	// create Name record
+	$tNames = $this->NameTable();
+	$idName = $tNames->CreateRecord($id,$sName);
+
+	// create Address record
+	$tAddrs = $this->AddrTable();
+	$idAddr = $tAddrs->CreateRecord($id,$oPerson);
+
+	if (!is_null($idName) && !is_null($idAddr)) {
+	    $rcCust = $this->GetItem($id);
+	    $rcCust->FinishRecord($idName,$idAddr);
+	    return TRUE;
+	} else {
+	    return FALSE;
+	}
+    }
+    public function CreateRecord($idUser) {
+	$arUpd = array(
+	  'ID_User'	=> $idUser,
+	  'WhenCreated'	=> 'NOW()',
+	  );
+	$ok = $this->Insert($arUpd);
+	if ($ok) {
+	    return $this->Engine()->NewID();
+	} else {
+	    return NULL;
+	}
+    }
+
+    // -- ACTIONS -- //
+
     /*----
       ACTION: Ensures that the given customer data is recorded.
 	The following tables may be affected:
@@ -179,7 +246,7 @@ class clsCusts extends clsTable_key_single {
 	    $idName = $objNames->Create($idCust,$strName);
 	    $objAddrs = $this->objDB->CustAddrs();
 	    $idAddr = $objAddrs->Create($idCust,$iAddrObj);
-	    
+
 	    $arUpd = array(
 	      'ID_Name'	=> $idName,
 	      'ID_Addr'	=> $idAddr
@@ -244,36 +311,52 @@ class clsCusts extends clsTable_key_single {
     }
 */
 }
-class clsCust extends clsRecs_key_single {
-    /*----
-      RETURNS: HTML for a drop-down list of all the customers
-	in the current recordset
-    */
-    public function Render_DropDown($iName) {
-	$out = "\n<select name=\"$iName\">";
-	while ($this->NextRow()) {
-	    $htRow = NULL;
+class clsCust extends clsVbzRecs {
 
-	    $sTag = $this->Value('Title');
-	    if (!is_null($sTag)) {
-		$htRow .= htmlspecialchars($sTag).': ';
-	    }
+    // ++ FIELD CALCULATIONS ++ //
 
-	    $oName = $this->NameObj();
-	    $oAddr = $this->AddrObj();
-
-	    $htRow .= $oName->ShortDescr();
-	    if (is_null($oAddr)) {
-		$htRow .= ' (no address)';
-	    } else {
-		$htRow .= ' - '.$oAddr->ShortDescr();
-	    }
-
-	    $id = $this->KeyValue();
-	    $out .= "\n<option value=$id>$htRow</option>";
+    protected function SingleLine() {
+	$oName = $this->NameRecord();
+	$oAddr = $this->AddrObj();
+	$txt = $oName->ShortDescr();
+	if (empty($oAddr)) {
+	    $txt .= ' (no address, cust ID='.$this->KeyValue().')';
+	} else {
+	    $txt .= ' - '.$oAddr->ShortDescr();
 	}
-	$out .= "\n</select>";
+	$ht = htmlspecialchars($txt);
+	return $ht;
     }
+
+    // -- FIELD CALCULATIONS -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function MailAddrsClass() {
+	return 'clsCustAddrs';
+    }
+    protected function PhonesClass() {
+	return 'clsCustPhones';
+    }
+    protected function CardsClass() {
+	return 'clsCustCards';
+    }
+
+    // -- CLASS NAMES ++ //
+    // ++ DATA TABLE ACCESS ++ //
+
+    protected function MailAddrTable($id=NULL) {
+	return $this->Engine()->Make($this->MailAddrsClass(),$id);
+    }
+    protected function PhoneTable($id=NULL) {
+	return $this->Engine()->Make($this->PhonesClass(),$id);
+    }
+    protected function CardTable($id=NULL) {
+	return $this->Engine()->Make($this->CardsClass(),$id);
+    }
+
+    // -- DATA TABLE ACCESS -- //
+    // ++ DATA RECORDS ACCESS ++ //
+
     /*----
       RETURNS: recordset of aliases for this customer ID
       HISTORY:
@@ -285,65 +368,14 @@ class clsCust extends clsRecs_key_single {
 	$rs = $tbl->GetData('ID_Repl='.$id,NULL,'ID');
 	return $rs;
     }
-    /*----
-      RETURNS: array of orders for this customer
-      FUTURE: also check ID_Buyer and ID_Recip
-      HISTORY:
-	2012-01-08 split off from AdminOrders(), moved from admin.cust to base.cust
-    */
-    protected function Orders_array() {
-	$objTbl = $this->objDB->Orders();
 
-	// collect names for this customer
-	$tbl = $this->objDB->CustNames();
-	$objRows = $tbl->GetData('ID_Cust='.$this->KeyValue());
-	$sqlList = '';
-	if ($objRows->HasRows()) {
-	    while ($objRows->NextRow()) {
-		if ($sqlList != '') {
-		    $sqlList .= ',';
-		}
-		$sqlList .= $objRows->ID;
-	    }
-
-	    $arOrd = array();
-
-	    $tbl = $this->Engine()->Orders();
-
-	    // collect orders where customer is buyer
-	    $objRows = $tbl->GetData('ID_NameBuyer IN ('.$sqlList.')');
-	    while ($objRows->NextRow()) {
-		$idOrd = $objRows->ID;
-		$arRow = $objRows->Values();
-		$arRow['roles'] = nz($arRow['roles']).'B';
-		$arOrd[$idOrd] = $arRow;
-	    }
-	    
-	    // collect orders where customer is recipient
-	    $objRows = $tbl->GetData('ID_NameRecip IN ('.$sqlList.')');
-	    while ($objRows->NextRow()) {
-		$idOrd = $objRows->ID;
-		if (array_key_exists($idOrd,$arOrd)) {
-		    $arRow = $arOrd[$idOrd];
-		} else {
-		    $arRow = $objRows->Values();
-		}
-		$arRow['roles'] = nz($arRow['roles']).'R';
-		$arOrd[$idOrd] = $arRow;
-	    }
-
-	    return $arOrd;
-	} else {
-	    return NULL;
-	}
-    }
     /*----
       RETURNS: recordset of Names for this Customer
       HISTORY:
 	2012-01-08 split off from AdminNames
     */
     public function Names() {
-	$tbl = $this->objDB->CustNames();
+	$tbl = $this->Engine()->CustNames();
 	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
 	return $rs;
     }
@@ -362,7 +394,7 @@ class clsCust extends clsRecs_key_single {
       HISTORY:
 	2013-11-09 Created for user-based checkout.
     */
-    public function NameObj() {
+    public function NameRecord() {
 	$id = $this->Value('ID_Name');
 	if (is_null($id)) {
 	    $rc = NULL;
@@ -379,9 +411,20 @@ class clsCust extends clsRecs_key_single {
 	2013-11-09 Moved most of the code to clsCusts::Recs_forCust()
     */
     public function Addrs($iFilt=NULL) {
-	$tbl = $this->objDB->CustAddrs();
+	throw new exception('Addrs() is deprecated; call AddrRecords().');
+	$tbl = $this->MailAddrTable();
 	$id = $this->KeyValue();
 	$rc = $tbl->Recs_forCust($id,$iFilt);
+	return $rc;
+    }
+    protected function AddrRecords($doVoided) {
+	$tbl = $this->MailAddrTable();
+	$id = $this->KeyValue();
+	$sqlFilt = NULL;
+	if (!$doVoided) {
+	    $sqlFilt = 'WhenVoid IS NULL';
+	}
+	$rc = $tbl->Recs_forCust($id,$sqlFilt);
 	return $rc;
     }
     /*----
@@ -419,7 +462,13 @@ class clsCust extends clsRecs_key_single {
 	2012-01-08 split off from AdminEmails
     */
     public function Emails() {
+	throw new exception('Emails() is deprecated; call EmailRecords().');
 	$tbl = $this->objDB->CustEmails();
+	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
+	return $rs;
+    }
+    protected function EmailAddrRecords() {
+	$tbl = $this->EmailAddrTable();
 	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
 	return $rs;
     }
@@ -429,7 +478,7 @@ class clsCust extends clsRecs_key_single {
 	2012-01-08 split off from AdminPhones
     */
     public function Phones() {
-	$tbl = $this->objDB->CustPhones();
+	$tbl = $this->PhoneTable();
 	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
 	return $rs;
     }
@@ -439,9 +488,239 @@ class clsCust extends clsRecs_key_single {
 	2012-01-08 split off from AdminCards
     */
     public function Cards() {
-	$tbl = $this->objDB->CustCards();
+	throw new exception('Cards() is deprecated; call CardRecords().');
+    }
+    public function CardRecords() {
+	$tbl = $this->CardTable();
 	$rs = $tbl->GetData('ID_Cust='.$this->KeyValue());
 	return $rs;
+    }
+
+    // -- DATA RECORD ACCESS -- //
+    // ++ DATA RECORD ARRAYS ++ //
+
+    /*----
+      RETURNS: array of orders for this customer
+      FUTURE: also check ID_Buyer and ID_Recip
+      HISTORY:
+	2012-01-08 split off from AdminOrders(), moved from admin.cust to base.cust
+    */
+    protected function Orders_array() {
+	$tOrd = $this->Engine()->Orders();
+	$idCust = $this->KeyValue();
+	$arRow = NULL;
+	$arOrd = NULL;
+
+	// collect orders where customer is buyer
+	$rs = $tOrd->GetData('ID_Buyer='.$idCust);
+	while ($rs->NextRow()) {
+	    $idOrd = $rs->KeyValue();
+	    $arRow = $rs->Values();
+	    $arRow['roles'] = nz($arRow['roles']).'B';
+	    $arOrd[$idOrd] = $arRow;
+	}
+
+	// collect orders where customer is recipient
+	$rs = $tOrd->GetData('ID_Recip='.$idCust);
+	while ($rs->NextRow()) {
+	    $idOrd = $rs->KeyValue();
+	    if (array_key_exists($idOrd,$arOrd)) {
+		$arRow = $arOrd[$idOrd];
+	    } else {
+		$arRow = $rs->Values();
+	    }
+	    $arRow['roles'] = nz($arRow['roles']).'R';
+	    $arOrd[$idOrd] = $arRow;
+	}
+
+	return $arOrd;
+
+/* 2013-11-23 this is obsolete
+	$objTbl = $this->Engine()->Orders();
+
+	// collect names for this customer
+	$tbl = $this->objDB->CustNames();
+	$objRows = $tbl->GetData('ID_Cust='.$this->KeyValue());
+	$sqlList = '';
+	if ($objRows->HasRows()) {
+	    while ($objRows->NextRow()) {
+		if ($sqlList != '') {
+		    $sqlList .= ',';
+		}
+		$sqlList .= $objRows->ID;
+	    }
+
+	    $arOrd = array();
+
+	    $tbl = $this->Engine()->Orders();
+
+	    // collect orders where customer is buyer
+	    $objRows = $tbl->GetData('ID_NameBuyer IN ('.$sqlList.')');
+	    while ($objRows->NextRow()) {
+		$idOrd = $objRows->ID;
+		$arRow = $objRows->Values();
+		$arRow['roles'] = nz($arRow['roles']).'B';
+		$arOrd[$idOrd] = $arRow;
+	    }
+
+	    // collect orders where customer is recipient
+	    $objRows = $tbl->GetData('ID_NameRecip IN ('.$sqlList.')');
+	    while ($objRows->NextRow()) {
+		$idOrd = $objRows->ID;
+		if (array_key_exists($idOrd,$arOrd)) {
+		    $arRow = $arOrd[$idOrd];
+		} else {
+		    $arRow = $objRows->Values();
+		}
+		$arRow['roles'] = nz($arRow['roles']).'R';
+		$arOrd[$idOrd] = $arRow;
+	    }
+
+	    return $arOrd;
+	} else {
+	    return NULL;
+	}
+*/
+    }
+
+    // -- DATA RECORD ARRAYS -- //
+    // ++ ACTIONS ++ //
+
+    /*----
+      USED BY: Customers table
+    */
+    public function FinishRecord($idName,$idAddr) {
+	$arUpd = array(
+	  'ID_Name'	=> $idName,
+	  'ID_Addr'	=> $idAddr,
+	  'WhenCreated'	=> 'NOW()',
+	  );
+	$ok = $this->Update($arUpd);
+    }
+
+    // -- ACTIONS -- //
+    // ++ WEB UI ++ //
+
+    // TODO: move this to CALCULATIONS
+    public function AsArray($doNames,$doAddrs,$doCards) {
+	$ar = NULL;
+	while ($this->NextRow()) {
+	    $idCust = $this->KeyValue();
+	    $qRows = 0;
+
+	    if ($doNames) {
+		$rs = $this->Names();	// get names for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idName = $rs->KeyValue();
+		    $sName = $rs->ShortDescr();
+		    $ar[$idCust]['names'][$idName] = $sName;
+		}
+	    }
+
+	    if ($doAddrs) {
+		$rs = $this->AddrRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idAddr = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['addrs'][$idAddr] = $ht;
+		}
+	    }
+
+	    if ($doCards) {
+		$rs = $this->CardRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idRow = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['cards'][$idRow] = $ht;
+		}
+	    }
+	    if ($qRows > 0) {
+		$sCust = $this->SingleLine();
+		$ar[$idCust]['cust'] = $sCust;
+	    }
+	}
+    }
+    /*----
+      RETURNS: HTML for a drop-down list of all the customers
+	in the current recordset
+    */
+    public function Render_DropDown($iName,$doNames,$doAddrs,$doCards) {
+	// build the array
+	/*
+	$ar = NULL;
+	while ($this->NextRow()) {
+	    $idCust = $this->KeyValue();
+	    $sCust = $this->SingleLine();
+	    $ar[$idCust]['cust'] = $sCust;
+//	echo "CUST ID $idCust: $sCust<br>";
+
+	    if ($doNames) {
+		$rs = $this->Names();	// get names for this customer
+		while ($rs->NextRow()) {
+		    $idName = $rs->KeyValue();
+		    $sName = $rs->ShortDescr();
+		    $ar[$idCust]['names'][$idName] = $sName;
+    //	echo "NAME ID $idName: $sName<br>";
+		}
+	    }
+
+	    if ($doAddrs) {
+		$rs = $this->AddrRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $idAddr = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['addrs'][$idAddr] = $ht;
+    //	echo "ADDR ID $idAddr: $ht<br>";
+		}
+	    }
+
+	    if ($doCards) {
+		$rs = $this->CardRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $idRow = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['cards'][$idRow] = $ht;
+		}
+	    }
+	}
+	*/
+	$ar = $this->AsArray($doNames,$doAddrs,$doCards);
+
+	// output the results
+
+	if (is_null($ar)) {
+	    $out = NULL;
+	} else {
+	    $out = "\n<select name=\"$iName\">";
+
+	    foreach ($ar as $idCust => $arCust) {
+
+		//$ht = escapeshellarg($arCust['cust']);
+		if (array_key_exists('addrs',$arCust)) {
+		    $ht = escapeshellarg("customer ID #$idCust");
+		    $out .= "\n<optgroup label=$ht>";
+
+		    $arAddr = $arCust['addrs'];
+		    foreach ($arAddr as $idAddr => $sAddr) {
+			$ht = htmlspecialchars($sAddr);
+			$out .= "\n<option value=$idAddr>$ht</option>";
+		    }
+
+		    $out .= "\n</optgroup>";
+		}
+
+		if (array_key_exists('cards',$arCust)) {
+		    // TODO: finish
+		}
+	    }
+
+	    $out .= "\n</select>";
+	}
+
+	return $out;
     }
 }
 // CUSTOMER FIELD TYPE (abstract)
@@ -464,7 +743,7 @@ class clsCustNames extends clsTable {
     public static function SearchableSQL($iRaw,$iPfx=NULL,$iSfx=NULL) {
 	return SQLValue($iPfx.self::Searchable($iRaw).$iSfx);
     }
-   
+
     // DYNAMIC
     public function __construct($iDB) {
 	parent::__construct($iDB);
@@ -485,7 +764,7 @@ class clsCustNames extends clsTable {
     /*-----
       ACTION: Always creates a new record
     */
-    public function Create($iCustID, $iNameStr) {
+    public function CreateRecord($iCustID, $iNameStr) {
 /*	$strName = $iNameStr;
 	$arIns = array(
 	  'ID_Cust'	=> $iCustID,
@@ -494,15 +773,15 @@ class clsCustNames extends clsTable {
 	  'isActive'	=> 'TRUE'
 	  );
 */
-	$arIns = $this-> Create_SQL($iCustID,$iNameStr);
+	$arIns = $this-> Create_array($iCustID,$iNameStr);
 	$ok = $this->Insert($arIns);
-	return $this->objDB->NewID();
+	return $this->Engine()->NewID();
     }
     /*----
       ACTION: Generates the initial SQL to create the record just from the name string
 	ID_Cust needs to be filled in before the SQL is executed.
     */
-    public function Create_SQL_init($iNameStr) {
+    public function Create_array_init($iNameStr) {
 	$arIns = array(
 	  'Name'	=> SQLValue($iNameStr),
 	  'NameSrch'	=> SQLValue(self::Searchable($iNameStr)),
@@ -517,8 +796,8 @@ class clsCustNames extends clsTable {
 	iNameStr: name to add
       RETURNS: array for Insert()
     */
-    public function Create_SQL($iCustID, $iNameStr) {
-	$arIns = $this-> Create_SQL_init($iNameStr);
+    public function Create_array($iCustID, $iNameStr) {
+	$arIns = $this-> Create_array_init($iNameStr);
 	$arIns['ID_Cust'] = $iCustID;
 	$arIns['WhenEnt'] = 'NOW()';
 	return $arIns;
@@ -592,28 +871,48 @@ class clsCustNames extends clsTable {
     }
 */
     public function Recs_forCust($idCust,$iFilt=NULL) {
-	$tbl = $this->objDB->CustAddrs();
+	$tbl = $this->MailAddrTable();
+	return $tbl->Recs_forCust($idCust,$iFilt);
+/*
 	$sqlFilt = 'ID_Cust='.$idCust;
 	if (!is_null($iFilt)) {
 	    $sqlFilt = '('.$sqlFilt.') AND ('.$iFilt.')';
 	}
 	$rc = $tbl->GetData($sqlFilt);
 	return $rc;
+	*/
     }
 
 }
-class clsCustName extends clsDataSet {
+class clsCustName extends clsVbzRecs {
     public function CustID() {
 	return $this->Value('ID_Cust');
     }
     public function ShortDescr() {
-	return $this->Value('Name');
+	$sName = $this->Value('Name');
+	if (empty($sName)) {
+	    $out = "(blank name)";
+	} else {
+	    $out = $sName;
+	}
+	$id = $this->KeyValue();
+	return $out." (n$id)";
     }
 }
 // == CUSTOMER MAILING ADDRESS
 class clsCustAddrs extends clsTable {
-    // STATIC
-    const TableName='cust_addrs';
+
+    // ++ SETUP ++ //
+
+    public function __construct($iDB) {
+	parent::__construct($iDB);
+	  $this->Name('cust_addrs');
+	  $this->KeyName('ID');
+	  $this->ClassSng('clsCustAddr');
+    }
+
+    // -- SETUP -- //
+    // ++ STATIC METHODS ++ //
 
     /*----
       RETURNS: full address in searchable form (variants reduced to abbreviation)
@@ -751,20 +1050,44 @@ class clsCustAddrs extends clsTable {
 	return SQLValue(self::Searchable($iRaw));
     }
 
-    // DYNAMIC
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name(self::TableName);
-	  $this->KeyName('ID');
-	  $this->ClassSng('clsCustAddr');
+    // -- STATIC METHODS -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function MailAddrsClass() {
+	return 'clsCustAddrs';
     }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLE ACCESS ++ //
+
+    protected function MailAddrTable($id=NULL) {
+	return $this->Engine()->Make($this->MailAddrsClass(),$id);
+    }
+
+    // -- DATA TABLE ACCESS -- //
+    // ++ DATA RECORDS ACCESS ++ //
+
+    public function Recs_forCust($idCust,$iFilt=NULL) {
+	$tbl = $this->MailAddrTable();
+	$sqlFilt = 'ID_Cust='.$idCust;
+	if (!is_null($iFilt)) {
+	    $sqlFilt = '('.$sqlFilt.') AND ('.$iFilt.')';
+	}
+	$rs = $tbl->GetData($sqlFilt);
+	return $rs;
+    }
+
+    // -- DATA RECORDS ACCESS -- //
+    // ++ ACTION ++ //
+
     /*----
       ACTION: Generates the initial change array to create the record,
 	but only fills in fields that can be determined just from the address object
 	ID_Cust needs to be filled in before the SQL is executed.
       TODO: decouple this from clsCartAddr
+      DEPRECATED until we know who needs to access it.
     */
-    public function Create_SQL_init(clsCartAddr $iAddrObj) {
+/*    protected function Create_array_init(clsCartAddr $iAddrObj) {
 	$arIns = array(
 	  'Street'	=> SQLValue($iAddrObj->StreetStr()),
 	  'Town'	=> SQLValue($iAddrObj->CityStr()),
@@ -778,52 +1101,68 @@ class clsCustAddrs extends clsTable {
 	  );
 	return $arIns;
     }
+    */
     /*----
       ACTION: Generates the complete change array to create the record
       USED BY: this->Make_Script(), this->Create()
       TODO: decouple this from clsCartAddr
+      DEPRECATED until we know who needs to access it.
     */
-    public function Create_SQL($iCustID,clsCartAddr $iAddrObj) {
-	$ar = $this->Create_SQL_init($iAddrObj);
+    /*
+    protected function Create_array($iCustID,clsCartAddr $iAddrObj) {
+	$ar = $this->Create_array_init($iAddrObj);
 	$ar['ID_Cust'] = $iCustID;
 	$ar['WhenEnt'] = 'NOW()';
 	return $ar;
     }
+    */
     /*----
       ACTION: Generates the complete change array to update the record
 	This is sort of a formality, because it's the same as Create_SQL_init --
 	i.e. everything but the customer ID... but this conceivably
 	might change later, so better to encapsulate now.
       TODO: decouple this from clsCartAddr
+      DEPRECATED until we know who needs to access it.
     */
-    public function Update_SQL(clsCartAddr $iAddrObj) {
-	$ar = $this->Create_SQL_init($iAddrObj);
+    /*
+    protected function Update_array(clsCartAddr $iAddrObj) {
+	$ar = $this->Create_array_init($iAddrObj);
 	$ar['WhenUpd'] = 'NOW()';
 	return $ar;
     }
+    */
     /*----
       ACTION: creates a record with previously-initialized data
     */
-    public function Create($iCustID,clsCartAddr $iAddrObj) {
-/*	$arIns = array(
-	  'ID_Cust'	=> $iCustID,
-	  'Street'	=> SQLValue($iAddrObj->Street()->Value()),
-	  'Town'	=> SQLValue($iAddrObj->City()->Value()),
-	  'State'	=> SQLValue($iAddrObj->State()->Value()),
-	  'Zip'		=> SQLValue($iAddrObj->Zip()->Value()),
-	  'Country'	=> SQLValue($iAddrObj->Country()->Value()),
-	  'Extra'	=> SQLValue($iAddrObj->Instruc()->Value())
-	  );
-*/
-	$arIns = $this->Create_SQL($iCustID,$iAddrObj);
+    /* 2014-02-16 DEPRECATED - use CreateRecord()
+    protected function Create($iCustID,clsCartAddr $iAddrObj) {
+	$arIns = $this->Create_array($iCustID,$iAddrObj);
 
 	$ok = $this->Insert($arIns);
 	if ($ok) {
-	    $id = $this->objDB->NewID();
+	    $id = $this->Engine()->NewID();
 	} else {
 	    $id = NULL;
 	}
 	return $id;
+    }
+    */
+    public function CreateRecord($idCust,clsPerson $oPerson) {
+	$arIns = array(
+	  'ID_Cust'	=> $idCust,
+	  'WhenEnt'	=> 'NOW()',
+	  'Full'	=> $oPerson->Addr_AsText(),
+	  'Search'	=> $oPerson->Addr_forSearch_stripped(FALSE),	// FALSE = don't include name
+	  'Search_raw'	=> $oPerson->Addr_forSearch(FALSE),		// FALSE = don't include name
+	  'Name'	=> $oPerson->NameValue(),
+	  'Street'	=> $oPerson->StreetValue(),
+	  'Town'	=> $oPerson->TownValue(),
+	  'State'	=> $oPerson->StateValue(),
+	  'Zip'		=> $oPerson->ZipcodeValue(),
+	  'Country'	=> $oPerson->CountryValue(),
+	  'Extra'	=> $oPerson->DirectionsValue(),
+	  );
+	return $this->Insert($arIns);
     }
 /*
     public function Make_fromCartAddr($iCustID,clsCartAddr $iAddr) {
@@ -844,7 +1183,9 @@ class clsCustAddrs extends clsTable {
 	  Adding option to filter without ID_Cust, and another option to provide
 	    data in Raw (non-stripped) form.
 	  Making function public, to match declaration in abstract class.
+	2014-02-16 ...what base class? Commenting this out until we know who uses it.
     */
+/*
     public function MakeFilt(array $iData) {
 	if (array_key_exists('Search',$iData)) {
 	    $sqlAddr = SQLValue($iData['Search']);
@@ -859,6 +1200,11 @@ class clsCustAddrs extends clsTable {
 	    return $sqlFilt;
 	}
     }
+    */
+
+    // -- ACTION -- //
+    // ++ SEARCHING ++ //
+
     /*-----
       INPUT: iAddr = address to look for
     */
@@ -868,12 +1214,13 @@ class clsCustAddrs extends clsTable {
 	if (!is_null($iCust)) {
 	    $sql = '('.$sql.') AND (ID_Cust='.$iCust.')';
 	}
-//echo 'SQL=['.$sql.']';
 	$objRows = $this->GetData($sql);
-//echo ' ROWS=['.$objRows->RowCount().']';
 	$objRows->NextRow();	// load the first row, which should be the only one
 	return $objRows;
     }
+
+    // -- SEARCHING -- //
+
     /*----
       LATER: if idCust is not known, can skip the searching
       NOTE: This is complicated because it also needs to update fields in the
@@ -896,7 +1243,7 @@ class clsCustAddrs extends clsTable {
 /* 2011-12-18 does anything call this?
     public function Make_Script(clsCartAddr $iAddr,$idCust,Script_RowObj $actOrder) {
 	$acts = new Script_Script();
-	
+
 	$strKey = $iAddr->AsSearchable();
 	$objAddr = $this->Find($strKey,$idCust);
 	if ($objAddr->HasRows()) {
@@ -917,17 +1264,8 @@ throw new exception('Path to here is...?');
 	return $acts;
     }
 */
-    public function Recs_forCust($idCust,$iFilt=NULL) {
-	$tbl = $this->objDB->CustAddrs();
-	$sqlFilt = 'ID_Cust='.$idCust;
-	if (!is_null($iFilt)) {
-	    $sqlFilt = '('.$sqlFilt.') AND ('.$iFilt.')';
-	}
-	$rc = $tbl->GetData($sqlFilt);
-	return $rc;
-    }
 }
-class clsCustAddr extends clsDataSet {
+class clsCustAddr extends clsVbzRecs {
     public function CustID() {
 	return $this->Value('ID_Cust');
     }
@@ -1014,7 +1352,14 @@ class clsCustAddr extends clsDataSet {
       RETURNS: Address formatted as single line
     */
     public function AsSingleLine() {
-	return $this->AsString(' / ');
+	$sLine = $this->AsString(' / ');
+	if (empty($sLine)) {
+	    $out = "(empty address)";
+	} else {
+	    $out = $sLine;
+	}
+	$id = $this->KeyValue();
+	return $out." (a$id)";
     }
 }
 // == CUSTOMER EMAIL ADDRESS
@@ -1148,7 +1493,7 @@ class clsCustEmails extends clsTable {
 	}
 	$sqlFilt = 'ID IN ('.$sqlIn.')';
 	$arUpd = array('ID_User'=>$iUser);
-	
+
 	$tCusts = $this->Engine()->Custs();
 	$tCusts->Update($arUpd,$sqlFilt);
 //echo 'SQL: '.$tCusts->sqlExec;
@@ -1236,7 +1581,7 @@ class clsCustEmails extends clsTable {
 
 //	$sqlFind = SQLValue(strtolower($iValue));
 //	$objRows = $this->GetData("(ID_Cust=$iCustID) AND (LOWER(Email)=$sqlFind)");
-	
+
 	if ($objRows->HasRows()) {
 	    $objRows->NextRow();
 	    $id = $objRows->ID;
@@ -1273,7 +1618,7 @@ class clsCustEmails extends clsTable {
 	return $id;
     }
 }
-class clsCustEmail extends clsDataSet {
+class clsCustEmail extends clsVbzRecs {
     public function CustID() {
 	return $this->Value('ID_Cust');
     }
@@ -1350,7 +1695,7 @@ class clsCustPhones extends clsTable {
 /*
     public function Make_fromData($iCustID,$iValue,array $iArData=NULL) {
 //	$sqlFind = SQLValue(self::Searchable($iValue));
-	
+
 //	$objRows = $this->GetData("(ID_Cust=$iCustID) AND (PhoneSrch=$sqlFind)");
 	$sqlSrch = $this->MakeFilt_Cust($iValue,$iCustID);
 	if ($objRows->HasRows()) {
@@ -1456,7 +1801,7 @@ class clsCustPhones extends clsTable {
 	return $id;
     }
 }
-class clsCustPhone extends clsDataSet {
+class clsCustPhone extends clsVbzRecs {
     public function CustID() {
 	return $this->Value('ID_Cust');
     }
@@ -1475,6 +1820,7 @@ class clsCustCards extends clsTable {
 	parent::__construct($iDB);
 	  $this->Name('cust_cards');
 	  $this->KeyName('ID');
+	  $this->ClassSng('clsCustCard');
     }
 
     // STATIC section //
@@ -1618,12 +1964,18 @@ class clsCustCards_dyn extends clsCustCards {
     private $objCrypt;
     private $strCryptKey;
 
+    // ++ SETUP ++ //
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 //	  $this->Name('cust_cards');
 //	  $this->KeyName('ID');
 	  $this->ClassSng('clsCustCard');
     }
+
+    // -- SETUP -- //
+    // ++ SEARCHING ++ //
+
     /*----
       ACTION: Looks for a matching card
 	Filters by customer ID if it is given, otherwise checks all records.
@@ -1638,6 +1990,10 @@ class clsCustCards_dyn extends clsCustCards {
 	$rc = $this->GetData($sqlFilt);
 	return $rc;
     }
+
+    // -- SEARCHING -- //
+    // ++ CALCULATIONS ++ //
+
 /* 2011-11-29 old object-specific version
     protected function MakeFilt_Cust($idCust,clsPayment $iData) {
 	$sqlValue = SQLValue((string)self::Searchable($iData->Num()->Value()));	// strip out extraneous characters
@@ -1668,6 +2024,51 @@ class clsCustCards_dyn extends clsCustCards {
 	}
 	return $sqlFilt;
     }
+    public function MakeArray_base(array &$iData) {
+	// get all the basic values
+/*
+	$sqlNum = SQLValue((string)self::Searchable($iData->Num()->Value()));	// strip out extraneous characters
+	$sqlExp = $iData->ExpDateSQL();
+	$strAddr = $iData->Addr()->AsText();
+	$sqlAddr = SQLValue($strAddr);
+	$sqlName = SQLValue($iData->Addr()->Name()->Value());
+*/
+	$strNum = $iData['num'];
+	if (array_key_exists('srch',$iData)) {
+	    $strSrch = $iData['srch'];
+	} else {
+	    $strSrch = (string)self::Searchable($strNum);
+	}
+	$sqlNum = SQLValue($strSrch);	// strip out extraneous characters
+	$sqlExp = $this->ExpDateSQL($iData['exp']);
+	$sqlAddr = SQLValue($iData['addr']);
+	$sqlName = SQLValue($iData['name']);
+
+	// create the array, filling in the stuff we do know:
+	$ar = array(
+	  //'ID_Cust'	=> $iCustID,	// not known yet
+	  //'ID_Addr'	=> $idAddr,	// not created yet
+	  'CardNum'	=> $sqlNum,
+	  'CardExp'	=> $sqlExp,
+	  'OwnerName'	=> $sqlName,
+	  'Address'	=> $sqlAddr,
+	  'isActive'	=> 'TRUE'
+	  );
+	return $ar;
+    }
+
+    // -- CALCULATIONS -- //
+    // ++ ACTIONS ++ //
+
+    public function CreateRecord(clsPayment $oPay) {
+	$sNum = $oPay->CardNumValue();
+	$sSrch = (string)self::Searchable($sNum);
+	$sqlNum = SQLValue($sSrch);	// strip out extraneous characters
+	$sqlExp = $this->ExpDateSQL($oPay->CardExpValue());
+	$sqlAddr = SQLValue($oPay->CardAddrValue());
+	$sqlName = SQLValue($oPay->CardNameValue());
+    }
+
     /*----
       RETURNS: Script to add a new credit card to a customer that may or may not have been created
       ASSUMES:
@@ -1738,38 +2139,6 @@ class clsCustCards_dyn extends clsCustCards {
 	2011-09-23 Created so we can inspect SQL before executing
 	2011-11-29 de-coupled this from pre-processed cart data classes (clsPayment)
     */
-    public function MakeArray_base(array &$iData) {
-	// get all the basic values
-/*
-	$sqlNum = SQLValue((string)self::Searchable($iData->Num()->Value()));	// strip out extraneous characters
-	$sqlExp = $iData->ExpDateSQL();
-	$strAddr = $iData->Addr()->AsText();
-	$sqlAddr = SQLValue($strAddr);
-	$sqlName = SQLValue($iData->Addr()->Name()->Value());
-*/
-	$strNum = $iData['num'];
-	if (array_key_exists('srch',$iData)) {
-	    $strSrch = $iData['srch'];
-	} else {
-	    $strSrch = (string)self::Searchable($strNum);
-	}
-	$sqlNum = SQLValue($strSrch);	// strip out extraneous characters
-	$sqlExp = $this->ExpDateSQL($iData['exp']);
-	$sqlAddr = SQLValue($iData['addr']);
-	$sqlName = SQLValue($iData['name']);
-
-	// create the array, filling in the stuff we do know:
-	$ar = array(
-	  //'ID_Cust'	=> $iCustID,	// not known yet
-	  //'ID_Addr'	=> $idAddr,	// not created yet
-	  'CardNum'	=> $sqlNum,
-	  'CardExp'	=> $sqlExp,
-	  'OwnerName'	=> $sqlName,
-	  'Address'	=> $sqlAddr,
-	  'isActive'	=> 'TRUE'
-	  );
-	return $ar;
-    }
 /* 2011-09-23 this probably isn't needed anymore
     protected function MakeFilt(array $iData) {
 	$idCust = $iData['ID_Cust'];
@@ -1781,7 +2150,7 @@ class clsCustCards_dyn extends clsCustCards {
     public function Make($iCustID,clsPayment $iData) {
 	$strNum = self::Searchable($iData->Num()->Value());	// strip out extraneous characters
 	$sqlFind = SQLValue($strNum);		// mark up for use in SQL statement
-	
+
 	$objRows = $this->GetData("(ID_Cust=$iCustID) AND (CardNum=$sqlFind)");
 	if ($objRows->HasRows()) {
 	    $objRows->NextRow();
@@ -1824,7 +2193,9 @@ class clsCustCards_dyn extends clsCustCards {
 	return $id;
     }
 */
-    // - encryption methods
+
+    // ++ ENCRYPTION ++ //
+
 /*
     public function CryptKey($iKey) {
 	$this->strCryptKey = $iKey;
@@ -1855,28 +2226,23 @@ class clsCustCards_dyn extends clsCustCards {
     public function CryptReset() {
 	unset($this->objCrypt);
     }
+
+    // -- ENCRYPTION -- //
+
 }
-class clsCustCard extends clsDataSet {
+class clsCustCard extends clsVbzRecs {
     public $_strPlain;	// data {to encode}/{decoded}
 
-    public function CustObj() {
-	$idCust = $this->ID_Cust;
-	return $this->objDB->Custs()->GetItem($idCust);
-    }
-    public function CustID() {
+    // ++ DATA FIELDS ++ //
+
+    protected function CustID() {
 	return $this->Value('ID_Cust');
     }
-    public function AddrObj() {
-	$idAddr = $this->ID_Addr;
-	return $this->objDB->CustAddrs()->GetItem($idAddr);
+    protected function AddrID() {
+	return $this->Value('ID_Addr');
     }
-    public function NameObj() {
-	$idName = $this->ID_Name;
-	return $this->objDB->CustNames()->GetItem($idName);
-    }
-    public function Reset() {
-    // PURPOSE: Force object to reload the crypt key
-	$this->Table->CryptReset();
+    protected function NameID() {
+	return $this->Value('ID_Name');
     }
     public function ShortDescr() {
 	return $this->SafeString();
@@ -1884,6 +2250,62 @@ class clsCustCard extends clsDataSet {
     public function ShortExp() {
 	return date('n/y',$this->CardExp);
     }
+    public function AsSingleLine() {	// alias
+	return $this->SafeString();
+    }
+
+    // -- DATA FIELDS -- //
+    // ++ DATA RECORDSETS ++ //
+
+    public function CustObj() {
+	$idCust = $this->CustID();
+	return $this->CustTable($idCust);
+    }
+    public function AddrObj() {
+	$idAddr = $this->AddrID();
+	return $this->AddrTable($idAddr);
+    }
+    public function NameObj() {
+	$idName = $this->NameID();
+	return $this->NameTable($idName);
+    }
+
+    // -- DATA RECORDSETS -- //
+    // ++ DATA TABLES ++ //
+
+    protected function CustTable($id=NULL) {
+	return $this->Engine()->Make($this->CustsClass(),$id);
+    }
+    protected function AddrTable($id=NULL) {
+	return $this->Engine()->Make($this->AddrsClass(),$id);
+    }
+    protected function NameTable($id=NULL) {
+    	return $this->Engine()->Make($this->NamesTable(),$id);
+    }
+
+    // -- DATA TABLES -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function CustsClass() {
+	return 'clsCusts';
+    }
+    protected function AddrsClass() {
+	return 'clsCustAddrs';
+    }
+    protected function NamesClass() {
+	return 'clsCustNames';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ ACTIONS ++ //
+
+    public function Reset() {
+    // PURPOSE: Force object to reload the crypt key
+	$this->Table->CryptReset();
+    }
+
+    // -- ACTIONS -- //
+
     public function CryptObj() {
 	return $this->Table->CryptObj();
     }

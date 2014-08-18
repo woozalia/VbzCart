@@ -6,7 +6,15 @@
   HISTORY:
     2012-05-08 split off base.cat.php from store.php
     2013-11-10 split off vbz-cat-image.php from base.cat.php
+    2013-11-17 KS_IMG_SIZE_* constants; rewriting clsImages::Thumbnails()
+      as Data_forTitle() -> Records_ForTitle()
 */
+
+define('KS_IMG_SIZE_THUMB','th');
+define('KS_IMG_SIZE_SMALL','sm');
+define('KS_IMG_SIZE_LARGE','big');
+define('KS_IMG_SIZE_ZOOM','zoom');
+
 class clsVbzFolders extends clsVbzTable {
     public function __construct($iDB) {
 	parent::__construct($iDB);
@@ -63,12 +71,12 @@ class clsVbzFolder extends clsDataSet {
     public function Spec() {
 	$out = '';
 	if (!is_null($this->ID_Parent)) {
-	    $out = $this->ParentObj()->Spec();
+	    $out = $this->ParentRecord()->Spec();
 	}
 	$out .= $this->PathPart;
 	return $out;
     }
-    protected function ParentObj() {
+    protected function ParentRecord() {
 	return $this->Table->GetItem($this->ID_Parent);
     }
     /*----
@@ -105,6 +113,15 @@ class clsVbzFolder extends clsDataSet {
     }
 }
 class clsImages extends clsVbzTable {
+
+    // ++ STATIC ++ //
+
+    const SIZE_THUMB	= KS_IMG_SIZE_THUMB;
+    const SIZE_SMALL	= KS_IMG_SIZE_SMALL;
+    const SIZE_LARGE	= KS_IMG_SIZE_LARGE;
+    const SIZE_ZOOM	= KS_IMG_SIZE_ZOOM;
+
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->Name('cat_images');
@@ -121,65 +138,128 @@ class clsImages extends clsVbzTable {
 	parent::Insert($iData);
 	$this->Touch(__METHOD__);
     }
+    /*----
+      RETURNS: recordset of images for the given title in the given size
+      HISTORY:
+	2013-11-17 split off from Thumbnails(), which kind of shouldn't exist
+      INPUT:
+	idTitle = ID of title to look up
+	sSize = key for size of image wanted - use KS_IMG_SIZE_* constant
+    */
+    public function Records_forTitle($idTitle,$sSize) {
+	$sqlFilt = '(ID_Title='.$idTitle.') AND (Ab_Size="'.$sSize.'") AND isActive';
+	$tbl = $this->Engine()->Images();
+	$rs = $tbl->GetData($sqlFilt,NULL,'AttrSort');
+	return $rs;
+    }
+    /*----
+      RETURNS: recordset of images for the given titles in the given size
+      PURPOSE: same as Records_forTitle, but accepts a comma-separated list of titles
+      HISTORY:
+	2013-11-18 created
+	2014-03-22 renamed from Records_forTitles() to Records_forTitles_SQL()
+    */
+    public function Records_forTitles_SQL($sqlTitles,$sSize) {
+	if (is_null($sqlTitles)) {
+	    return NULL;
+	} else {
+	    $sqlFilt = '(ID_Title IN ('.$sqlTitles.')) AND (Ab_Size="'.$sSize.'") AND isActive';
+	    $rs = $this->GetData($sqlFilt,NULL,'ID_Title, AttrSort');
+	    return $rs;
+	}
+    }
+/*
     public function Thumbnails($iTitle,array $iarAttr=NULL) {
 	$sqlFilt = '(ID_Title='.$iTitle.') AND (Ab_Size="th") AND isActive';
 	$objTbl = $this->objDB->Images();
 	$objRows = $objTbl->GetData($sqlFilt,NULL,'AttrSort');
 	return $objRows->Images_HTML($iarAttr);
     }
+*/
 }
 class clsImage extends clsVbzRecs {
+    static $arSzNames = array(
+      KS_IMG_SIZE_THUMB => 'thumb',
+      KS_IMG_SIZE_SMALL => 'small',
+      KS_IMG_SIZE_LARGE => 'large',
+      KS_IMG_SIZE_ZOOM => 'detail'
+      );
+
 // object cache
     protected $objTitle;
 
+    // ++ FIELD ACCESS ++ //
+
+    protected function FolderID() {
+	return $this->Value('ID_Folder');
+    }
+    protected function Spec() {
+	return $this->Value('Spec');
+    }
+    protected function TitleID() {
+	return $this->Value('ID_Title');
+    }
+    public function AttrDescr() {
+	return $this->Value('AttrDispl');
+    }
     /*----
       HISTORY:
 	2010-11-16 Modified to use new cat_folders data via ID_Folder
+      TODO: rename to ShopSpec()
     */
     public function WebSpec() {
-	//return KWP_IMG_MERCH.$this->Spec;
-	return $this->FolderPath().$this->Spec;
+	return $this->FolderPath().$this->Spec();
+    }
+    public function ShopLink($sText) {
+	$url = $this->WebSpec();
+	$out = "<a href=\"$url\">$sText</a>";
+	return $out;
     }
     /*----
       HISTORY:
 	2010-11-16 Created
     */
-    public function FolderObj() {
-	return $this->objDB->Folders()->GetItem($this->ID_Folder);
+    protected function FolderPath() {
+	return $this->FolderRecord()->Spec();
     }
+
+    // -- FIELD ACCESS -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function TitlesClass() {
+	return 'clsVbzTitles';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLES ACCESS ++ //
+
+    protected function FolderTable($id=NULL) {
+	return $this->Engine()->Make('clsVbzFolders',$id);
+    }
+    protected function TitleTable($id=NULL) {
+	return $this->Engine()->Make($this->TitlesClass(),$id);
+    }
+
+    // -- DATA TABLES ACCESS -- //
+    // ++ DATA RECORDS ACCESS ++ //
+
     /*----
       HISTORY:
 	2010-11-16 Created
     */
-    public function FolderPath() {
-	return $this->FolderObj()->Spec();
+    public function FolderRecord() {
+	return $this->FolderTable($this->FolderID());
     }
-    /*-----
-      ACTION: Generate the HTML code to display all images in the current dataset
-    */
-    public function Images_HTML(array $iarAttr=NULL) {
-	if ($this->HasRows()) {
-	    $out = '';
-	    while ($this->NextRow()) {
-		$out .= $this->Image_HTML($iarAttr);
-	    }
-	    return $out;
-	} else {
+    public function TitleRecord() {
+	$idTitle = $this->TitleID();
+	if (is_null($idTitle)) {
 	    return NULL;
+	} else {
+	    return $this->TitleTable($idTitle);
 	}
     }
-    /*-----
-      ACTION: Generate the HTML code to display an image for the current row
-    */
-    public function Image_HTML(array $iarAttr=NULL) {
-	$htDispl = $this->AttrDispl;
-	if (!empty($htDispl)) {
-	    nzApp($iarAttr['title'],' - '.$htDispl);
-	}
-	$iarAttr['src'] = $this->WebSpec();
-	$htAttr = ArrayToAttrs($iarAttr);
-	return '<img'.$htAttr.'>';
-    }
+
+    // -- DATA RECORDS ACCESS -- //
     /*-----
       ACTION: Get the image with the same title and attribute but with the given size
     */
@@ -193,36 +273,42 @@ class clsImage extends clsVbzRecs {
 	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
 	return $objImgOut;
     }
-    public function Title() {
+    public function TitleObj() {
       if (!is_object($this->objTitle)) {
 	  $this->objTitle = $this->objDB->Titles()->GetItem($this->ID_Title);
       }
       return $this->objTitle;
     }
-  public function ListImages_sameAttr() {
-    $sqlFilt = 'isActive AND (ID_Title='.$this->ID_Title.')';
-    if ($this->AttrFldr) {
-      $sqlFilt .= ' AND (AttrFldr="'.$this->AttrFldr.'")';
-    }
-    $objImgOut = $this->objDB->Images()->GetData($sqlFilt);
+    public function Data_forSameAttr() {
+	$sqlFilt = 'isActive AND (ID_Title='.$this->ID_Title.')';
+	$sAttr = $this->Value('AttrFldr');
+	$sqlAttr = is_null($sAttr)?'IS NULL':('= "'.$sAttr.'"');
+	//if ($this->AttrFldr) {
+	  $sqlFilt .= " AND (AttrFldr $sqlAttr)";
+	//}
+	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
 
-    return $objImgOut;
-  }
-    public function ListImages_sameSize() {
+	return $objImgOut;
+    }
+    public function Data_forSameSize() {
 	$sqlFilt = 'isActive AND (ID_Title='.$this->ID_Title.') AND (Ab_Size="'.$this->Ab_Size.'")';
 //echo 'SQL: '.$sqlFilt;
 	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
 	return $objImgOut;
     }
+    /*----
+      TODO: rename or deprecate this -- the name is misleading; it's actually the href
+	to the *title*...
+    */
     public function Href($iAbs=false) {
 	$strFldrRel = $this->AttrFldr;
 	if ($strFldrRel) {
 	    $strFldrRel .= '-';
 	}
-	$strFldrRel .= $this->Ab_Size;
+	$strFldrRel .= $this->Value('Ab_Size');
 
 	if ($iAbs) {
-	    $strFldr = $this->Title()->URL().'/'.$strFldrRel;
+	    $strFldr = $this->TitleObj()->URL().'/'.$strFldrRel;
 	} else {
 	    $strFldr = $strFldrRel;
 	}

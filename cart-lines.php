@@ -16,81 +16,224 @@ class clsShopCartLines extends clsTable {
 	  $this->ClassSng('clsShopCartLine');
 	$this->seqCart = 0;
     }
+
+    // ++ DATA RECORDS ACCESS ++ //
+
+    // 2014-02-28 is this actually needed?
+    public function Find_byCart_andItem($idCart,$idItem) {
+ 	$sqlFilt = "(ID_Cart=$idCart) AND (ID_Item=$idItem)";
+	$rc = $this->GetData($sqlFilt);
+	$rc->NextRow();		// load the row
+	return $rc;
+    }
+
+    // -- DATA RECORDS ACCESS -- //
+    // ++ ACTION ++ //
+
     public function Add($iCart, $iCatNum, $iQty) {
-	$objItems = $this->Engine()->Items();
-	$objItem = $objItems->Get_byCatNum($iCatNum);
-	if (is_null($objItem)) {
+	$tItems = $this->Engine()->Items();
+	$rcItem = $tItems->Get_byCatNum($iCatNum);
+	if (is_null($rcItem)) {
 // TO DO: log error properly
 	    throw new exception('ERROR: Could not find item for catalog #'.$iCatNum.'.');
 	} else {
-	    $sqlCart = $this->objDB->SafeParam($iCart);
-	    $sqlWhere = '(ID_Cart='.$sqlCart.') AND (ID_Item='.$objItem->ID.')';
-	    $objLine = $this->GetData($sqlWhere);
-	    $objLine->NextRow();	// load the only data row
+	    $sqlCart = $this->Engine()->SafeParam($iCart);
+	    $idItem = $rcItem->KeyValue();
+	    $sqlWhere = "(ID_Cart=$sqlCart) AND (ID_Item=$idItem)";
+	    $rcLine = $this->GetData($sqlWhere);
 
-	    if (!$objLine->hasRows()) {
- 		$objLine->Value('ID_Cart',$iCart);
+	    if ($rcLine->hasRows()) {
+		$rcLine->NextRow();	// load the only data row
+	    } else {
+ 		$rcLine->Value('ID_Cart',$iCart);
 	    }
-	    $objLine->ID_Item = $objItem->ID;
-	    $objLine->Qty($iQty);
-	    $objLine->Save();
+	    $rcLine->ItemID($rcItem->KeyValue());
+	    $rcLine->Qty($iQty);
+
+	    $rcLine->Save();
 	}
     }
+
+    // -- ACTION -- //
 }
 class clsShopCartLine extends clsDataSet {
-    private $oItem;
-    private $isChgd;
+    private $rcItem;
+    private $rcShCost;
+
+    // ++ INITIALIZATION ++ //
 
     public function __construct(clsDatabase $iDB=NULL, $iRes=NULL, array $iRow=NULL) {
 	parent::__construct($iDB,$iRes,$iRow);
 	//$this->ID = -1;
-	$this->isChgd = FALSE;
+	$this->rcItem = NULL;
+	$this->rcShCost = NULL;
     }
-    public function IsLoaded() {
-	return ($this->hasRows());
+
+    // -- INITIALIZATION -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function CartsClass() {
+	return 'clsShopCart';
     }
-    public function CartID() {
-	return $this->Value('ID_Cart');
+    protected function ItemsClass() {
+	return 'clsItems';
     }
-    public function Cart() {
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLES ++ //
+
+    protected function CartTable($id=NULL) {
+	return $this->Engine()->Make($this->CartsClass(),$id);
+    }
+    protected function ItemTable($id=NULL) {
+	return $this->Engine()->Make($this->ItemsClass(),$id);
+    }
+
+    // -- DATA TABLES -- //
+    // ++ DATA RECORDS ++ //
+
+    public function CartRecord() {
 	return $this->Engine()->Carts($this->CartID());
     }
-    protected function ItemID() {
-	return $this->Value('ID_Item');
-    }
-    public function Item() {
+    // WAS PUBLIC, but what for?
+    protected function ItemRecord() {
 	$doLoad = FALSE;
-	if (empty($this->oItem)) {
+	if (is_null($this->rcItem)) {
 	    $doLoad = TRUE;
-	} elseif ($this->oItem->KeyValue() != $this->ItemID()) {
+	} elseif ($this->rcItem->KeyValue() != $this->ItemID()) {
 	    $doLoad = TRUE;
 	}
 	if ($doLoad) {
-	    $this->oItem = $this->Engine()->Items($this->ItemID());
+	    $this->rcItem = $this->ItemTable($this->ItemID());
+	    $this->arItSp = NULL;
 	}
-	return $this->oItem;
+	return $this->rcItem;
+    }
+    protected function ShipCostRecord() {
+	if (is_null($this->rcShCost)) {
+	    $this->rcShCost = $this->ItemRecord()->ShipCostRecord();
+	}
+	return $this->rcShCost;
+    }
+    /*----
+      ASSUMES: Item object has already been loaded
+    */
+    public function ItemSpecs() {
+	throw new exception('Who calls this?');
+	if (is_null($this->arItSp)) {
+	    $this->arItSp = $this->rcItem->DescSpecs();
+	}
+	return $this->arItSp;
+    }
+
+    // -- DATA RECORDS -- //
+    // ++ FIELD ACCESS ++ //
+
+    public function CartID($id=NULL) {
+	return $this->Value('ID_Cart',$id);
+    }
+    public function ItemID($id=NULL) {
+	return $this->Value('ID_Item',$id);
+    }
+    public function Seq($nVal=NULL) {
+	return $this->Value('Seq',$nVal);
     }
     /*----
       HISTORY:
 	2013-11-10 Changed so it doesn't write to the db, but just sets a flag.
+      TODO: Preventing injection attacks should happen where the input is pulled
+	from $_REQUEST, not here.
     */
-    public function Qty($iQty=NULL) {
-	if (!is_null($iQty)) {
-	    $qtyNew = 0+$iQty;	// make sure it's an integer -- prevent injection attack
+    public function Qty($nQty=NULL) {
+    /* 2014-07-04 This should all be redundant now, I think.
+	if (!is_null($nQty)) {
+	    $qtyNew = 0+$nQty;	// make sure it's an integer -- prevent injection attack
 	    if ($this->ValueNz('Qty') != $qtyNew) {
-		$this->isChgd = TRUE;
 		$this->Value('Qty',$qtyNew);
 	    }
 	}
-	return $this->Value('Qty');
+	*/
+	return $this->Value('Qty',$nQty);
     }
+
+    // ++ item specs
+
+    protected function ItemPrice() {
+	return $this->ItemRecord()->PriceBuy();
+    }
+    /*----
+      RETURNS: item's per-unit shipping cost
+    */
+    protected function ItemShip_perUnit() {
+	return $this->ShipCostRecord()->PerItem();
+    }
+    /*----
+      RETURNS: item's per-package minimum shipping cost
+      PUBLIC so Cart object can access it
+    */
+    public function ItemShip_perPkg() {
+	return $this->ShipCostRecord()->PerPkg();
+    }
+    /*----
+      RETURNS: line total sale
+      TODO: rename ItemSale_forQty() -> ItemPrice_forQty()
+      PUBLIC so Cart object can access it
+    */
+    public function ItemSale_forQty() {
+	return $this->ItemPrice() * $this->Qty();
+    }
+    /*----
+      RETURNS: line total per-unit shipping
+      PUBLIC so Cart object can access it
+    */
+    public function ItemShip_perUnit_forQty() {
+	return $this->ItemShip_perUnit() * $this->Qty();
+    }
+    protected function CatNum() {
+	return $this->ItemRecord()->CatNum();
+    }
+    protected function DescHtml() {
+	return $this->ItemRecord()->DescLong_ht();
+    }
+
+    // -- FIELD ACCESS -- //
+    // ++ FIELD CALCULATIONS ++ //
+
+    public function IsLoaded() {
+	throw new exception('Who uses this? Is it different from IsNew()?');
+	return ($this->hasRows());
+    }
+    public function ItemPriceBuyQty() {
+	return $this->ItemRecord()->PriceBuy() * $this->Qty();
+    }
+    protected function UpdateArray() {
+	$arOut = parent::UpdateArray();
+	if ($this->IsNew()) {
+	    $arOut['WhenAdded'] = 'NOW()';
+	} else {
+	    $arOut['WhenEdited'] = 'NOW()';
+	}
+	return $arOut;
+    }
+
+    // -- FIELD CALCULATIONS -- //
+    // ++ ACTIONS ++ //
+
     /*----
       USAGE: called from clsShopCart::AddItem() when an item needs to be saved to the cart
       HISTORY:
 	2013-11-10 written to replace Build()
     */
     public function Save() {
+	if ($this->IsNew()) {
+	    $this->Seq($this->CartRecord()->LineCount()+1);
+	}
+	return parent::Save();
+    }
+/* 2014-07-05 old version
+    public function Save() {
 	if ($this->IsLoaded()) {
+
 	    if ($this->isChgd) {
 		// only do the update if Qty has changed
 		$ar = array(
@@ -101,7 +244,7 @@ class clsShopCartLine extends clsDataSet {
 	    }
 	    $id = $this->KeyValue();
 	} else {
-	    $this->Value('Seq',$this->Cart()->LineCount()+1);
+	    $this->Value('Seq',$this->CartRecord()->LineCount()+1);
 	    $ar = array(
 	      'Seq'	=> $this->Value('Seq'),
 	      'ID_Cart'	=> $this->CartID(),
@@ -114,6 +257,10 @@ class clsShopCartLine extends clsDataSet {
 	}
 	return $id;	// probably not used, but good form
     }
+*/
+    // -- ACTIONS -- //
+    // ++ STORE UI ++ //
+
     /*-----
       PURPOSE: Do calculations necessary for rendering the cart line
       USED BY:
@@ -121,14 +268,17 @@ class clsShopCartLine extends clsDataSet {
 	* the final order display
 	* the conversion from cart to order
     */
+/* 2014-07-01 disabling this -- this isn't a good way to do what it does
     public function RenderCalc(clsShipZone $iZone) {
-	$arItem = $this->Item()->DescSpecs();
-	$txtItemDesc = $this->Item()->DescLong($arItem);
-	$htmItemDesc = $this->Item()->DescLong_ht($arItem);
+	$rcItem = $this->ItemRecord();
+	//$arItem = $rcItem->DescSpecs();
+	//$txtItemDesc = $rcItem->DescLong($arItem);
+	$txtItemDesc = $rcItem->DescLong();
+	//$htmItemDesc = $rcItem->DescLong_ht($arItem);
+	$htmItemDesc = $rcItem->DescLong_ht();
 
-	$objItem = $this->Item();
-	$this->PriceItem = $objItem->PriceSell;
-	$this->Value('CatNum',$objItem->CatNum);
+	$this->PriceItem = $rcItem->PriceSell;
+	$this->Value('CatNum',$rcItem->CatNum);
 
 // save for copying to order line object:
 	$this->DescText = $txtItemDesc;
@@ -136,13 +286,16 @@ class clsShopCartLine extends clsDataSet {
 
 // save so cart can figure totals;
 	//$idsZone = $iZone->Abbr();
-	$this->ShipPkgDest = $objItem->ShipPricePkg($iZone);
-	$this->ShipItmDest = $objItem->ShipPriceItem($iZone);
+	$this->ShipPkgDest = $rcItem->ShipPricePkg($iZone);
+	$this->ShipItmDest = $rcItem->ShipPriceItem($iZone);
 
 // calculate costs:
-	$this->CostItemQty = $this->Qty * $this->PriceItem;
-	$this->CostShipQty = $this->Qty * $this->ShipItmDest;
-
+	$this->CostItemQty = $this->Qty() * $this->PriceItem();
+	$this->CostShipQty = $this->Qty() * $this->ShipItmDest();
+    }
+*/
+    public function ItemDescLong_text() {
+	return $this->ItemRecord()->DescLong();
     }
     /*
       ACTION: Render the current cart line using static HTML (no form elements; read-only)
@@ -150,11 +303,13 @@ class clsShopCartLine extends clsDataSet {
 	2011-04-01 adapting this to use clsOrdLine->RenderStatic()
     */
     public function RenderHtml(clsShopCart $iCart) {
-	$objOLine = $this->Engine()->OrdLines()->SpawnItem();
+	throw new exception('Deprecating RenderHtml(); what calls it?');
+
+	$rcOLine = $this->Engine()->OrdLines()->SpawnItem();
 	$objZone = $iCart->ShipZoneObj();
 	$this->RenderCalc($objZone);	// calculate some needed fields
-	$objOLine->Init_fromCartLine($this);
-	return $objOLine->RenderStatic($objZone);
+	$rcOLine->Init_fromCartLine($this);
+	return $rcOLine->RenderStatic($objZone);
     }
     /*----
       ACTION: Render the current cart line as part of an interactive HTML form
@@ -162,38 +317,38 @@ class clsShopCartLine extends clsDataSet {
     public function RenderForm(clsShopCart $iCart) {
 // calculate display fields:
 	if ($this->Qty) {
-	    $this->RenderCalc($iCart->ShipZoneObj());
+	    //$this->RenderCalc($iCart->ShipZoneObj());
 
 	    //$htLineName = 'cart-line-'.$this->Seq;
-	    $htLineName = KSF_CART_ITEM_PFX.$this->CatNum.KSF_CART_ITEM_SFX;
+	    $htLineName = KSF_CART_ITEM_PFX.$this->CatNum().KSF_CART_ITEM_SFX;
 	    $sQty = $this->Value('Qty');
 	    $htLineCtrl = '<input size=2 align=right name="'.$htLineName.'" value='.$sQty.'>';
 
-	    $mnyPrice = $this->Value('PriceItem');		// item price
-	    $mnyPerItm = $this->Value('ShipItmDest');		// per-item shipping
-	    $mnyPerPkg = $this->Value('ShipPkgDest');		// per-pkg minimum shipping
-	    $mnyPriceQty = $this->Value('CostItemQty');	// line total sale
-	    $mnyPerItmQty = $this->Value('CostShipQty');	// line total per-item shipping
+	    $mnyPrice = $this->ItemPrice();			// item price
+	    $mnyPerItm = $this->ItemShip_perUnit();		// per-item shipping
+	    $mnyPerPkg = $this->ItemShip_perPkg();		// per-pkg minimum shipping
+	    $mnyPriceQty = $this->ItemSale_forQty();		// line total sale
+	    $mnyPerItmQty = $this->ItemShip_perUnit_forQty();	// line total per-item shipping
 	    $mnyLineTotal = $mnyPriceQty + $mnyPerItmQty;	// line total overall (does not include per-pkg minimum)
 
 	    $strCatNum = $this->CatNum;
-	    $strPrice = FormatMoney($mnyPrice);
-	    $strPerItm = FormatMoney($mnyPerItm);
-	    $strPriceQty = FormatMoney($mnyPriceQty);
-	    $strPerItmQty = FormatMoney($mnyPerItmQty);
-	    $strLineTotal = FormatMoney($mnyLineTotal);
+	    $strPrice = clsShopCart::FormatMoney($mnyPrice);
+	    $strPerItm = clsShopCart::FormatMoney($mnyPerItm);
+	    $strPriceQty = clsShopCart::FormatMoney($mnyPriceQty);
+	    $strPerItmQty = clsShopCart::FormatMoney($mnyPerItmQty);
+	    $strLineTotal = clsShopCart::FormatMoney($mnyLineTotal);
 
-	    $strShipPkg = FormatMoney($mnyPerPkg);
+	    $strShipPkg = clsShopCart::FormatMoney($mnyPerPkg);
 
-	    $htDesc = $this->DescHtml;
+	    $htDesc = $this->DescHtml();
 
-	    $htDelBtn = '<span class=text-btn>['
+	    $htDelBtn = '<span class=text-btn>'
 	      .'<a href="'
 	      .'?'.KSF_CART_CHANGE.'='.KSF_CART_EDIT_DEL_LINE
 	      .'&'.KSF_CART_EDIT_LINE_ID.'='.$this->KeyValue()
 	      .'" title="remove '
 	      .$strCatNum
-	      .' from cart">remove</a>]</span> ';
+	      .' from cart">remove</a></span> ';
 
 	    $out = <<<__END__
 <tr>
@@ -240,4 +395,6 @@ __END__;
 	    return $out;
 	}
     }
+
+    // -- STORE UI -- //
 }

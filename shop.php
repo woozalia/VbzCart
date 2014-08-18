@@ -9,12 +9,6 @@
     RenderReceipt() and TemplateVars() both have to reload the current record, which shouldn't be necessary.
 */
 
-// FILE NAMES:
-define('KWP_ICON_ALERT'		,'/tools/img/icons/button-red-X.20px.png');
-define('KWP_ICON_OKAY'		,'/tools/img/icons/chkbox.gif');
-
-//define('KS_VBZCART_SESSION_KEY','vbzcart_key');
-
 // http query argument names
 define('KSQ_ARG_PAGE_DATA','page');
 define('KSQ_ARG_PAGE_DEST','goto');
@@ -36,17 +30,19 @@ class clsVbzData_Shop extends clsVbzData {
     public function Clients($id=NULL) {
 	return $this->Make('clsUserClients',$id);
     }
+/* 2014-01-11 for now, nothing should use this; clsVbzUserTable needs to be... sorted out.
     public function Users($id=NULL) {
-	return $this->Make('clsVbzUserRecs',$id);
+echo '<pre>';
+    throw new exception('How do we get here?');
+	$o = $this->Make('clsVbzUserTable',$id);
+	return $o;
     }
+*/
     public function Carts($id=NULL) {
 	return $this->Make('clsShopCarts',$id);
     }
     public function CartLines($id=NULL) {
 	return $this->Make('clsShopCartLines',$id);
-    }
-    public function CartLog() {
-	return $this->Make('clsShopCartLog');
     }
     public function Orders($id=NULL) {
 	return $this->Make('clsOrders',$id);
@@ -62,14 +58,14 @@ class clsVbzData_Shop extends clsVbzData {
     public function OrdMsgs($id=NULL) {
 	return $this->Make('clsOrderMsgs',$id);
     }
-    public function Custs() {
-	return $this->Make('clsCusts');
+    public function Custs($id=NULL) {
+	return $this->Make('clsCusts',$id);
     }
-    public function CustNames() {
-	return $this->Make('clsCustNames');
+    public function CustNames($id=NULL) {
+	return $this->Make('clsCustNames',$id);
     }
-    public function CustAddrs() {
-	return $this->Make('clsCustAddrs');
+    public function CustAddrs($id=NULL) {
+	return $this->Make('clsCustAddrs',$id);
     }
 /* 2013-10-19 not sure why these were commented out
     public function CustEmails() {
@@ -153,7 +149,7 @@ class clsShipZone {
     public function Text() {	// should be Name()
 	return self::$arDesc[$this->Abbr()];
     }
-    
+
     public function hasState() {
 	switch ($this->Abbr()) {
 	  case 'AU':	return TRUE;	break;
@@ -191,7 +187,7 @@ class clsShipZone {
     */
     public function ComboBox() {
 	$strZoneCode = $this->Abbr();
-	$out = '<select name="ship-zone">';
+	$out = "\n<select name=\"ship-zone\">";
 	foreach (self::$arDesc as $key => $descr) {
 	    $strZoneDesc = $descr;
 	    if ($key == $strZoneCode) {
@@ -201,9 +197,9 @@ class clsShipZone {
 //		$strZoneDesc .= " - recalculate";
 		$htSelect = "";
 	    }
-	    $out .= '<option'.$htSelect.' value="'.$key.'">'.$strZoneDesc.'</option>';
+	    $out .= "\n<option$htSelect value=\"$key\">$strZoneDesc</option>";
 	}
-	$out .= '</select>';
+	$out .= "\n</select>";
 	return $out;
     }
     /*----
@@ -237,38 +233,11 @@ echo 'CODE=['.$this->Abbr().'] ITEM FACTOR=['.self::$arItmFactors[$this->Abbr()]
     }
 }
 
-// ShopCart Log
-class clsShopCartLog extends clsTable {
-    const TableName='shop_cart_event';
-
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name(self::TableName);
-	  $this->KeyName('ID');
-    }
-    public function Add($iCart,$iCode,$iDescr,$iUser=NULL) {
-	global $vgUserName;
-
-	$strUser = is_null($iUser)?$vgUserName:$iUser;
-	if ($iCart->hasField('ID_Sess')) {
-	    $idSess = $iCart->ID_Sess;
-	} else {
-	// this shouldn't happen, but we still need to log the event, and ID_Sess is NOT NULL:
-	    $idSess = 0;
-	}
-
-	$edit['ID_Cart'] = $iCart->ID;
-	$edit['WhenDone'] = 'NOW()';
-	$edit['WhatCode'] = SQLValue($iCode);
-	$edit['WhatDescr'] = SQLValue($iDescr);
-	$edit['ID_Sess'] = $idSess;
-	$edit['VbzUser'] = SQLValue($strUser);
-	$edit['Machine'] = SQLValue($_SERVER["REMOTE_ADDR"]);
-	$this->Insert($edit);
-    }
-}
+// CURRENCY FUNCTIONS
 // this can later be adapted to be currency-neutral
 // for now, it just does dollars
+// TODO: eliminate these and use clsMoney
+
 function FormatMoney($iAmount,$iPrefix='',$iPlus='') {
     if ($iAmount < 0) {
 	$str = '-'.$iPrefix.sprintf( '%0.2f',-$iAmount);

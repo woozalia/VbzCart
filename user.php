@@ -71,10 +71,10 @@
 /*%%%%
   ROLE: this talks to the database (all rows in table)
 */
-class clsVbzUserRecs extends clsTable {
+class clsVbzUserTable extends clsUserAccts {
 
     // STATIC ++
-
+/*
     public static function HashPass($iPass,$iSalt) {
 	$sToHash = $iSalt.$iPass;
 	$sHashed = hash('whirlpool',$sToHash,TRUE);
@@ -83,19 +83,20 @@ class clsVbzUserRecs extends clsTable {
     protected static function UserName_SQL_filt($iName) {
 	return 'LOWER(UserName)='.SQLValue(strtolower($iName));
     }
-
+*/
     // /STATIC --
     // DYNAMIC ++
 
     public function __construct($iDB) {
 	parent::__construct($iDB);
-	  $this->Name('user');
-	  $this->KeyName('ID');
+	  //$this->Name('user');
+	  //$this->KeyName('ID');
 	  $this->ClassSng('clsVbzUserRec');
     }
     /*----
       RETURNS: clsVbzUserRec if login successful, NULL otherwise
     */
+/*
     public function Login($iUser,$iPass) {
 	$rc = $this->FindUser($iUser);
 	if (is_null($rc)) {
@@ -125,20 +126,24 @@ class clsVbzUserRecs extends clsTable {
 	}
 	return $rc;
     }
+*/
     /*----
       RULES: Usernames are stored with case-sensitivity, but are checked case-insensitively
     */
+/*
     public function UserExists($iLogin) {
 	$sqlFilt = self::UserName_SQL_filt($iLogin);
 	$rc = $this->GetData($sqlFilt);
 	return $rc->HasRows();
     }
+*/
     /*----
       ACTION: add a user to the database
     */
+/*
     public function AddUser($iLogin,$iPass) {
 	$sSalt = openssl_random_pseudo_bytes(128);
-	$sHashed = clsVbzUserRecs::HashPass($sSalt,$iPass);
+	$sHashed = clsVbzUserTable::HashPass($sSalt,$iPass);
 	$ar = array(
 	  'UserName'	=> SQLValue($iLogin),
 	  'PassHash'	=> SQLValue($sHashed),
@@ -148,16 +153,17 @@ class clsVbzUserRecs extends clsTable {
 	$rc = $this->Insert_andGet($ar);
 	return $rc;
     }
+*/
 }
 /*%%%%
   ROLE: this talks to the database (single row in table)
 */
-class clsVbzUserRec extends clsDataSet {
+class clsVbzUserRec extends clsUserAcct {
     public function UserName() {
 	return $this->Value('UserName');
     }
     public function FullName() {
-	$sFullName = $this->Value('FullName'); 
+	$sFullName = $this->Value('FullName');
 	if (is_null($sFullName)) {
 	    return $this->Value('UserName');
 	} else {
@@ -169,7 +175,7 @@ class clsVbzUserRec extends clsDataSet {
 	$sSalt = $this->Value('PassSalt');
 
 	// hash salt+pass
-	$sHashed = clsVbzUserRecs::HashPass($sSalt,$iPass);
+	$sHashed = clsVbzUserTable::HashPass($sSalt,$iPass);
 	// see if it matches
 	return ($sHashed == $this->Value('PassHash'));
     }
@@ -220,9 +226,10 @@ class clsEmailTokens extends clsTable {
 */
 	$sHash = self::MakeHash($sToken,$sSalt);
 
+	$db = $this->Engine();
 	$ar = array(
-	  'TokenHash'	=> SQLValue($sHash),
-	  'TokenSalt'	=> SQLValue($sSalt),
+	  'TokenHash'	=> $db->engine_db_safe_param($sHash),
+	  'TokenSalt'	=> $db->engine_db_safe_param($sSalt),
 	  'WhenExp'	=> 'NOW() + INTERVAL 1 HOUR'	// expires in 1 hour
 	  );
 
@@ -329,75 +336,29 @@ class clsEmailAuth extends clsCustEmails {
 
 	    // generate and store the auth token
 	    $rcToken = $this->EmailTokens()->MakeToken($rcEmail->KeyValue());
-	    //$sTokenHex = bin2hex($rcToken->Token());
 	    // send the email
-	    //$url = 'https://'.$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].'?auth='.$sTokenHex.'&e='.$rcEmail->KeyValue();
 	    $url = self::AuthURL($rcEmail->KeyValue(),$rcToken->Token());
-	    $sMsg = 'Someone (hopefully you) has made a request to change the password for this email address ('.$sEmail.').';
-	    $sMsg .= "\n\nIf you would like to $sAction, please click the following link (i.e. load it in your web browser):";
-	    $sMsg .= "\n$url";
-	    $sSubj = KS_STORE_NAME.' password reset authorization';
+
+	    // these vars are used for both the email template and the message shown on the web
+	    $arVars = array(
+	      'addr'	=> $sEmail,
+	      'action'	=> $sAction,
+	      'url'	=> $url
+	      );
+	    $tplt = new clsStringTemplate_array(KS_TPLT_OPEN,KS_TPLT_SHUT,$arVars);
+
+	    $sMsg = $tplt->Replace(KS_TPLT_AUTH_EMAIL_TEXT);	// "Someone (hopefully you) has made a request..."
+	    $sSubj = KS_TEXT_AUTH_EMAIL_SUBJ;
 	    //mail($sEmail,$sSubj,$sMsg);	// TODO: include customer name and FROM header
 	    $this->Engine()->App()->Page()->DoEmail_fromAdmin_Auto($sEmail,'',$sSubj,$sMsg);
 
 	    // display status message
-	    $sMsg =
-	      'A link has been emailed to you at <b>'.$sEmail.'</b>.<br>'
-	      .'Clicking the link will '
-	      .$sAction.'.';
-
+	    $sMsg = $tplt->Replace(KS_TPLT_AUTH_EMAIL_WEB);	// "A link has been emailed to you..."
 	    echo $this->Skin()->RenderSuccess($sMsg);
 	    echo $this->Skin()->RenderTableHLine();
 	} else {
 	    echo $this->Skin()->RenderError('The email address <b>'.$sEmail.'</b> was not found in our records.');
 	}
-    }
-    /*----
-      ASSUMES: user does not yet have an account
-      TODO: the text display code here really ought to be in the userpage class
-	For one thing, this function is used in at least 2 different ways.
-    */
-    public function CheckAuth($sSuccess) {
-	$ar = self::ParseAuth();
-	$idEmail = $ar['email'];
-	$sToken = $ar['token'];
-	$sAuth = $ar['auth'];
-	$oToken = $this->EmailTokens()->FindToken($idEmail,$sToken);
-
-	// -- look up email address (we'll need it later)
-	$rcEmail = $this->GetItem($idEmail);
-	$sEmail = $rcEmail->Value('Email');
-
-	$htOut = NULL;
-
-	$ok = FALSE;
-	if (!is_null($oToken)) {
-	    if ($oToken->IsActive()) {
-		$htOut .= $this->Skin()->RenderSuccess($sSuccess);
-		$htOut .= $this->Skin()->RenderUserSet($sAuth,NULL);
-		$oToken->Renew();	// keep the token from expiring
-		$ok = TRUE;
-	    } else {
-		$htOut .= 'Sorry, that token seems to have expired. You can send yourself another one below:<br>';
-	    }
-	} else {
-	    $htOut .= $this->Skin()->RenderError('That does not seem to be a valid authorization token.');
-	}
-	if (!$ok) {
-	    // if no success, allow the user to try again:
-	    $htOut .= $this->Skin()->RenderForm_Email_RequestReset($sEmail);
-	}
-	$arOut = array(
-	  'ok'		=> $ok,
-	  'html'	=> $htOut,
-	  'auth'	=> $sAuth,
-	  //'em_id'	=> $idEmail,	// not needed yet
-	  'em_s'	=> $sEmail
-	  );
-	return $arOut;
-    }
-    private function EmailTokens($id=NULL) {
-	return $this->Engine()->Make('clsEmailTokens',$id);
     }
     private function IsLoggedIn() {
 	return $this->App()->Session()->HasUser();
