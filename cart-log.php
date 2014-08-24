@@ -8,7 +8,9 @@
 class clsCartLog extends clsVbzTable {
     public function __construct($iDB) {
 	parent::__construct($iDB);
+	  $this->Name('shop_cart_event');
 	  $this->ClassSng('clsCartEvent');	// override parent
+	  $this->ActionKey('cev');
     }
     /*----
       NOTES:

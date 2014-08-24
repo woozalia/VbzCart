@@ -1,4 +1,4 @@
-<?php
+ <?php
 /*
  NAME: update-cat
  PURPOSE: maintenance script for updating item status in catalog

@@ -10,15 +10,18 @@
 require_once('vbz-const-cart.php');
 
 class clsItems extends clsVbzTable {
-    private $arStats;
+
+    // ++ SETUP ++ //
 
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->Name('cat_items');
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsItem');
-	$this->arStats = NULL;
     }
+
+    // -- SETUP -- //
+
     /*----
       ACTION: Finds the Item with the given CatNum, and returns a clsItem object
     */
@@ -42,7 +45,7 @@ class clsItems extends clsVbzTable {
 	}
     }
     /*----
-      ACTION: Figure various statistics for the requested recordset
+      ACTION: Figure various statistics for the recordset returned by the given filter
       RETURNS: recordset containing statistics
 	* minimum price
 	* maximum price
@@ -50,8 +53,9 @@ class clsItems extends clsVbzTable {
       INPUT: SQL filter for records to be included in the calculations
       USAGE: Internal -- caller should filter out inactive records
 	and do any appropriate caching
+      PUBLIC so Title can call it
     */
-    protected function StatsFor($sqlFilt) {
+    public function StatsFor($sqlFilt) {
 	$sql = 'SELECT ID_ItTyp,'
 	  .' MIN(PriceBuy) AS PriceBuy_min,'
 	  .' MAX(PriceBuy) AS PriceBuy_max,'
@@ -62,92 +66,6 @@ class clsItems extends clsVbzTable {
 	  .' GROUP BY ID_ItTyp WITH ROLLUP';
 	$rs = $this->DataSQL($sql);
 	return $rs;
-    }
-    /*----
-      FUTURE: This might be revised to calculate a more thorough listing,
-	e.g. it could show options and prices for each item type.
-	For now it just compiles a list of all item types, a list of
-	all options (for all types), and low and high prices (across
-	all types).
-      USAGE: This is currently *only* called by StatString_forTitle(),
-	so the figuring and storage format can be tweaked according to
-	whatever that function needs. Right now it only uses ['summary'],
-	so anything else can be reworked as needed.
-    */
-    protected function StatsFor_Title($idTitle) {
-	$arStats = $this->StatsFor_Title_cached($idTitle);
-	if (is_null($arStats)) {
-	    $sqlFilt = "(ID_Title=$idTitle) AND isForSale";
-	    $rsStats = $this->StatsFor($sqlFilt);
-	    $arStats = NULL;
-	    $sItTyps = NULL;
-	    if ($rsStats->RowCount() == 0) {
-		$sSummary = 'not available';
-	    } else {
-		while ($rsStats->NextRow()) {
-		    $idItTyp = $rsStats->ItTypID();
-		    if (is_null($idItTyp)) {
-			// there will be only one row where this happens
-			$sOpts = $rsStats->Value('SfxList');
-			$prcMin = $rsStats->Value('PriceBuy_min');
-			$prcMax = $rsStats->Value('PriceBuy_max');
-			// also get stock count -- for now just use calculated field
-			$qtyStock = $rsStats->Value('Qty_InStock');
-		    } else {
-			$rsItTyp = $rsStats->ItTypRecord();
-			if (!is_null($sItTyps)) {
-			    $sItTyps .= ', ';
-			}
-			$sItTyps .= $rsItTyp->Name();
-		    }
-		}
-		$arStats['price-min'] = $prcMin;
-		$arStats['price-max'] = $prcMax;
-		$arStats['opt-list'] = $sOpts;
-		$arStats['stock-qty'] = $qtyStock;
-		$arStats['types'] = $sItTyps;
-		$sPrcMin = clsMoney::BasicFormat($prcMin);
-		$sPrcMax = clsMoney::BasicFormat($prcMax);
-		if ($sPrcMin == $sPrcMax) {
-		    $sPrc = $sPrcMin;
-		} else {
-		    $sPrc = $sPrcMin.' - '.$sPrcMax;
-		}
-		if ($qtyStock == 0) {
-		    $sStock = 'out of stock';
-		} else {
-		    $sStock = $qtyStock.' in stock';
-		}
-		$sSummary = "$sItTyps: $sOpts @ $sPrc ($sStock)";
-	    }
-	    $arStats['summary'] = $sSummary;
-	    $this->StatsFor_Title_cached($idTitle,$arStats);	// save stats
-	}
-	return $arStats;
-    }
-    public function StatString_forTitle($idTitle) {
-	$arStats = $this->StatsFor_Title($idTitle);
-	return $arStats['summary'];
-    }
-    /*----
-      RETURNS: either cached stats or NULL
-      INPUT:
-	$idTitle = ID of title for which stats are needed
-	$arStats = stats array to cache, or NULL
-    */
-    protected function StatsFor_Title_cached($idTitle,array $arStats=NULL) {
-	if (is_null($arStats)) {
-	    if (!is_null($this->arStats)) {
-		if (array_key_exists('titles',$this->arStats)) {
-		    if (array_key_exists($idTitle,$this->arStats)) {
-			$arStats = $this->arStats['titles'][$idTitle];
-		    }
-		}
-	    }
-	} else {
-	    $this->arStats['titles'][$idTitle] = $arStats;
-	}
-	return $arStats;
     }
 
     /*----
@@ -323,6 +241,12 @@ class clsItem extends clsDataSet {
     }
     public function PriceBuy() {
 	return $this->Value('PriceBuy');
+    }
+    /*----
+      PUBLIC because Order object uses it for Cart->Order conversion
+    */
+    public function PriceSell() {
+	return $this->Value('PriceSell');
     }
     protected function Qty_InStock() {
 	return $this->Value('QtyIn_Stk');

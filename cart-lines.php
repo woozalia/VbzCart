@@ -78,6 +78,9 @@ class clsShopCartLine extends clsDataSet {
     protected function ItemsClass() {
 	return 'clsItems';
     }
+    protected function OrderLinesClass() {
+	return 'clsOrderLines';
+    }
 
     // -- CLASS NAMES -- //
     // ++ DATA TABLES ++ //
@@ -88,6 +91,9 @@ class clsShopCartLine extends clsDataSet {
     protected function ItemTable($id=NULL) {
 	return $this->Engine()->Make($this->ItemsClass(),$id);
     }
+    protected function OrderLineTable($id=NULL) {
+	return $this->Engine()->Make($this->OrderLinesClass(),$id);
+    }
 
     // -- DATA TABLES -- //
     // ++ DATA RECORDS ++ //
@@ -95,8 +101,10 @@ class clsShopCartLine extends clsDataSet {
     public function CartRecord() {
 	return $this->Engine()->Carts($this->CartID());
     }
-    // WAS PUBLIC, but what for?
-    protected function ItemRecord() {
+    /*----
+      PUBLIC so order line can look up item values in order to initialize itself
+    */
+    public function ItemRecord() {
 	$doLoad = FALSE;
 	if (is_null($this->rcItem)) {
 	    $doLoad = TRUE;
@@ -189,11 +197,20 @@ class clsShopCartLine extends clsDataSet {
     public function ItemShip_perUnit_forQty() {
 	return $this->ItemShip_perUnit() * $this->Qty();
     }
-    protected function CatNum() {
+    /*----
+      PUBLIC so Cart object can access it for order conversion
+    */
+    public function CatNum() {
 	return $this->ItemRecord()->CatNum();
     }
     protected function DescHtml() {
 	return $this->ItemRecord()->DescLong_ht();
+    }
+    /*----
+      PUBLIC because the Order object uses it during cart->order conversion
+    */
+    public function DescText() {
+	return $this->ItemRecord()->DescLong();
     }
 
     // -- FIELD ACCESS -- //
@@ -301,15 +318,16 @@ class clsShopCartLine extends clsDataSet {
       ACTION: Render the current cart line using static HTML (no form elements; read-only)
       HISTORY:
 	2011-04-01 adapting this to use clsOrdLine->RenderStatic()
+	2014-08-22 simplifying a bit
+      USED BY: Checkout procedure -- displays cart contents for order confirmation
+      TODO: This could probably use some rethinking, given other changes.
     */
-    public function RenderHtml(clsShopCart $iCart) {
-	throw new exception('Deprecating RenderHtml(); what calls it?');
-
-	$rcOLine = $this->Engine()->OrdLines()->SpawnItem();
-	$objZone = $iCart->ShipZoneObj();
-	$this->RenderCalc($objZone);	// calculate some needed fields
+    public function RenderStatic(/*clsShopCart $iCart*/) {
+	$rcOLine = $this->OrderLineTable()->SpawnItem();
+	//$objZone = $iCart->ShipZoneObj();
+	//$this->RenderCalc($objZone);	// calculate some needed fields
 	$rcOLine->Init_fromCartLine($this);
-	return $rcOLine->RenderStatic($objZone);
+	return $rcOLine->RenderStatic();
     }
     /*----
       ACTION: Render the current cart line as part of an interactive HTML form
@@ -367,30 +385,30 @@ __END__;
 /**/
 	}
     }
-    public function RenderText(clsShopCart $iCart,$iFmt) {
+    public function RenderText(/*clsShopCart $iCart,*/$sFmt) {
 	if ($this->Qty) {
-	    $this->RenderCalc($iCart->ShipZoneObj());
+	    //$this->RenderCalc($iCart->ShipZoneObj());
 
-	    $dlrPrice = $this->PriceItem;	// item price
-	    $dlrPerItm = $this->ShipItmDest;	// per-item shipping
-	    $dlrPerPkg = $this->ShipPkgDest;	// per-pkg minimum shipping
-	    $dlrPriceQty = $this->CostItemQty;	// line total sale
-	    $dlrPerItmQty = $this->CostShipQty;	// line total per-item shipping
+	    $dlrPrice = $this->ItemPrice();	// item price
+	    $dlrPerItm = $this->ItemShip_perUnit();	// per-item shipping
+	    $dlrPerPkg = $this->ItemShip_perPkg();	// per-pkg minimum shipping
+	    $dlrPriceQty = $this->ItemSale_forQty();	// line total sale
+	    $dlrPerItmQty = $this->ItemShip_perUnit_forQty();	// line total per-item shipping
 	    $dlrLineTotal = $dlrPriceQty + $dlrPerItmQty;	// line total overall (does not include per-pkg minimum)
 
-	    $ftCatNum = $this->CatNum;
+	    $ftCatNum = $this->CatNum();
 	    $ftPrice = FormatMoney($dlrPrice);
 	    $ftPerItm = FormatMoney($dlrPerItm);
-	    $ftQty = $this->Qty;
+	    $ftQty = $this->Qty();
 	    $ftPriceQty = FormatMoney($dlrPriceQty);	// price x qty
 	    $ftPerItmQty = FormatMoney($dlrPerItmQty);	// per-item shipping x qty
 	    $ftLineTotal = FormatMoney($dlrLineTotal);
 
 	    $ftShipPkg = FormatMoney($dlrPerPkg);
 
-	    $ftDesc = $this->DescText;
+	    $ftDesc = $this->DescText();
 
-	    $out = "\n".sprintf($iFmt,$ftCatNum,$ftPrice,$ftPerItm,$ftQty,$ftPriceQty,$ftPerItmQty,$ftLineTotal);
+	    $out = "\n".sprintf($sFmt,$ftCatNum,$ftPrice,$ftPerItm,$ftQty,$ftPriceQty,$ftPerItmQty,$ftLineTotal);
 	    $out .= "\n - $ftDesc";
 	    return $out;
 	}

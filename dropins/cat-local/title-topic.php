@@ -5,6 +5,18 @@
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
 */
+class VCTA_TitlesTopics extends clsTitlesTopics {
+    // ++ CLASS NAMES ++ //
+
+    protected function TitlesClass() {
+	return KS_CLASS_CATALOG_TITLES;
+    }
+    protected function TopicsClass() {
+	return KS_CLASS_CATALOG_TOPICS;
+    }
+
+    // -- CLASS NAMES -- //
+}
 class VCTA_TitleTopic_Titles extends clsTable_indexed {
     public function __construct(clsDatabase $iDB) {
 	parent::__construct($iDB);

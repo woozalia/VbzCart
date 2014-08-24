@@ -260,7 +260,7 @@ __END__;
 	if ($this->doNavCtrl) {
 	    $htLine = NULL;
 	} else {
-	    $htLine = $this->Skin()->Render_HLine();
+	    $htLine = '<hr>';	// TODO: Make this a Skin function (again)
 	}
 
 	$out .= <<<__END__
@@ -580,7 +580,7 @@ __END__;
 		$htCusts = '<input type=radio name="info-source" value="old"'
 		  .$htSelOld
 		  .'><b>ship to an existing address:</b>'
-		  .$rsCusts->Render_DropDown('id_addr_ship',FALSE,TRUE,FALSE)
+		  .$rsCusts->Render_DropDown_Addrs('id_addr_ship')
 		  //.'SQL:'.$rsCusts->sqlMake
 		  ;
 		$htEnter = '<input type=radio name="info-source" value="new"'
@@ -682,7 +682,7 @@ __END__;
 		    // existing card address matches shipping address
 		} else {
 		    // clear the "use shipping address as card address" flag
-		    $this->CartData()->ShipToCard(FALSE);
+		    $this->CartData()->IsShipToCard(FALSE);
 		    $doesMatch = FALSE;	 // not blank and doesn't match
 		}
 	    }
@@ -716,7 +716,6 @@ __END__;
 	    // allow user to select from existing recipient profiles
 	    $oUser = $this->UserRecord();
 	    $rsCusts = $oUser->CustRecs();
-
 	    $htEnter = NULL;
 	    if ($rsCusts->RowCount() > 0) {
 		$doUseNew = $this->CartData()->IsBuyerNewEntry();
@@ -725,7 +724,7 @@ __END__;
 		$htCusts = '<input type=radio name="info-source" value="old"'
 		  .$htSelOld
 		  .'><b>pay with an existing card:</b>'
-		  .$rsCusts->Render_DropDown('id_addr_ship',FALSE,FALSE,TRUE)
+		  .$rsCusts->Render_DropDown_Cards('id_card')
 		  //.'SQL:'.$rsCusts->sqlMake
 		  ;
 		$htEnter = '<input type=radio name="info-source" value="new"'
@@ -812,12 +811,12 @@ __END__;
 
 	$objCD = $this->CartData();
 
-	$isShipCard = $objCD->ShipToCard();
-	$isShipSelf = $objCD->ShipToSelf();
+	$isShipCard = $objCD->IsShipToCard();
+	//$isShipSelf = $objCD->IsShipToSelf();
 	$strCustShipMsg = $objCD->ShipMsg();
-	$custCardNum = $objCD->CardNum();
-	$custCardExp = $objCD->CardExp();
-	$isShipCardReally = $this->ReconcileCardAndShppg();
+	$custCardNum = $objCD->CardNumber();
+	$custCardExp = $objCD->CardExpiry();
+	$isShipCardReally = $this->CardMatchesShip();
 
 	$idCart = $objCart->ID;
 	$out = "\n<!-- +".__METHOD__."() in ".__FILE__." -->\n";
@@ -845,34 +844,36 @@ __END__;
 	$this->htmlBeforeAddress = '';
 	$this->htmlBeforeContact = '';
 
-	$out .= $this->RenderAddress($objCD->ShipObj(FALSE),array('do.ship.zone'=>TRUE));
+	$out .= $this->RenderAddress($objCD->RecipFields(),array('do.ship.zone'=>TRUE));
 
 	if ($iEditable) {
 	    $htLink = $this->HtmlEditLink(KSQ_PAGE_PAY);
 	}
 	$out .= <<<__END__
 <tr><td align=right valign=top>
-	Special Instructions:<br>
-	</td>
-	<td>$strCustShipMsg</td>
-	</tr>
+  Special Instructions:<br>
+  </td>
+  <td>$strCustShipMsg</td>
+  </tr>
 <tr><td class=section-title>PAYMENT:</td><td class=section-title align=right>$htLink</td></tr>
 <tr><td align=right valign=middle>Card Number:</td>
-	<td><b>$custCardNum</b>
-	- Expires: <b>$custCardExp</b>
-	</td></tr>
+  <td><b>$custCardNum</b>
+  - Expires: <b>$custCardExp</b>
+  </td></tr>
 __END__;
 // if card address is different from shipping, then show it too:
 // if not shipping to self, then show recipient's phone and/or email:
 	if ($isShipCardReally) {
 	    $this->strInsteadOfAddr = 'Credit card address <b>same as shipping address</b>';
 	}
+	/*
 	if ($isShipSelf) {
 	    $this->strInsteadOfCont = 'Recipient contact information <b>same as buyer\'s -- shipping to self</b>';
 	}
+	*/
 	// TODO 2012-05-21: this probably won't look right, and will need fixing
 	//	also, are strInsteadOf* strings ^ used in confirmation?
-	$out .= $this->RenderAddress($objCD->CustObj(),array('do.ship.zone'=>FALSE));
+	$out .= $this->RenderAddress($objCD->BuyerFields(),array('do.ship.zone'=>FALSE));
 
 	if ($iEditable) {
 	    $sPgName = KSQ_ARG_PAGE_DATA;
@@ -1127,21 +1128,23 @@ __END__;
 
 	$objShipZone = $this->CartObj_req()->ShipZoneObj();
 
+	//$custIntype	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_INTYPE);
+	//$custChoice	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_CHOICE);
 
 	$custName	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_NAME);
 	$custStreet	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_STREET);
-	$custState	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_STATE);
+	//$custState	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_STATE);
 	$custCity	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_CITY);
 	$custCountry	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_COUNTRY);
 	$custEmail	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_EMAIL);
 
 	$shipZone	= $rcCD->FieldValue_forIndex(KI_CART_SHIP_ZONE);
 	  $objShipZone->Abbr($shipZone);
-	$custShipToSelf	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_IS_BUYER);
-	$custShipIsCard	= $rcCD->FieldValue_forIndex(KI_CART_SHIP_IS_CARD);
-	$custZip	= $this->GetFormItem(KSF_CART_RECIP_ZIP);
-	$custPhone	= $this->GetFormItem(KSF_CART_RECIP_PHONE);
-	$custMessage	= $this->GetFormItem(KSF_SHIP_MESSAGE);
+	//$custShipToSelf	= $rcCD->FieldValue_forIndex(KI_CART_RECIP_IS_BUYER);
+	//$custShipIsCard	= $rcCD->FieldValue_forIndex(KI_CART_SHIP_IS_CARD);
+	//$custZip	= $this->GetFormItem(KSF_CART_RECIP_ZIP);
+	//$custPhone	= $this->GetFormItem(KSF_CART_RECIP_PHONE);
+	//$custMessage	= $this->GetFormItem(KSF_SHIP_MESSAGE);
 
 	// 2014-07-28 is this necessary? Reloading changed data?
 	$objCD = $this->CartData();
@@ -1171,7 +1174,7 @@ __END__;
 	$this->CheckField("card number",$custCardNum);
 	$this->CheckField("expiration date",$custCardExp);
 
-	if (!$this->CartData()->ShipToCard()) {
+	if (!$this->CartData()->IsShipToCard()) {
 	    $custCardName	= $this->GetFormItem(KSF_CART_PAY_CARD_NAME);
 	    $custCardStreet	= $this->GetFormItem(KSF_CART_PAY_CARD_STREET);
 	    $custCardCity	= $this->GetFormItem(KSF_CART_PAY_CARD_CITY);
@@ -1185,7 +1188,7 @@ __END__;
 	    $this->CheckField("card's billing address - city",$custCardCity);
 	}
 
-	if (!$this->CartData()->ShipToSelf()) {
+	if (!$this->CartData()->IsShipToSelf()) {
 	    $custEmail	= $this->GetFormItem(KSF_CART_BUYER_EMAIL);
 	    $custPhone	= $this->GetFormItem(KSF_CART_BUYER_PHONE);
 	}

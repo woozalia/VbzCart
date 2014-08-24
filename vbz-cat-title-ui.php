@@ -34,14 +34,7 @@ class clsTitles_StoreUI extends clsVbzTitles {
     // -- APP FRAMEWORK -- //
     // ++ SEARCHING ++ //
 
-    /*----
-      ACTION: Search titles for the given search string, and render the results
-      RETURNS: array of results:
-	array['forsale.imgs'] = rendered thumbnails of available items found
-	array['forsale.text'] = rendered text of available items found
-	array['retired.text'] = rendered text of unavailable items found
-    */
-    public function DoSearch($sSearch) {
+    public function SearchRecords_forText($sSearch) {
 	$ar = NULL;
 
 	// title catalog number search
@@ -63,6 +56,19 @@ class clsTitles_StoreUI extends clsVbzTitles {
 		$ar[$id] = $rs->Values();
 	    }
 	}
+
+	return $ar;
+    }
+    /*----
+      ACTION: Search titles for the given search string, and render the results
+      RETURNS: array of results:
+	array['forsale.imgs'] = rendered thumbnails of available items found
+	array['forsale.text'] = rendered text of available items found
+	array['retired.text'] = rendered text of unavailable items found
+      2014-08-19 This may be obsolete.
+    */
+    public function DoSearch($sSearch) {
+	$ar = $this->SearchRecords_forText($sSearch);
 
 	if (count($ar)) {
 	    $qTForSale = 0;
@@ -196,11 +202,24 @@ class clsTitle_StoreUI extends clsVbzTitle {
     protected function RenderDescr() {
 	return $this->CatNum().' &ldquo;'.$this->NameText().'&rdquo;';
     }
+    public function RenderImages($sSize=NULL) {
+	throw new exception('RenderImages() has been renamed RenderImages_forRows().');
+    }
+    /*----
+      WAS PUBLIC because clsTitles_StoreUI::DoSearch() calls it; should probably be PROTECTED
+      RETURNS: rendering of images (of the given size) for all titles in the current recordset
+    */
+    public function RenderImages_forRows($sSize=clsImages::SIZE_THUMB) {
+	$rsIm = $this->ImageRecords_forRows($sSize);
+	//return $rsIm->RenderRecordset_Titles_inline($this);
+	return $rsIm->RenderInline_rows();
+    }
     /*----
       PUBLIC because clsTitles_StoreUI::DoSearch() calls it
+      RETURNS: rendering of images (of the given size) for the current recordset title
     */
-    public function RenderImages($sSize=clsImages::SIZE_THUMB) {
-	$rsIm = $this->ImageRecords($sSize);
+    public function RenderImages_forRow($sSize=clsImages::SIZE_THUMB) {
+	$rsIm = $this->ImageRecords_forRow($sSize);
 	//return $rsIm->RenderRecordset_Titles_inline($this);
 	return $rsIm->RenderInline_rows();
     }
@@ -228,7 +247,7 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	}
     }
     protected function ShopPage_Images() {
-	$objImgs = $this->ImageRecords_small();
+	$objImgs = $this->ImageRecords_forRow_small();
 	$out = NULL;
 	while ($objImgs->NextRow()) {
 	    $strImgTag = $objImgs->Value('AttrDispl');

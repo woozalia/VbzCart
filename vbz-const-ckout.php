@@ -26,6 +26,7 @@ define('KSF_SHIP_MESSAGE'	,'ship-message');
 
 define('_KSF_CART_SFX_CONT_ID'		,'cont-id');	// contact ID
 define('_KSF_CART_SFX_CONT_INTYPE'	,'addr-input');	// input type: new (entered) vs. old (selected from profile)
+define('_KSF_CART_SFX_CONT_CHOICE'	,'choice-id');
 define('_KSF_CART_SFX_CONT_NAME'	,'addr-name');
 define('_KSF_CART_SFX_CONT_STREET'	,'addr-street');
 define('_KSF_CART_SFX_CONT_CITY'	,'addr-city');
@@ -49,6 +50,7 @@ define('_KSF_CART_PFX_PAY'		,'pay-');			// common prefix for payment types
 
 define('_KSF_CART_PFX_PAY_CARD'	,_KSF_CART_PFX_PAY.'card-');				// common prefix for payment-by-card fields
 define('KSF_CART_PAY_CARD_INTYPE'	,_KSF_CART_PFX_PAY_CARD._KSF_CART_SFX_CONT_INTYPE);
+define('KSF_CART_PAY_CARD_CHOICE'	,_KSF_CART_PFX_PAY_CARD._KSF_CART_SFX_CONT_CHOICE);
 define('KSF_CART_PAY_CARD_NAME'	,_KSF_CART_PFX_PAY_CARD._KSF_CART_SFX_CONT_NAME);	// cardholder name
 // - account info
 define('KSF_CART_PAY_CARD_NUM'		,_KSF_CART_PFX_PAY_CARD.'num');	// card account number
@@ -70,6 +72,7 @@ define('KSF_CART_PAY_CHECK_NUM'	,_KSF_CART_PFX_PAY.'check-num');
 define('_KSF_CART_PFX_RECIP'		,'recip-');			// common prefix for recipient fields
 define('KSF_CART_RECIP_SHIP_ZONE'	,_KSF_CART_PFX_RECIP.'ship-zone');
 define('KSF_CART_RECIP_CONT_INTYPE'	,_KSF_CART_PFX_RECIP._KSF_CART_SFX_CONT_INTYPE);
+define('KSF_CART_RECIP_CONT_CHOICE'	,_KSF_CART_PFX_RECIP._KSF_CART_SFX_CONT_CHOICE);
 define('KSF_CART_RECIP_ID'		,_KSF_CART_PFX_RECIP._KSF_CART_SFX_CONT_ID);	// person profile for shipping
 define('KSF_CART_RECIP_NAME'		,_KSF_CART_PFX_RECIP._KSF_CART_SFX_CONT_NAME);
 define('KSF_CART_RECIP_STREET'		,_KSF_CART_PFX_RECIP._KSF_CART_SFX_CONT_STREET);
@@ -91,7 +94,8 @@ define('KSF_CART_PTYP_CARD_HERE'	,_KSF_CART_PFX_PAY.'card-here');
 
 define('KI_CART_SHIP_ZONE'	,100);
 define('KI_CART_RECIP_ID'	,151);	// added 2013-11-07
-define('KI_CART_RECIP_INTYPE'	,152);	// added 2014-07-29
+define('KI_CART_RECIP_INTYPE'	,152);	// added 2014-07-29 (INTYPE = input type)
+define('KI_CART_RECIP_CHOICE'	,153);	// added 2014-08-21 (drop-down choice)
 define('KI_CART_RECIP_NAME'	,101);
 define('KI_CART_RECIP_STREET'	,102);
 define('KI_CART_RECIP_CITY'	,103);
@@ -109,6 +113,7 @@ define('KI_CART_RECIP_PHONE'	,112);
 
 define('KI_CART_BUYER_ID'	,251);	// added 2013-11-07
 define('KI_CART_BUYER_INTYPE'	,252);	// added 2014-07-29
+define('KI_CART_BUYER_CHOICE'	,253);	// added 2014-08-22
 define('KI_CART_BUYER_EMAIL'	,211);
 define('KI_CART_BUYER_PHONE'	,212);
 

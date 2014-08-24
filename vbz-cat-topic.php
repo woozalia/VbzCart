@@ -169,6 +169,10 @@ class clsTopics extends clsVbzTable {
 
     // -- ACTIONS -- //
     // ++ SEARCHING ++ //
+
+    public function SearchRecords_forText($sSearch) {	// alias, for now
+	return $this->Search_forText($sSearch);
+    }
     public function Search_forText($sSearch) {
 	$sqlFilt = <<<__END__
 (Name LIKE "%$sSearch%") OR
@@ -185,6 +189,9 @@ __END__;
 	}
 	return $this->doBranch;
     }
+
+    // -- SEARCHING -- //
+
 }
 class clsTopic extends clsVbzRecs {
     protected $objParent;
@@ -334,8 +341,9 @@ class clsTopic extends clsVbzRecs {
     }
     /*----
       RETURNS: dataset of Titles for all topics in the current dataset
+      PUBLIC so topic search can use it to display titles for found topics
     */
-    protected function TitleRecords_forRows() {
+    public function TitleRecords_forRows() {
 	$sqlTopicIDs = $this->KeyListSQL();					// SQL list of Topics
 	$rs = $this->XTitleTable()->TitleRecords_forIDs($sqlTopicIDs);	// recordset of Titles
 	return $rs;
@@ -473,27 +481,6 @@ __END__;
 	return $rs;
     }
     /*----
-      RETURNS: array of topics at the same level as this one, properly sorted:
-	ar[id] =
-	  ar['name'] = name of topic
-	  ar['html'] = HTML to display (may be a link)
-      HISTORY:
-	2013-11-16 started as a rewrite of DoPiece_Stat_Series()
-	2014-03-22 replaced by SeriesRecords()
-    */
-    /*
-    protected function FigureSeries() {
-	$ar = NULL;
-	$rs = $this->Table->GetData($this->SQL_Filt_Series(),NULL,'Sort, NameTree, Name, NameFull');
-	if ($rs->HasRows()) {
-	    while ($rs->NextRow()) {
-		$idRow = $rs->KeyValue();
-		$ar[$idRow] = $rs->Values();
-	    }
-	}
-	return $ar;
-    }*/
-    /*----
       RETURNS: an array of topics from the current to the root
       HISTORY:
 	2013-11-16 created so we can have less rendering code
@@ -576,6 +563,7 @@ __END__;
       HISTORY:
 	2011-02-23 Split off from DoPage() for SpecialVbzCart
     */
+    /* 2014-08-18 no longer used
     protected function DoFigure_Titles() {
 	if (empty($this->didTitles)) {
 	    $obj = $this->Engine()->TitleTopic_Titles()->GetTopic($this->KeyValue());
@@ -649,6 +637,7 @@ __END__;
 	    $this->hasTitles = $hasRows;
 	}
     }
+    */
 
     // -- ARRAY CALCULATIONS -- //
     // ++ ACTIONS ++ //
@@ -661,11 +650,13 @@ __END__;
 
     // -- ACTIONS -- //
 
+/* 2014-08-18 This is no longer used. I can't even find where it used to be called from.
     public function DoPiece_Thumbs_Avail() {
 	$this->DoFigure_Titles();
 	$arInfo = $this->arTitleInfo;
 	return $arInfo['img.act'];
     }
+    */
     public function doBranch($iOn=NULL) {
 	return $this->Table->doBranch($iOn);
     }

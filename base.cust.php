@@ -499,6 +499,66 @@ class clsCust extends clsVbzRecs {
     // -- DATA RECORD ACCESS -- //
     // ++ DATA RECORD ARRAYS ++ //
 
+
+    // TODO: Each of these table-types needs a GetData_active() method, and we should be using that instead.
+    /*----
+      RETURNS: recordset of Names for all records in the current set
+    */
+    public function NameRecords_forRows() {
+	$sqlIDs = $this->KeyListSQL();
+	return $this->NameTable()->GetData("isActive AND (ID_Cust IN ($sqlIDs))");
+    }
+    public function AddrRecords_forRows() {
+	$sqlIDs = $this->KeyListSQL();
+	return $this->MailAddrTable()->GetData("(WhenVoid IS NULL) AND (NOW() <= IFNULL(WhenExp,NOW())) AND (ID_Cust IN ($sqlIDs))");
+    }
+    public function CardRecords_forRows() {
+	$sqlIDs = $this->KeyListSQL();
+	return $this->CardTable()->GetData("isActive AND (NOW() <= IFNULL(WhenInvalid,NOW())) AND (ID_Cust IN ($sqlIDs))");
+    }
+
+    public function AsArray($doNames,$doAddrs,$doCards) {
+	$ar = NULL;
+	while ($this->NextRow()) {
+	    $idCust = $this->KeyValue();
+	    $qRows = 0;
+
+	    if ($doNames) {
+		$rs = $this->Names();	// get names for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idName = $rs->KeyValue();
+		    $sName = $rs->ShortDescr();
+		    $ar[$idCust]['names'][$idName] = $sName;
+		}
+	    }
+
+	    if ($doAddrs) {
+		$rs = $this->AddrRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idAddr = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['addrs'][$idAddr] = $ht;
+		}
+	    }
+
+	    if ($doCards) {
+		$rs = $this->CardRecords(FALSE);	// get addresses for this customer
+		while ($rs->NextRow()) {
+		    $qRows++;
+		    $idRow = $rs->KeyValue();
+		    $ht = htmlspecialchars($rs->AsSingleLine());
+		    $ar[$idCust]['cards'][$idRow] = $ht;
+		}
+	    }
+	    if ($qRows > 0) {
+		$sCust = $this->SingleLine();
+		$ar[$idCust]['cust'] = $sCust;
+	    }
+	}
+	return $ar;
+    }
     /*----
       RETURNS: array of orders for this customer
       FUTURE: also check ID_Buyer and ID_Recip
@@ -601,100 +661,64 @@ class clsCust extends clsVbzRecs {
     // -- ACTIONS -- //
     // ++ WEB UI ++ //
 
-    // TODO: move this to CALCULATIONS
-    public function AsArray($doNames,$doAddrs,$doCards) {
-	$ar = NULL;
-	while ($this->NextRow()) {
-	    $idCust = $this->KeyValue();
-	    $qRows = 0;
-
-	    if ($doNames) {
-		$rs = $this->Names();	// get names for this customer
-		while ($rs->NextRow()) {
-		    $qRows++;
-		    $idName = $rs->KeyValue();
-		    $sName = $rs->ShortDescr();
-		    $ar[$idCust]['names'][$idName] = $sName;
-		}
+    /*----
+      RETURNS: HTML for a drop-down list of all Addresses belonging to
+	any of the Customer records in the current set
+    */
+    public function Render_DropDown_Addrs($sName) {
+	$out = NULL;
+	$rs = $this->AddrRecords_forRows();
+	if (is_null($rs) || ($rs->RowCount() == 0)) {
+	    $out .= 'No addresses found.';	// should this actually ever happen?
+	} else {
+	    $out .= "\n<select name='$sName'>";
+	    while ($rs->NextRow()) {
+		  $id = $rs->KeyValue();
+		  $sRow = $rs->AsString(' / ');
+		  $ht = htmlspecialchars($sRow);
+		  $out .= "\n<option value=$id>$ht</option>";
 	    }
-
-	    if ($doAddrs) {
-		$rs = $this->AddrRecords(FALSE);	// get addresses for this customer
-		while ($rs->NextRow()) {
-		    $qRows++;
-		    $idAddr = $rs->KeyValue();
-		    $ht = htmlspecialchars($rs->AsSingleLine());
-		    $ar[$idCust]['addrs'][$idAddr] = $ht;
-		}
-	    }
-
-	    if ($doCards) {
-		$rs = $this->CardRecords(FALSE);	// get addresses for this customer
-		while ($rs->NextRow()) {
-		    $qRows++;
-		    $idRow = $rs->KeyValue();
-		    $ht = htmlspecialchars($rs->AsSingleLine());
-		    $ar[$idCust]['cards'][$idRow] = $ht;
-		}
-	    }
-	    if ($qRows > 0) {
-		$sCust = $this->SingleLine();
-		$ar[$idCust]['cust'] = $sCust;
-	    }
+	    $out .= "\n</select>";
 	}
+	return $out;
+    }
+    /*----
+      RETURNS: HTML for a drop-down list of all Cards belonging to
+	any of the Customer records in the current set
+    */
+    public function Render_DropDown_Cards($sName) {
+	$out = NULL;
+	$rs = $this->CardRecords_forRows();
+	if (is_null($rs) || ($rs->RowCount() == 0)) {
+	    $out .= 'No cards found.';	// should this actually ever happen?
+	} else {
+	    $out .= "\n<select name='$sName'>";
+	    while ($rs->NextRow()) {
+		  $id = $rs->KeyValue();
+		  $sRow = $rs->SafeDescr_Long();
+		  $ht = htmlspecialchars($sRow);
+		  $out .= "\n<option value=$id>$ht</option>";
+	    }
+	    $out .= "\n</select>";
+	}
+	return $out;
     }
     /*----
       RETURNS: HTML for a drop-down list of all the customers
 	in the current recordset
+      NOTE: This is somewhat DEPRECATED
     */
     public function Render_DropDown($iName,$doNames,$doAddrs,$doCards) {
-	// build the array
-	/*
-	$ar = NULL;
-	while ($this->NextRow()) {
-	    $idCust = $this->KeyValue();
-	    $sCust = $this->SingleLine();
-	    $ar[$idCust]['cust'] = $sCust;
-//	echo "CUST ID $idCust: $sCust<br>";
-
-	    if ($doNames) {
-		$rs = $this->Names();	// get names for this customer
-		while ($rs->NextRow()) {
-		    $idName = $rs->KeyValue();
-		    $sName = $rs->ShortDescr();
-		    $ar[$idCust]['names'][$idName] = $sName;
-    //	echo "NAME ID $idName: $sName<br>";
-		}
-	    }
-
-	    if ($doAddrs) {
-		$rs = $this->AddrRecords(FALSE);	// get addresses for this customer
-		while ($rs->NextRow()) {
-		    $idAddr = $rs->KeyValue();
-		    $ht = htmlspecialchars($rs->AsSingleLine());
-		    $ar[$idCust]['addrs'][$idAddr] = $ht;
-    //	echo "ADDR ID $idAddr: $ht<br>";
-		}
-	    }
-
-	    if ($doCards) {
-		$rs = $this->CardRecords(FALSE);	// get addresses for this customer
-		while ($rs->NextRow()) {
-		    $idRow = $rs->KeyValue();
-		    $ht = htmlspecialchars($rs->AsSingleLine());
-		    $ar[$idCust]['cards'][$idRow] = $ht;
-		}
-	    }
-	}
-	*/
 	$ar = $this->AsArray($doNames,$doAddrs,$doCards);
 
 	// output the results
 
-	if (is_null($ar)) {
-	    $out = NULL;
+	$out = NULL;
+
+	if (is_null($ar) || (count($ar) == 0)) {
+	    $out .= 'No entries found.';	// should this actually ever happen?
 	} else {
-	    $out = "\n<select name=\"$iName\">";
+	    $out .= "\n<select name=\"$iName\">";
 
 	    foreach ($ar as $idCust => $arCust) {
 
@@ -2244,14 +2268,61 @@ class clsCustCard extends clsVbzRecs {
     protected function NameID() {
 	return $this->Value('ID_Name');
     }
+    protected function NumberRaw() {
+	return $this->Value('CardNum');
+    }
+    protected function ExpDateRaw() {
+	return $this->Value('CardExp');
+    }
     public function ShortDescr() {
 	return $this->SafeString();
     }
+    public function SafeDescr_Long() {
+	return $this->Table()->SafeDescr_Long($this->NumberRaw(),$this->ExpDateRaw());
+    }
     public function ShortExp() {
-	return date('n/y',$this->CardExp);
+	return date('n/y',$this->ExpDateRaw());
     }
     public function AsSingleLine() {	// alias
 	return $this->SafeString();
+    }
+    public function SingleString() {
+    // ACTION: Return plain card data as a single parseable string
+	return self::PackCardData($this->CardNum,$this->CardCVV,$this->CardExp);
+	//return ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
+    }
+    /*----
+      RETURNS: card number in a friendly format
+    */
+    public function FriendlyNum() {
+	$out = $this->CardNum;
+	$arChunks = str_split($out, 4);	// split number into chunks of 4 chars
+	$out = implode('-',$arChunks);
+	return $out;
+    }
+    public function ShortNumExpName() {
+	return $this->SafeString().' '.$this->OwnerName;
+    }
+    public function CardTypeChar() {
+	return clsCustCards::CardTypeChar($this->CardNum);
+    }
+    public function CardTypeName() {
+	return clsCustCards::CardTypeName($this->CardNum);
+    }
+    public function SafeString() {
+	return clsCustCards::SafeDescr_Short($this->CardNum,$this->CardExp);
+    }
+    /*
+    NOTE: whatever separator is used, make sure it doesn't have any special meaning to regex
+      the separator is mainly for human readability; because of the binary salt, we're
+      going to actually treat this as a series of fixed-width fields.
+    */
+    protected static function PackCardData($iNum,$iCVV,$iExp) {
+	$sData =
+	  ':'.sprintf('%16s',$iNum)
+	  .':'.sprintf('%4s',$iCVV)
+	  .':'.$iExp;
+	return $sData;
     }
 
     // -- DATA FIELDS -- //
@@ -2308,44 +2379,6 @@ class clsCustCard extends clsVbzRecs {
 
     public function CryptObj() {
 	return $this->Table->CryptObj();
-    }
-    public function SingleString() {
-    // ACTION: Return plain card data as a single parseable string
-	return self::PackCardData($this->CardNum,$this->CardCVV,$this->CardExp);
-	//return ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
-    }
-    /*----
-      RETURNS: card number in a friendly format
-    */
-    public function FriendlyNum() {
-	$out = $this->CardNum;
-	$arChunks = str_split($out, 4);	// split number into chunks of 4 chars
-	$out = implode('-',$arChunks);
-	return $out;
-    }
-    public function ShortNumExpName() {
-	return $this->SafeString().' '.$this->OwnerName;
-    }
-    public function CardTypeChar() {
-	return clsCustCards::CardTypeChar($this->CardNum);
-    }
-    public function CardTypeName() {
-	return clsCustCards::CardTypeName($this->CardNum);
-    }
-    public function SafeString() {
-	return clsCustCards::SafeDescr_Short($this->CardNum,$this->CardExp);
-    }
-    /*
-    NOTE: whatever separator is used, make sure it doesn't have any special meaning to regex
-      the separator is mainly for human readability; because of the binary salt, we're
-      going to actually treat this as a series of fixed-width fields.
-    */
-    protected static function PackCardData($iNum,$iCVV,$iExp) {
-	$sData =
-	  ':'.sprintf('%16s',$iNum)
-	  .':'.sprintf('%4s',$iCVV)
-	  .':'.$iExp;
-	return $sData;
     }
     public function Encrypt($iDoSave,$iDoWipe) {
 	if (is_null($this->CardNum)) {

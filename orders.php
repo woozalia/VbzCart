@@ -703,53 +703,52 @@ class clsOrderLines extends clsTable {
     }
 }
 class clsOrderLine extends clsDataSet {
-    public function Init_fromCartLine(clsShopCartLine $iLine) {
+
+    // ++ SETUP ++ //
+
+    public function Init_fromCartLine(clsShopCartLine $rcCLine) {
 	// some fields get copied over directly
 	$arNames = array(
 	  'Seq'		=> 'Seq',
 	  'ID_Item'	=> 'ID_Item',
 	  'Qty'		=> 'QtyOrd',
-	  'CatNum'	=> 'CatNum',
-	  'PriceItem'	=> 'Price',
-	  'ShipPkgDest'	=> 'ShipPkg',
-	  'ShipItmDest'	=> 'ShipItm',
-	  'DescText'	=> 'Descr',
+//	  'CatNum'	=> 'CatNum',
+//	  'PriceItem'	=> 'Price',
+//	  'ShipPkgDest'	=> 'ShipPkg',
+//	  'ShipItmDest'	=> 'ShipItm',
+//	  'DescText'	=> 'Descr',
 	  //'DescHtml'	=> 'DescrHTML'	// we may eventually add this field
 	  );
 	foreach($arNames as $srce => $dest) {
-	    $val = $iLine->Value($srce);
+	    $val = $rcCLine->Value($srce);
 	    $this->Value($dest,$val);
 	}
+	// these are looked up at checkout time
+	$rcItem = $rcCLine->ItemRecord();
+	$this->CatNum($rcCLine->CatNum());
+	$this->ShPerPkg($rcCLine->ItemShip_perPkg());
+	$this->ShPerItm($rcCLine->ItemShip_perPkg());
+	$this->Descr($rcCLine->DescText());
     }
-    /*----
-      HISTORY:
-	2011-03-23 created for AdminPage()
-    */
-    protected $objItem, $idItem;
-    public function ItemObj() {
-	$doLoad = TRUE;
-	$id = $this->Value('ID_Item');
-	if (isset($this->idItem)) {
-	    if ($this->idItem == $id) {
-		$doLoad = FALSE;
-	    }
-	}
-	if ($doLoad) {
-	    $this->objItem = $this->Engine()->Items($id);
-	    $this->idItem = $id;
-	}
-	return $this->objItem;
+
+    // -- SETUP -- //
+    // ++ DATA FIELDS ++ //
+
+    protected function QtyOrd() {
+	return $this->Value('QtyOrd');
     }
     /*----
       RETURNS: selling price
 	if order line has no price, falls back to catalog item
       HISTORY:
 	2011-03-23 created for "charge for package" process
+	2014-08-22 modified to allow writing
     */
-    public function PriceSell() {
-	$prc = $this->Value('Price');
+    public function PriceSell($prc=NULL) {
+	$prc = $this->ValueNz('Price',$prc);
 	if (is_null($prc)) {
-	    $prc = $this->ItemObj()->PriceSell();
+	    $prc = $this->ItemRecord()->PriceSell();
+	    $this->Value('Price',$prc);
 	}
 	return $prc;
     }
@@ -758,11 +757,13 @@ class clsOrderLine extends clsDataSet {
 	if order line has no per-package price, falls back to catalog item
       HISTORY:
 	2011-03-23 created for "charge for package" process
+	2014-08-22 modified to allow writing
     */
-    public function ShPerPkg() {
-	$prc = $this->Value('ShipPkg');
+    public function ShPerPkg($prc=NULL) {
+	$prc = $this->Value('ShipPkg',$prc);
 	if (is_null($prc)) {
-	    $prc = $this->ItemObj()->ShPerPkg();
+	    $prc = $this->ItemRecord()->ShPerPkg();
+	    $this->Value('ShipPkg',$prc);
 	}
 	return $prc;
     }
@@ -771,14 +772,75 @@ class clsOrderLine extends clsDataSet {
 	unless specified in package line
       HISTORY:
 	2011-03-23 created for "charge for package" process
+	2014-08-22 modified to allow writing
     */
-    public function ShPerItm() {
-	$prc = $this->Value('ShipItm');
+    public function ShPerItm($prc=NULL) {
+	$prc = $this->Value('ShipItm',$prc);
 	if (is_null($prc)) {
-	    $prc = $this->ItemObj()->ShPerItm();
+	    $prc = $this->ItemRecord()->ShPerItm();
+	    $this->Value('ShipItm',$prc);
 	}
 	return $prc;
     }
+    protected function CatNum($sVal=NULL) {
+	$val = $this->Value('CatNum',$sVal);
+	return $val;
+    }
+    protected function Descr($sText=NULL) {
+	$val = $this->ValueNz('Descr',$sText);
+	if (is_null($sText)) {
+	    $val = $this->ItemRecord()->Descr();
+	    $this->Value('Descr',$val);
+	}
+	return $val;
+    }
+    protected function DescrHTML() {
+	return $this->ItemRecord()->DescLong_ht();
+    }
+
+    // -- DATA FIELDS -- //
+    // ++ CLASS NAMES ++ //
+
+    protected function ItemsClass() {
+	return 'clsItems';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLES ++ //
+
+    protected function ItemTable($id=NULL) {
+	return $this->Engine()->Make($this->ItemsClass(),$id);
+    }
+
+    // -- DATA TABLES -- //
+    // ++ DATA RECORDS ++ //
+
+    /*----
+      HISTORY:
+	2011-03-23 created for AdminPage()
+    */
+    private $rcItem, $idItem;
+    public function ItemObj() {
+	throw new exception('ItemObj() is deprecated; call ItemRecord().');
+    }
+    public function ItemRecord() {
+	$doLoad = TRUE;
+	$id = $this->Value('ID_Item');
+	if (isset($this->idItem)) {
+	    if ($this->idItem == $id) {
+		$doLoad = FALSE;
+	    }
+	}
+	if ($doLoad) {
+	    $this->rcItem = $this->ItemTable($id);
+	    $this->idItem = $id;
+	}
+	return $this->rcItem;
+    }
+
+    // -- DATA RECORDS -- //
+    // ++ FIELD CALCULATIONS ++ //
+
     /*----
       RETURNS: array of calculated values for this order line
 	array[sh-pkg]: shipping charge per package
@@ -826,28 +888,31 @@ class clsOrderLine extends clsDataSet {
 	}
 	return $arSum;
     }
+
+    // -- FIELD CALCULATIONS -- //
+    // ++ WEB SHOPPING UI ++ //
+
     /*----
       ACTION: Render the current order line using static HTML (no form elements; read-only)
       HISTORY:
-	2011-04-01 adapted from clsShopCartLine::RenderHtml() to clsOrderLine::RenderStatic()
+	2011-04-01 adapted from clsShopCartLine::RenderHtml() (now RenderStatic()) to clsOrderLine::RenderStatic()
     */
-    public function RenderStatic(clsShipZone $iZone) {
+    public function RenderStatic(/*clsShipZone $iZone*/) {
 // calculate display fields:
-	$qty = $this->Value('QtyOrd');
-	if ($qty) {
+	$nQtyOrd = $this->QtyOrd();
+	if ($nQtyOrd > 0) {
 	    //$this->RenderCalc($iZone);
 
-	    $htLineCtrl = $qty;
+	    $htLineQty = $nQtyOrd;
 
-	    $mnyPrice = $this->Value('Price');	// item price
-	    $mnyPerItm = $this->Value('ShipItm');	// per-item shipping
-	    $mnyPerPkg = $this->Value('ShipPkg');	// per-pkg minimum shipping
-	    $intQty = $this->Value('QtyOrd');
-	    $mnyPriceQty = $mnyPrice * $intQty;		// line total sale
-	    $mnyPerItmQty = $mnyPerItm * $intQty;	// line total per-item shipping
+	    $mnyPrice = $this->PriceSell();	// item price
+	    $mnyPerItm = $this->ShPerItm();	// per-item shipping
+	    $mnyPerPkg = $this->ShPerPkg();	// per-pkg minimum shipping
+	    $mnyPriceQty = $mnyPrice * $nQtyOrd;		// line total sale
+	    $mnyPerItmQty = $mnyPerItm * $nQtyOrd;	// line total per-item shipping
 	    $mnyLineTotal = $mnyPriceQty + $mnyPerItmQty;	// line total overall (does not include per-pkg minimum)
 
-	    $strCatNum = $this->Value('CatNum');
+	    $strCatNum = $this->CatNum();
 	    $strPrice = FormatMoney($mnyPrice);
 	    $strPerItm = FormatMoney($mnyPerItm);
 	    $strPriceQty = FormatMoney($mnyPriceQty);
@@ -856,7 +921,7 @@ class clsOrderLine extends clsDataSet {
 
 	    $strShipPkg = FormatMoney($mnyPerPkg);
 
-	    $htDesc = $this->Value('Descr');	// was 'DescHtml', but that field doesn't exist here
+	    $htDesc = $this->DescrHTML();
 
 	    $htDelBtn = '';
 
@@ -866,7 +931,7 @@ class clsOrderLine extends clsDataSet {
 <td>$htDesc</td>
 <td class=cart-price align=right>$strPrice</td>
 <td class=shipping align=right>$strPerItm</td>
-<td class=qty align=right>$htLineCtrl</td>
+<td class=qty align=right>$htLineQty</td>
 <td class=cart-price align=right>$strPriceQty</td>
 <td class=shipping align=right>$strPerItmQty</td>
 <td class=total align=right>$strLineTotal</td>
@@ -876,6 +941,8 @@ __END__;
 	    return $out;
 	}
     }
+
+    // -- WEB SHOPPING UI -- //
 }
 
 /*----------

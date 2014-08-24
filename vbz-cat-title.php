@@ -20,6 +20,7 @@ class clsVbzTitles extends clsVbzTable {
 	  $this->Name('cat_titles');
 	  $this->KeyName('ID');
 	  $this->ClassSng('clsVbzTitle');
+	$this->arStats = NULL;
     }
 
     // -- SETUP -- //
@@ -49,6 +50,153 @@ class clsVbzTitles extends clsVbzTable {
     }
 
     // -- SEARCHING -- //
+    // ++ FIGURING ++ //
+
+    private $arStats;
+    /*----
+      RETURNS: array of statistics for the current title
+      USAGE: results should probably be cached, as they require summing across multiple Item and Stock records
+      PUBLIC because Items and Topics need to call it in order to display images with full information
+    */
+    public function StatsArray($idTitle) {
+	$sqlFilt = "(ID_Title=$idTitle) AND isForSale";
+	$rsStats = $this->ItemTable()->StatsFor($sqlFilt);
+	$arStats = NULL;
+	$sItTyps = NULL;
+	if ($rsStats->RowCount() == 0) {
+	    $sSummary = 'not available';
+	} else {
+	    while ($rsStats->NextRow()) {
+		$idItTyp = $rsStats->ItTypID();
+		if (is_null($idItTyp)) {
+		    // there will be only one row where this happens
+		    $sOpts = $rsStats->Value('SfxList');
+		    $prcMin = $rsStats->Value('PriceBuy_min');
+		    $prcMax = $rsStats->Value('PriceBuy_max');
+		    // also get stock count -- for now just use calculated field
+		    $qtyStock = $rsStats->Value('Qty_InStock');
+		} else {
+		    $rsItTyp = $rsStats->ItTypRecord();
+		    if (!is_null($sItTyps)) {
+			$sItTyps .= ', ';
+		    }
+		    $sItTyps .= $rsItTyp->Name();
+		}
+	    }
+	    $arStats['price-min'] = $prcMin;
+	    $arStats['price-max'] = $prcMax;
+	    $arStats['opt-list'] = $sOpts;
+	    $arStats['stock-qty'] = $qtyStock;
+	    $arStats['types'] = $sItTyps;
+	    $sPrcMin = clsMoney::BasicFormat($prcMin);
+	    $sPrcMax = clsMoney::BasicFormat($prcMax);
+	    if ($sPrcMin == $sPrcMax) {
+		$sPrc = $sPrcMin;
+	    } else {
+		$sPrc = $sPrcMin.' - '.$sPrcMax;
+	    }
+	    if ($qtyStock == 0) {
+		$sStock = 'out of stock';
+	    } else {
+		$sStock = $qtyStock.' in stock';
+	    }
+	    $sSummary = "$sItTyps: $sOpts @ $sPrc ($sStock)";
+	}
+	$arStats['summary'] = $sSummary;
+	return $arStats;
+    }
+    /*----
+      FUTURE: This might be revised to calculate a more thorough listing,
+	e.g. it could show options and prices for each item type.
+	For now it just compiles a list of all item types, a list of
+	all options (for all types), and low and high prices (across
+	all types).
+      USAGE: This is currently *only* called by StatString_forTitle(),
+	so the figuring and storage format can be tweaked according to
+	whatever that function needs. Right now it only uses ['summary'],
+	so anything else can be reworked as needed.
+    */
+    protected function StatsFor_Title($idTitle) {
+	$arStats = $this->StatsFor_Title_cached($idTitle);
+	if (is_null($arStats)) {
+	/*
+	    $sqlFilt = "(ID_Title=$idTitle) AND isForSale";
+	    $rsStats = $this->StatsFor($sqlFilt);
+	    $arStats = NULL;
+	    $sItTyps = NULL;
+	    if ($rsStats->RowCount() == 0) {
+		$sSummary = 'not available';
+	    } else {
+		while ($rsStats->NextRow()) {
+		    $idItTyp = $rsStats->ItTypID();
+		    if (is_null($idItTyp)) {
+			// there will be only one row where this happens
+			$sOpts = $rsStats->Value('SfxList');
+			$prcMin = $rsStats->Value('PriceBuy_min');
+			$prcMax = $rsStats->Value('PriceBuy_max');
+			// also get stock count -- for now just use calculated field
+			$qtyStock = $rsStats->Value('Qty_InStock');
+		    } else {
+			$rsItTyp = $rsStats->ItTypRecord();
+			if (!is_null($sItTyps)) {
+			    $sItTyps .= ', ';
+			}
+			$sItTyps .= $rsItTyp->Name();
+		    }
+		}
+		$arStats['price-min'] = $prcMin;
+		$arStats['price-max'] = $prcMax;
+		$arStats['opt-list'] = $sOpts;
+		$arStats['stock-qty'] = $qtyStock;
+		$arStats['types'] = $sItTyps;
+		$sPrcMin = clsMoney::BasicFormat($prcMin);
+		$sPrcMax = clsMoney::BasicFormat($prcMax);
+		if ($sPrcMin == $sPrcMax) {
+		    $sPrc = $sPrcMin;
+		} else {
+		    $sPrc = $sPrcMin.' - '.$sPrcMax;
+		}
+		if ($qtyStock == 0) {
+		    $sStock = 'out of stock';
+		} else {
+		    $sStock = $qtyStock.' in stock';
+		}
+		$sSummary = "$sItTyps: $sOpts @ $sPrc ($sStock)";
+	    }
+	    $arStats['summary'] = $sSummary;
+	    */
+	    $arStats = $this->StatsArray($idTitle);
+	    $this->StatsFor_Title_cached($idTitle,$arStats);	// save stats
+	}
+	return $arStats;
+    }
+    public function StatString_forTitle($idTitle) {
+	$arStats = $this->StatsFor_Title($idTitle);
+	return $arStats['summary'];
+    }
+    /*----
+      RETURNS: either cached stats or NULL
+      INPUT:
+	$idTitle = ID of title for which stats are needed
+	$arStats = stats array to cache, or NULL
+    */
+    protected function StatsFor_Title_cached($idTitle,array $arStats=NULL) {
+	if (is_null($arStats)) {
+	    if (!is_null($this->arStats)) {
+		if (array_key_exists('titles',$this->arStats)) {
+		    if (array_key_exists($idTitle,$this->arStats)) {
+			$arStats = $this->arStats['titles'][$idTitle];
+		    }
+		}
+	    }
+	} else {
+	    $this->arStats['titles'][$idTitle] = $arStats;
+	}
+	return $arStats;
+    }
+
+    // -- FIGURING -- //
+
 }
 class clsVbzTitle extends clsDataSet {
 // object cache
@@ -109,7 +257,7 @@ class clsVbzTitle extends clsDataSet {
 	* quantity in stock
     */
     protected function ItemSpecString() {
-	$sStats = $this->ItemTable()->StatString_forTitle($this->KeyValue());
+	$sStats = $this->Table()->StatString_forTitle($this->KeyValue());
 	return $sStats;
     }
     /*----
@@ -163,7 +311,7 @@ class clsVbzTitle extends clsDataSet {
     // -- VALUE ACCESS -- //
     // ++ STATUS ACCESS ++ //
 
-    public function StatThis() {
+    public function StatThis() {		// 2014-08-19 is this redundant now?
 	$id = $this->KeyValue();
 	if (!self::Stats()->IndexExists($id)) {
 	    $rs = $this->ItemRecords();	// item records for this title
@@ -283,25 +431,29 @@ class clsVbzTitle extends clsDataSet {
       PUBLIC because clsTopic::FigurePage() calls it
     */
     public function ImageRecords($sSize) {
+	throw new exception('ImageRecords() has been renamed ImageRecords_forRows().');
+    }
+    public function ImageRecords_forRows($sSize) {
 	$tImgs = $this->ImageTable();
 	$rsImgs = $tImgs->Records_forTitles_SQL($this->KeyListSQL(),$sSize);
 	return $rsImgs;
     }
-    public function ImageRecords_thumb() {
-/*
+    public function ImageRecords_forRow($sSize) {
 	$tImgs = $this->ImageTable();
-	$rsImgs = $tImgs->Records_forTitle($this->KeyValue(),clsImages::SIZE_THUMB);
+	$rsImgs = $tImgs->Records_forTitle($this->KeyValue(),$sSize);
 	return $rsImgs;
-	*/
-	return $this->ImageRecords(clsImages::SIZE_THUMB);
+    }
+    public function ImageRecords_thumb() {
+	throw new exception('ImageRecords_thumb() has been renamed ImageRecords_forRows_thumb().');
+    }
+    public function ImageRecords_forRows_thumb() {
+	return $this->ImageRecords_forRows(clsImages::SIZE_THUMB);
     }
     public function ImageRecords_small() {
-    /*
-	$tImgs = $this->ImageTable();
-	$rsImgs = $tImgs->Records_forTitle($this->KeyValue(),clsImages::SIZE_SMALL);
-	return $rsImgs;
-	*/
-	return $this->ImageRecords(clsImages::SIZE_SMALL);
+	throw new exception('ImageRecords_small() has been renamed ImageRecords_forRow_small().');
+    }
+    public function ImageRecords_forRow_small() {
+	return $this->ImageRecords_forRow(clsImages::SIZE_SMALL);
     }
     /*----
       RETURNS: recordset of ItemType stats for this title
@@ -368,6 +520,7 @@ __END__;
 	2013-11-17 created as rewrite of Indicia() -- should not include
 	  any HTML.
     */
+    /* 2014-08-18 no longer used
     public function FigureCounts() {
 	$rsItems = $this->Items();
 	$qActive = 0;
@@ -387,6 +540,7 @@ __END__;
 
 	return $arOut;
     }
+    */
     /*----
       USAGE: This is probably used by the Title display page and
 	possibly by Supplier pages, but it has not been tested yet
@@ -395,7 +549,7 @@ __END__;
 	One element for sums
       HISTORY:
 	2013-11-17 started as rewrite of Summary_ItTyps() with no HTML
-    */
+    *//* 2014-08-18 no longer used
     public function FigureItTyps() {
 	$rs = $this->Data_ItTyp_stats();
 	$qSumRow = 0;
@@ -426,7 +580,7 @@ __END__;
 	  'qStk' => $qSumStk		// quantity in stock across all types
 	  );
 	return $ar;
-    }
+    } */
     /*----
       RETURNS: Array containing summaries of ItTyps in which this Title is available
 	array['text.!num'] = plaintext version with no numbers (types only)
@@ -436,7 +590,7 @@ __END__;
       HISTORY:
 	2011-01-23 written
       DEPRECATED
-    */
+    */ /* 2014-08-18 no longer used
     public function Summary_ItTyps($iSep=', ') {
 	$dsRows = $this->DataSet_ItTyps();
 	$outTextNoQ = $outTextType = $outTextCnt = $outHTMLCnt = $outHTMLQty = NULL;
@@ -473,7 +627,7 @@ __END__;
 	$arOut['html.cnt'] = $outHTMLCnt;
 	$arOut['html.qty'] = $outHTMLQty;
 	return $arOut;
-    }
+    }*/
 
     // -- FIGURING -- //
 }

@@ -243,7 +243,7 @@ __END__;
 	if (is_null($this->OrderID())) {
 	    $htOrd = '<i>n/a</i>';
 	} else {
-	    $rcOrd = $this->OrderObj();
+	    $rcOrd = $this->OrderRecord();
 	    $htOrd = $rcOrd->AdminLink();
 	}
 

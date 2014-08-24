@@ -53,6 +53,7 @@ class clsCartVars extends clsTable_indexed {
 
       KI_CART_SHIP_IS_CARD	=> KSF_SHIP_IS_CARD,
       KI_CART_RECIP_INTYPE	=> KSF_CART_RECIP_CONT_INTYPE,
+      KI_CART_RECIP_CHOICE	=> KSF_CART_RECIP_CONT_CHOICE,
       KI_CART_RECIP_IS_BUYER	=> KSF_CART_RECIP_IS_BUYER,
       KI_CART_RECIP_MESSAGE	=> KSF_SHIP_MESSAGE,
       KI_CART_RECIP_NAME	=> KSF_CART_RECIP_NAME,
@@ -65,7 +66,8 @@ class clsCartVars extends clsTable_indexed {
       KI_CART_RECIP_PHONE	=> KSF_CART_RECIP_PHONE,
 
       // -- payment
-      KSF_CART_PAY_CARD_INTYPE	=> KSF_CART_PAY_CARD_INTYPE,
+      KI_CART_BUYER_INTYPE	=> KSF_CART_PAY_CARD_INTYPE,
+      KI_CART_BUYER_CHOICE	=> KSF_CART_PAY_CARD_CHOICE,
       KI_CART_PAY_CARD_NUM	=> KSF_CART_PAY_CARD_NUM,
       KI_CART_PAY_CARD_EXP	=> KSF_CART_PAY_CARD_EXP,
       KI_CART_PAY_CARD_ENCR	=> KSF_CART_PAY_CARD_ENCR,
@@ -120,7 +122,7 @@ class clsCartVars extends clsTable_indexed {
     public function FindMatches() {
 	$obj = $this->ShipObj(FALSE);
 	$arShip['addr'] = $obj->FindMatches($this->Engine());
-	if (!$this->ShipToSelf()) {
+	if (!$this->IsShipToSelf()) {
 	    $obj = $this->CustObj();
 	    $arCust['addr'] = $obj->FindMatches($this->Engine());
 	}
@@ -386,6 +388,9 @@ class clsCartVar extends clsRecs_indexed {
 	}
 	$val = $this->FieldValue_forIndex(KI_CART_SHIP_IS_CARD,$strFlag);
 	return (!empty($val));
+    }
+    public function IsShipToSelf() {
+	throw new exception('IsShipToSelf() is deprecated until I can figure out why it is necessary.');
     }
     public function IsRecipNewEntry() {
 	return $this->FieldValue_forIndex(KI_CART_RECIP_INTYPE);
@@ -829,7 +834,7 @@ Defined in $this->Init():
 	$objCD->ShipMessage($custMessage);
 */
 	$iPage->CheckField('name',$custName);
-	if (!$objVars->ShipToCard()) {
+	if (!$objVars->IsShipToCard()) {
 	    $iPage->CheckField('street address',$custStreet);
 	    $iPage->CheckField('city',$custCity);
 	    if (($custState == '') && ($objZone->hasState())) {

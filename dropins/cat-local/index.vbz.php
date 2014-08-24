@@ -16,7 +16,7 @@ define('KS_CLASS_CATALOG_IMAGES','VCTA_Images');
 define('KS_CLASS_CATALOG_IMAGE','VCRA_Image');
 //define('KS_CLASS_CATALOG_TITLE_TOPIC_TITLES','VCTA_TitleTopic_Titles');
 //define('KS_CLASS_CATALOG_TITLE_TOPIC_TOPICS','VCTA_TitleTopic_Topics');
-define('KS_CLASS_CATALOG_TITLES_TOPICS','clsTitlesTopics');	// using base class for now
+define('KS_CLASS_CATALOG_TITLES_TOPICS','VCTA_TitlesTopics');
 define('KS_CLASS_CATALOG_TOPICS','VCTA_Topics');
 define('KS_CLASS_CATALOG_TOPIC','VCRA_Topic');
 
@@ -57,6 +57,7 @@ $arDropin = array(
     'item.php'		=> array(KS_CLASS_CATALOG_ITEMS),
     'supp.php'		=> array(KS_CLASS_CATALOG_SUPPLIERS),
     'title.php'		=> array(KS_CLASS_CATALOG_TITLES,KS_CLASS_CATALOG_TITLE),
+    'title-topic.php'	=> array(KS_CLASS_CATALOG_TITLES_TOPICS),
     'topic.php'		=> KS_CLASS_CATALOG_TOPICS,
      ),
   'menu'	=> $om,

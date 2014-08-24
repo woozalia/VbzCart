@@ -50,8 +50,8 @@ class VCTA_Topics extends clsTopics {
     /*----
       PURPOSE: renders tree with colors and links suitable for admin usage
       LATER: The parent method should be generalized for color and link-function
+      USED BY: topic-tree-rebuilding process
     */
-/*
     public function RenderTree($iTwig=NULL) {
 	if (is_null($iTwig)) {
 	    $objRoot = $this->RootNode();
@@ -61,7 +61,6 @@ class VCTA_Topics extends clsTopics {
 	$out = $objRoot->DrawTree();
 	return $out;
     }
-*/
     public function ListTitles_unassigned() {
 	$sql = 'SELECT tc.*, t.Name'
 	  .' FROM (_titles AS tc LEFT JOIN cat_title_x_topic AS tt ON tc.ID=tt.ID_Title)'
@@ -96,7 +95,6 @@ class VCTA_Topics extends clsTopics {
 	$out .= "\n</div>";
 
 	$arLink = array('rebuild'=>TRUE);
-//	$htLink = $this->AdminLink('rebuild tree','rebuild the topic tree',$arLink);
 	$url = clsURL::FromArray($arLink);
 	$htLink = '<a href="'.$url.'" title="rebuild the topic tree">rebuild tree</a>';
 
@@ -112,7 +110,7 @@ class VCTA_Topics extends clsTopics {
 	    $out .= "\n[$htLink]";
 
 	    $this->TreeCtrl()->FileForCSS('dtree.css');
-	    $out .= $this->RenderTree(FALSE);
+	    $out .= $this->RenderTree();
 	}
 	return $out;
     }
@@ -153,41 +151,14 @@ class VCTA_Topics extends clsTopics {
 class VCRA_Topic extends clsTopic_StoreUI {
     private $frmPage;
 
+    // ++ SETUP ++ //
+
     protected function InitVars() {
 	parent::InitVars();
 	$this->frmPage = NULL;
     }
 
-    // ++ BOILERPLATE: event logging ++ //
-/*
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
-	}
-	return $this->logger;
-    }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
-    }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-    public function EventListing() {
-	return $this->Log()->EventListing();
-    }
-
-    // ++ BOILERPLATE: self-linkage ++ //
-
-    public function AdminURL() {
-	return clsMenuData_helper::_AdminURL($this);
-    }
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-//	$strPopup = $this->AdminLink_default_popup($iPopup);
-//	return clsMenuData_helper::_AdminLink($this,$iText,$strPopup,$iarArgs);
-    }
-*/
-    // -- BOILERPLATE -- //
+    // -- SETUP -- //
     // ++ BOILERPLATE HELPERS ++ //
 
     public function AdminLink_name() {
@@ -233,6 +204,9 @@ class VCRA_Topic extends clsTopic_StoreUI {
     protected function XTopicsClass() {
 	return KS_CLASS_CATALOG_TITLES_TOPICS;
     }
+    protected function XTitlesClass() {
+	return KS_CLASS_CATALOG_TITLES_TOPICS;
+    }
 
     // -- CLASS NAMES -- //
     // ++ DATA TABLES ACCESS ++ //
@@ -250,13 +224,14 @@ class VCRA_Topic extends clsTopic_StoreUI {
 	  to be a separate function... but I think it makes things clearer.
     */
     public function Twigs() {
-	if (is_null($this->ID)) {
+	$id = $this->KeyValue();
+	if (is_null($id)) {
 	    $sql = 'ID_Parent IS NULL';
 	} else {
-	    $sql = 'ID_Parent='.$this->ID;
+	    $sql = 'ID_Parent='.$id;
 	}
-	$objRows = $this->Table->GetData($sql,NULL,'Sort,NameTree,Name');
-	return $objRows;
+	$rs = $this->Table()->GetData($sql,NULL,'Sort,NameTree,Name');
+	return $rs;
     }
 
     // -- DATA RECORDS ACCESS -- //
@@ -287,32 +262,31 @@ class VCRA_Topic extends clsTopic_StoreUI {
 //	$txt = $this->Value('CatNum').' '.$this->Value('Name');
 	return $out;
     }
+    /*----
+      ACTION: Render the topic tree
+    */
     public function DrawTree($iLevel=0,$iRootName="Topics") {
-	global $vgPage;
-
 	$out = '';
 	$intLevel = $iLevel + 1;
 	$strIndent = str_repeat('*',$intLevel);
 
-	$objRows = $this->Twigs();
-	if ($objRows->HasRows()) {
+	$rsRows = $this->Twigs();
+	if ($rsRows->HasRows()) {
 	    if (empty($iLevel)) {
-		$strName = $this->Name;
-		if (empty($strName)) {
-		    $strName = $iRootName;
+		$sTwig = $this->Name;
+		if (empty($sTwig)) {
+		    $sTwig = $iRootName;
 		}
-		$out .= "\n{{#tree:id=root|root='''$strName'''|";
-		$vgPage->UseWiki();
+		$out .= "\n{{#tree:id=root|root='''$sTwig'''|";
 	    }
-	    while ($objRows->NextRow()) {
-		$strNameTree = $objRows->NameTree;
-		$strTwig = ifEmpty($strNameTree,$objRows->Name);
-		$out .= "\n$strIndent".$objRows->AdminLink($strTwig);
-		$out .= $objRows->DrawTree($intLevel);
+	    while ($rsRows->NextRow()) {
+		$strNameTree = $rsRows->NameTree;
+		$strTwig = ifEmpty($strNameTree,$rsRows->Name);
+		$out .= "\n<br>$strIndent".$rsRows->AdminLink($strTwig);
+		$out .= $rsRows->DrawTree($intLevel);
 	    }
 	    if ($iLevel == 0) {
 		$out .= "\n}}";
-		$vgPage->UseWiki();
 	    }
 	    return $out;
 	} else {
@@ -355,7 +329,7 @@ class VCRA_Topic extends clsTopic_StoreUI {
 	$ftSaveStatus = NULL;
 	if ($doEdit || $doSave) {
 	    if ($doSave) {
-		$ftSaveStatus = $this->PageForm()->AdminSave();
+		$ftSaveStatus = $this->AdminSave();
 	    }
 	}
 	$out = NULL;
@@ -366,18 +340,18 @@ class VCRA_Topic extends clsTopic_StoreUI {
 	}
 
 	if ($doEdit) {
-	    $out .= $objSection->FormOpen();
-	    $objForm = $this->PageForm();
+	    $out .= "\n<form method=post>";
+	    $oForm = $this->PageForm();
 
-	    $ctParent	= $objForm->Render('ID_Parent');
-	    $ctName	= $objForm->Render('Name');
-	    $ctNameTree	= $objForm->Render('NameTree');
-	    $ctNameFull	= $objForm->Render('NameFull');
-	    $ctNameMeta	= $objForm->Render('NameMeta');
-	    $ctUsage	= $objForm->Render('Usage');
-	    $ctSort	= $objForm->Render('Sort');
-	    $ctVariants	= $objForm->Render('Variants');
-	    $ctMispeled	= $objForm->Render('Mispeled');
+	    $ctParent	= $oForm->RenderControl('ID_Parent');
+	    $ctName	= $oForm->RenderControl('Name');
+	    $ctNameTree	= $oForm->RenderControl('NameTree');
+	    $ctNameFull	= $oForm->RenderControl('NameFull');
+	    $ctNameMeta	= $oForm->RenderControl('NameMeta');
+	    $ctUsage	= $oForm->RenderControl('Usage');
+	    $ctSort	= $oForm->RenderControl('Sort');
+	    $ctVariants	= $oForm->RenderControl('Variants');
+	    $ctMispeled	= $oForm->RenderControl('Mispeled');
 	} else {
 	    $ctParent	= $this->ParentRecord()->AdminLink_name();
 	    $ctName	= $this->Value('Name');
@@ -624,7 +598,7 @@ class VCRA_Topic extends clsTopic_StoreUI {
 
 	$out = "\n<form name=\"add-titles\" method=post>";
 
-	$rs = $this->TitleRecords();
+	$rs = $this->TitleRecords_forRow();
 	if ($rs->HasRows()) {
 	    $out .= "\n<table class=sortable>";
 	    $out .= "\n<tr><th>ID</th><th>Cat #</th><th>Name</th><th>Dept</th><th>When Added</th><th>When Unavail</th></tr>";

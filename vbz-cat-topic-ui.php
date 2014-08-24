@@ -24,6 +24,10 @@ class clsTopics_StoreUI extends clsTopics {
     /*----
       ACTION: Searches all topics for a match to the given search text
       RETURNS: HTML rendering of just the thumbnail images for the found topics
+      DEPRECATED
+	need to return a recordset or array so search results can be combined
+	$sPfx, $sSep, and $sSfx aren't even used anymore
+	call SearchRecords_forText() instead
     */
     public function DoSearch($sSearch,$sPfx,$sSep,$sSfx=NULL) {
 	$rs = $this->Search_forText($sSearch);		// call non-UI f() to get raw data
@@ -33,26 +37,6 @@ class clsTopics_StoreUI extends clsTopics {
 }
 class clsTopic_StoreUI extends clsTopic {
 
-    // ++ METHOD OVERRIDES ++ //
-
-    /*----
-      PURPOSE: This is kind of a slapdash way of handling the fact that
-	the general recordset class expects to have access to a menu
-	system from which to determine the root URL.
-      TODO: Get rid of this method.
-    */
-    public function AdminLink($sText=NULL,$sPopup=NULL,array $arArgs=NULL) {
-	$url = KWP_SHOP_TOPICS.$this->FldrName();
-	if (is_null($sText)) {
-	    $sText = $this->FldrName();
-	}
-	if (is_null($sPopup)) {
-	    $sPopup = htmlspecialchars($this->NameFull());
-	}
-	return "<a href='$url' title='$sPopup'>$sText</a>";
-    }
-
-    // -- METHOD OVERRIDES -- //
     // ++ CLASS NAMES ++ //
 
     protected function TitlesClass() {
@@ -79,13 +63,6 @@ class clsTopic_StoreUI extends clsTopic {
 	$out = $this->LinkOpen().$sText.'</a>';
 	return $out;
     }
-    /* 2014-08-17 old version
-    public function ShopLink($iShow=NULL) {
-	$txtShow = is_null($iShow)?($this->Value('Name')):$iShow;
-
-	$out = $this->LinkOpen().$txtShow.'</a>';
-	return $out;
-    }*/
     /*----
       PUBLIC because clsTopics_StoreUI::DoSearch() calls it
     */
@@ -139,44 +116,6 @@ class clsTopic_StoreUI extends clsTopic {
 	return $this->RenderImages(clsImages::SIZE_THUMB);	// forces thumbnail size
     }
 
-    /* 2014-08-12 wreck of previous version
-    public function RenderThumbs() {
-	if ($this->HasRows()) {
-	    $oPage = $this->Engine()->App()->Page();
-	    $out = NULL;
-	    $qTForSale = 0;
-	    //$qTRetired = 0;
-	    $ftForSale = NULL;
-	    $ftRetired = NULL;
-	    $ftThumbs = NULL;	// thumbnails to show
-	    // iterate through topics found
-	    while ($this->NextRow()) {
-		$out .= $oPage->Skin()->SectionHeader($this->AdminLink().' '.$this->NameFull());
-
-		$htName = $this->NameFull();
-		$qForSale = $this->ItemsForSale();
-		if ($qForSale > 0) {
-		    $qTForSale++;
-		    $sDescr = $htName.' - '.$qTForSale.' item'.Pluralize($qTForSale);
-		} else {
-		    //$qTRetired++;
-		    $sDescr = $htName;
-		}
-		$rcTtl
-		//$ftThumbs .= $this->RenderImages(clsImages::SIZE_THUMB);
-
-		// 2014-08-10 this routine should not try to group images by status; that's done by the caller
-
-		$htLink = $this->ShopLink_name();
-		$htDescr = htmlspecialchars($sDescr);
-		$out .= "<a href='$htLink' title='$htDescr'>$ftThumbs</a>";
-	    }
-	} else {
-	    $out = NULL;
-	}
-	return $out;
-    }
-*/
     // -- WEB UI COMPONENTS -- //
     // ++ SHOPPING WEB UI PAGES ++ //
 
@@ -185,7 +124,7 @@ class clsTopic_StoreUI extends clsTopic {
 	$rsSer = $this->SeriesRecords();	// topics at same level as this one
 	$rsSub = $this->KidsRecords();		// topics under this one
 	$rsTtl = $this->TitleRecords_forRow();	// titles for this topic (Title recordset)
-	$rsImg = $rsTtl->ImageRecords_thumb();	// images for those titles (recordset) (defaults to thumbsize)
+	$rsImg = $rsTtl->ImageRecords_forRows_thumb();	// thumbnails for those titles (recordset)
 
 	$rc = $this->Table->SpawnItem();	// we need to show info about other topics
 	$idThis = $this->KeyValue();
@@ -240,16 +179,20 @@ class clsTopic_StoreUI extends clsTopic {
 	    $htForSaleTxt = NULL;
 	    $htRetiredTxt = NULL;
 	    $sqlForSale = NULL;
+
+	    // for each title, get stats and find out whether it's available
+	    $tTitle = $this->TitleTable();
 	    while ($rsTtl->NextRow()) {
 		$sCatNum = $rsTtl->CatNum();
 		$htLink = $rsTtl->ShopLink($sCatNum);
 		$sName = $rsTtl->NameStr();
+		$sStats = $tTitle->StatString_forTitle($rsTtl->KeyValue());
 
 		$htTitle = "\n$htLink &ldquo;$sName&rdquo;";
 		//$txtTitle = "$sCatNum &ldquo;$sName&rdquo;";
 		$qAct = $rsTtl->ItemsForSale();
 		if ($qAct > 0) {
-		    $htForSaleTxt .= $htTitle.'<br>';
+		    $htForSaleTxt .= $htTitle.' - '.$sStats.'<br>';
 		    if (!is_null($sqlForSale)) {
 			$sqlForSale .= ',';
 		    }
@@ -274,7 +217,9 @@ class clsTopic_StoreUI extends clsTopic {
 	    $oSkin = $this->Engine()->App()->Page()->Skin();
 
 	    $ht .= $oSkin->SectionHdr('&darr; Titles available');
-	    if (!is_null($htRetiredTxt)) {
+	    if (is_null($htForSaleTxt)) {
+		$ht .= '<span class=catalog-summary>No available items in this topic.</span>';
+	    } else {
 		$ht .=
 		  '<span class=catalog-summary>'.$htForSaleTxt.'</span>'
 		  .$htForSaleImg;
@@ -366,7 +311,7 @@ __END__;
 	    */
 	return $ht;
     }
-
+/* 2014-08-18 Apparently this is no longer used.
     public function DoPage() {
 	$objPage = $this->Table()->Page();
 	$objDoc = $objPage->Doc();
@@ -395,7 +340,6 @@ __END__;
 	    //$objDoc->NewText($this->DoPiece_Stats());
 
 	    // TITLES FOR TOPIC
-echo 'GOT TO HERE';
 	    $this->DoFigure_Titles();
 	    if ($this->hasTitles) {
 		$arInfo = $this->arTitleInfo;
@@ -435,6 +379,7 @@ echo 'GOT TO HERE';
 	    $objDoc->AddText('There is currently no topic with this ID.');
 	}
     }
+    */
     /*----
       RETURNS: Parent topic, formatted for store display page
       HISTORY:

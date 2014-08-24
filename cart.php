@@ -656,7 +656,7 @@ __END__;
 	    if ($iAsForm) {
 		$out .= $rsLine->RenderForm($this);
 	    } else {
-		$out .= $rsLine->RenderHtml($this);
+		$out .= $rsLine->RenderStatic($this);
 	    }
 	    $dlrCostShipPkg = $rsLine->ItemShip_perPkg();
 	    if ($dlrShipMinCost < $dlrCostShipPkg) {

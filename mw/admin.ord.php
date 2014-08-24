@@ -684,6 +684,9 @@ class VbzAdminOrder extends clsOrder {
 	has checked the appropriate option (currently "make the changes")
     */
     protected function DoCart_Import(clsCartVars $objData) {
+	throw new exception('DoCart_Import() needs to be rewritten without SQL scripting.');
+
+
 	global $wgRequest;
 
 	$strCust = $wgRequest->GetText('cust');
@@ -715,7 +718,6 @@ class VbzAdminOrder extends clsOrder {
 //	    $actImp = $objTree->Save();			// generate the import (save) script
 
 	$actImp = $objData->Script_forImport($idCust,$idShip);
-echo 'ACTIMP:'.$actImp->Exec(FALSE);
 
 	// calculate order updates
 
@@ -725,7 +727,7 @@ echo 'ACTIMP:'.$actImp->Exec(FALSE);
 	// - dynamic stuff
 	$actUpd = new Script_Row_Update($arUpd,$this);
 	$actShip = $actImp->Get_byName('person.ship',TRUE);
-	if ($objData->ShipToSelf()) {
+	if ($objData->IsShipToSelf()) {
 	    $actCust = $actShip;
 	} else {
 	    $actCust = $actImp->Get_byName('person.cust',TRUE);

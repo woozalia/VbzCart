@@ -69,6 +69,7 @@ class clsPageSearch extends clsVbzPage_Browse {
     public function DoContent() {
 	$sSearch = $this->strSearch;
 	$htSearch = htmlspecialchars($sSearch);
+	$oSkin = $this->Skin();
 
 	// search entry form
 	$ht = <<<__END__
@@ -91,128 +92,97 @@ __END__;
 	    $ht .= 'Please enter some text to search for.';
 	} else {
 	    $tTitles = $this->Data()->Titles();
-	    $arTi = $tTitles->DoSearch($sSearch);
+	    $arTi1 = $tTitles->SearchRecords_forText($sSearch);
 
 	    $tTopics = $this->Data()->Topics();
-	    $htTo = $tTopics->DoSearch($sSearch,'',', ');
+	    //$htTo = $tTopics->DoSearch($sSearch,'',', ');
+	    $rsTo = $tTopics->SearchRecords_forText($sSearch);
 
-	    if (is_null($arTi)) {
-		$ht .= 'No title matches found.<br>';
+	    // LIST TOPICS FOUND
+
+	    if (is_null($rsTo) || ($rsTo->RowCount() == 0)) {
+		$ht = $oSkin->SectionHdr('No matching topics found.');
+		$arTi = $arTi1;	// final list is title matches only
 	    } else {
-		$ftActive = $arTi['forsale.text'];
-		$ht = '<h3>Found Titles - Available</h3><p class="catalog-summary">'.$ftActive.'</p>';
-		if (is_null($ftActive)) {
-		    $ht .= 'No matches found.';
-		}
-		$ftRetired = $arTi['retired.text'];
-		if (!is_null($ftRetired)) {
-		    $ht .= '<h3>Found Titles - <b>Not</b> Available</h3>'
-		      .'<small>These titles are <b>not</b> currently available:<br>'.$ftRetired.'</small>';
-		}
-	    }
-
-	    if (is_null($htTo)) {
-		$ht = 'No topic matches found.<br>';
-	    } else {
-		$ftText = $htTo;
-		$ht = '<h3>Found Topics</h3><p class="catalog-summary">'.$ftText.'</p>';
-	    }
-/*
-	    // create object to handle title list
-	    $lstTitles = new clsTitleLister($this->Data()->Titles(),$this->Data()->Images());
-
-	    // Title name search
-	    $rsRows = $objTitles->Search_forText($strFind);
-	    if ($rsRows->HasRows()) {
-		while ($rsRows->NextRow()) {
-		    $id = $rsRows->KeyValue();
-		    $lstTitles->Add($id,$rsRows->Values());
-		}
-	    }
-	    // Catalog number search
-	    $rsRows = $objItems->Search_byCatNum($strFind);
-	    if (!is_null($rsRows)) {
-		while ($rsRows->NextRow()) {
-		    $id = $rsRows->TitleID();
-		    $lstTitles->Add($id);
-		}
-	    }
-	    if ($lstTitles->Count()) {
-		$ar = $lstTitles->Render();
-		$ftTextActive = $ar['txt.act'];
-		$ftTextRetired = $ar['txt.ret'];
-		$ftImgs = $ar['img'];	// HTML to display thumbnails
-
-		$ftText = '<h3>Titles Available</h3>'.$ftTextActive;
-		if (empty($ftTextActive)) {
-		    $ftText .= 'No matches found.';
-		}
-		if (!empty($ftTextRetired)) {
-		    $ftText .= '<h3>Titles Not Available</h3>'
-		      .'<small>These titles are not currently available:<br>'.$ftTextRetired.'</small>';
-		}
-		$ftTitleText = $ftText;
-		$ftTitleImgs = $ftImgs;
-	    } else {
-		$ftTitleText = '';
-		$ftTitleImgs = '';
-		// if search is only one word, then we need a different message from this:
-		$ftTitleMsg = 'No matches found; try entering fewer words or a shorter word-fragment.';
-		// to be implemented
-	    }
-
-	    // Topic search
-	    $sqlFilt =
-	      '(Name LIKE "%'.$strFind.'%") OR '.
-	      '(Variants LIKE "%'.$strFind.'%") OR '.
-	      '(Mispeled LIKE "%'.$strFind.'%")';
-	    $rsTopics = $this->Data()->Topics()->GetData($sqlFilt);
-	    $ftTextActive = '';
-	    $ftTextRetired = '';
-	    if ($rsTopics->HasRows()) {
-		$rsTopics->doBranch(TRUE);
-		while ($rsTopics->NextRow()) {
-		    // for each topic found, look up all the titles:
-		    $id = $rsTopics->KeyValue();
-		    $rsTitles = $rsTopics->Titles();	// list of Titles for current Topic
-		    $cntTiAll = 0;
-		    $cntTiAct = 0;
-		    if ($rsTitles->HasRows()) {
-			while ($rsTitles->NextRow()) {
-			    $lstTitles->Add($rsTitles->TitleID(),$rsTitles->Values());
-			}
+		$htTo = NULL;
+		while ($rsTo->NextRow()) {
+		    if (!is_null($htTo)) {
+			$htTo .= '; ';
 		    }
-		    $ar = $lstTitles->Render();
-		    $cntTiAct = $ar['cnt.act'];
-		    $cntTiAll = $ar['cnt.all'];
-		    $ftText = $rsTopics->LinkOpen().$rsTopics->Name.'</a>: ';
-		    if ($cntTiAct > 0) {
-			$txtTitles = $cntTiAll.' title'.Pluralize($cntTiAll).', '.$cntTiAct.' active';
-			$ftTextActive .= $ftText.$txtTitles.'<br>';
+		    $htTo .= $rsTo->ShopLink_name();
+		}
+		$ht = $oSkin->SectionHdr('&darr; Found Topics')
+		  .'<p class="catalog-summary">'.$htTo.'</p>';
+
+		// FIND TITLES FOR FOUND TOPICS
+
+		$rsTi = $rsTo->TitleRecords_forRows();
+		$arTi2 = $rsTi->asKeyedArray();
+		$arTi = clsArray::Merge($arTi1,$arTi2);	// merge titles-found and titles-for-topics-found
+	    }
+
+	    if (count($arTi) == 0) {
+		$ht .= 'No matches found.<br>';
+	    } else {
+		$arTiAvail = $arTiInact = array();
+		foreach ($arTi as $id => $arRow) {
+		    $rsTi->Values($arRow);
+		    if ($rsTi->IsForSale()) {
+			$arTiAvail[$id] = $arRow;
 		    } else {
-			$ftTextRetired .= $ftText.$cntTiAll.' inactive title'.Pluralize($cntTiAll).'<br>';
+			$arTiInact[$id] = $arRow;
 		    }
-		    $ftText = '<h3>Active Topics</h3>'.$ftTextActive.'<h3>Inactive Topics</h3>'.$ftTextRetired;
 		}
-		$ftTopicText = $ftText;
-	    } else {
-		$ftTopicText = 'No matching topics found.';
-	    }
 
-	    $out .= <<<__END__
-<table>
-  <tr bgcolor="#440088"><th colspan=2>Topic Search</th></tr>
-  <tr bgcolor="#000000"><td colspan=2>$ftTopicText</td></tr>
-  <tr bgcolor="#440088"><th colspan=2>Title Search</th></tr>
-  <tr bgcolor="#440066"><th>Names</th><th>Thumbnails</th></tr>
-__END__;
-	    if (!empty($ftTitleMsg)) {
-		$out .= '<tr bgcolor="#440066"><td colspan=2>'.$ftTitleMsg.'</td></tr>';
+		// SHOW ACTIVE TITLES (thumbnails and text)
+
+		$htImgAvail = NULL;
+		$htTitles = NULL;
+		foreach ($arTiAvail as $id => $arRow) {
+		    $rsTi->Values($arRow);
+
+		    // build thumbnail display
+		    $htImgAvail .= $rsTi->RenderImages_forRow(clsImages::SIZE_THUMB);
+
+		    // build text listing also
+		    $sName = $rsTi->NameStr();
+		    $sCatNum = $rsTi->CatNum();
+		    $htLink = $rsTi->ShopLink($sCatNum);
+		    $sStats = $tTitles->StatString_forTitle($id);
+		    $htTitles .= "\n$htLink &ldquo;$sName&rdquo; - $sStats<br>";
+		}
+		if (is_null($htImgAvail)) {
+		    $ht .= $oSkin->SectionHdr('No active titles found.');
+		} else {
+		    $ht .= $oSkin->SectionHdr('&darr; Found Titles - Available')
+		    .'<p class="catalog-summary">'
+		    .$htTitles
+		    .$htImgAvail
+		    .'</p>';
+		}
+
+		// SHOW INACTIVE TITLES (text only)
+
+		$htTitles = NULL;
+		foreach ($arTiInact as $id => $arRow) {
+		    $rsTi->Values($arRow);
+		    $sName = $rsTi->NameStr();
+		    $sCatNum = $rsTi->CatNum();
+		    $htLink = $rsTi->ShopLink($sCatNum);
+		    // TODO
+		    $htTitles .= "\n$htLink &ldquo;$sName&rdquo;<br>";
+		}
+		if (!is_null($htTitles)) {
+		    $ht .= $oSkin->SectionHdr('&darr; Found Titles - <b>Not</b> Available')
+		      .'<p class="catalog-summary"><small>'
+		      .'These titles are <b>not</b> currently available:<br>'
+		      .$htTitles
+		      .'</small>'
+		      .'</p>'
+		      ;
+		}
 	    }
-	    $out .= '<tr><td bgcolor="#000000" valign=top>'.$ftTitleText.'</td><td valign=top>'.$ftTitleImgs.'</td></tr>';
-	    $out .= '</table>';
-	*/
 	}
-	$this->Skin()->Content('main',$ht);
+	$oSkin->Content('main',$ht);
     }
 }
