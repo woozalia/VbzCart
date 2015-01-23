@@ -497,8 +497,8 @@ __END__;
 	$htSupPO = htmlspecialchars($this->SuppPONum);
 	$htSupOr = htmlspecialchars($this->SuppOrdNum);
 	$htCarrier = htmlspecialchars($this->CarrierDescr);
-	$htCostMerch = clsMoney::BasicFormat($this->TotalCalcMerch);	// calculated cost of merchandise
-	$htCostFinal = clsMoney::BasicFormat($this->TotalEstFinal);	// estimated final total (s/h usually uncertain)
+	$htCostMerch = cCartLine_form::FormatMoney($this->TotalCalcMerch);	// calculated cost of merchandise
+	$htCostFinal = cCartLine_form::FormatMoney($this->TotalEstFinal);	// estimated final total (s/h usually uncertain)
 	$htPayMethod = htmlspecialchars($this->PayMethod);
 	if ($doEdit) {
 	    //$arLink = $oPage->PathArgs(array('page','id'));
@@ -659,14 +659,14 @@ __END__;
 	if (is_null($this->objFlds)) {
 	    $objForm = new clsForm_recs($this);
 
-	    $objForm->AddField(new clsField('PurchOrdNum'),	new clsCtrlHTML());
-	    $objForm->AddField(new clsField('SuppOrdNum'),	new clsCtrlHTML(array('size'=>'20')));
-	    $objForm->AddField(new clsField('SuppPONum'),	new clsCtrlHTML(array('size'=>'20')));
-	    $objForm->AddField(new clsField('CarrierDescr'),	new clsCtrlHTML(array('size'=>'20')));
+	    $objForm->AddField(new clsField('PurchOrdNum'),		new clsCtrlHTML());
+	    $objForm->AddField(new clsField('SuppOrdNum'),		new clsCtrlHTML(array('size'=>'20')));
+	    $objForm->AddField(new clsField('SuppPONum'),		new clsCtrlHTML(array('size'=>'20')));
+	    $objForm->AddField(new clsField('CarrierDescr'),		new clsCtrlHTML(array('size'=>'20')));
 	    $objForm->AddField(new clsFieldNum('TotalCalcMerch'),	new clsCtrlHTML(array('size'=>'6')));
 	    $objForm->AddField(new clsFieldNum('TotalEstFinal'),	new clsCtrlHTML(array('size'=>'6')));
 	    $objForm->AddField(new clsField('PayMethod'),		new clsCtrlHTML(array('size'=>'20')));
-	    $objForm->AddField(new clsFieldTime('WhenOrdered'),	new clsCtrlHTML());
+	    $objForm->AddField(new clsFieldTime('WhenOrdered'),		new clsCtrlHTML());
 	    $objForm->AddField(new clsFieldTime('WhenConfirmed'),	new clsCtrlHTML());
 	    $objForm->AddField(new clsFieldTime('WhenKilled'),		new clsCtrlHTML());
 	    $objForm->AddField(new clsFieldTime('WhenClosed'),		new clsCtrlHTML());
@@ -728,8 +728,8 @@ __END__;
 		$qtyCust = $rcLine->Value('QtyCust');
 		$qtyOrd = $rcLine->Value('QtyOrd');
 		$qtyExp = $rcLine->Value('QtyExp');
-		$ftIsGone = $rcLine->Value('isGone')?'&radic':'';
-		$ftCostExp = clsMoney::BasicFormat($rcLine->Value('CostExpPer'));
+		$ftIsGone = clsHTML::fromBool($rcLine->Value('isGone'));
+		$ftCostExp = cCartLine_form::FormatMoney($rcLine->Value('CostExpPer'));
 		$strNotes = $rcLine->Value('Notes');
 
 		$out .= <<<__END__

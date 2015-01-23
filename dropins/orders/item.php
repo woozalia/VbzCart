@@ -118,18 +118,20 @@ class VCA_OrderItems extends clsOrderLines {
 
 }
 class VCA_OrderItem extends clsOrderLine {
+    private $doNewEntry;
 
     // ++ INITIALIZATION ++ //
 
     private $rcOrd;
     protected function InitVars() {
 	$this->rcOrd = NULL;
+	$this->doNewItem = FALSE;
 	parent::InitVars();
     }
 
     // -- INITIALIZATION -- //
     // ++ BOILERPLATE ++ //
-
+/*
     protected function Log() {
 	if (!is_object($this->logger)) {
 	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
@@ -148,8 +150,18 @@ class VCA_OrderItem extends clsOrderLine {
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
 	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
-
+*/
     // -- BOILERPLATE -- //
+    // ++ OPTIONS ++ //
+
+    public function Want_ShowNewEntry($bShow=NULL) {
+	if (!is_null($bShow)) {
+	    $this->doNewEntry = $bShow;
+	}
+	return $this->doNewEntry;
+    }
+
+    // -- OPTIONS -- //
     // ++ FIELD ACCESS ++ //
 
 
@@ -250,25 +262,23 @@ class VCA_OrderItem extends clsOrderLine {
       HISTORY:
 	2011-03-23 adapted from VbzAdminItem to VbzAdminOrderItem
     */
-    private function BuildEditForm() {
-	global $vgOut;
+    private function EditForm() {
+	if (is_null($this->frmEdit)) {
+	    $frm = new clsForm_recs($this);
 
-	if (is_null($this->objForm)) {
-	    // create fields & controls
-	    $objForm = new clsForm_DataSet($this,$vgOut);
+	    $frm->AddField(new clsField('Seq'),	new clsCtrlHTML(array('size'=>3)));
+	    $frm->AddField(new clsField('ID_Item'),	new clsCtrlHTML(array('size'=>8)));
+	    $frm->AddField(new clsField('CatNum'),	new clsCtrlHTML());
+	    $frm->AddField(new clsFieldNum('Descr'),	new clsCtrlHTML(array('size'=>40)));
+	    $frm->AddField(new clsField('QtyOrd'),	new clsCtrlHTML(array('size'=>3)));
+	    $frm->AddField(new clsFieldNum('Price'),	new clsCtrlHTML(array('size'=>5)));
+	    $frm->AddField(new clsFieldNum('ShipPkg'),	new clsCtrlHTML(array('size'=>5)));
+	    $frm->AddField(new clsFieldNum('ShipItm'),	new clsCtrlHTML(array('size'=>5)));
+	    $frm->AddField(new clsField('Notes'),	new clsCtrlHTML(array('size'=>40)));
 
-	    $objForm->AddField(new clsField('Seq'),		new clsCtrlHTML(array('size'=>3)));
-	    $objForm->AddField(new clsField('ID_Item'),	new clsCtrlHTML(array('size'=>8)));
-	    $objForm->AddField(new clsField('CatNum'),		new clsCtrlHTML());
-	    $objForm->AddField(new clsFieldNum('Descr'),	new clsCtrlHTML(array('size'=>40)));
-	    $objForm->AddField(new clsField('QtyOrd'),		new clsCtrlHTML(array('size'=>3)));
-	    $objForm->AddField(new clsFieldNum('Price'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsFieldNum('ShipPkg'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsFieldNum('ShipItm'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsField('Notes'),		new clsCtrlHTML(array('size'=>40)));
-
-	    $this->objForm = $objForm;
+	    $this->frmEdit = $frm;
 	}
+	return $this->frmEdit;
     }
     /*----
       ACTION: Save user changes to the record
@@ -284,19 +294,15 @@ class VCA_OrderItem extends clsOrderLine {
 	$vgOut->AddText($out);
     }
     public function AdminPage() {
-	global $wgOut,$wgRequest;
-	global $vgPage,$vgOut;
-
-	$vgPage->UseHTML();
 	$out = NULL;
+	$oPage = $this->Engine()->App()->Page();
 
-	$doEdit = $vgPage->Arg('edit');
-	$doSave = $wgRequest->GetBool('btnSave');
+	$doEdit = $oPage->PathArg('edit');
+	$doSave = $clsHTTP::Request()->GetBool('btnSave');
 
 	// save edits before showing events
 	$ftSaveStatus = NULL;
 	if ($doEdit || $doSave) {
-	    $this->BuildEditForm();
 	    if ($doSave) {
 		$ftSaveStatus = $this->AdminSave();
 	    }
@@ -385,10 +391,11 @@ class VCA_OrderItem extends clsOrderLine {
       INPUT:
 	$iArgs needs to be documented
     */
-    public function AdminTable_forOrder(array $iArgs=NULL) {
+    public function AdminTable_forOrder() {
 	$oPage = $this->Engine()->App()->Page();
+	$out = NULL;
 
-	$doNew = isset($iArgs['add']);	// displaying extra stuff for adding new line
+	$doNew = $this->Want_ShowNewEntry();	// displaying extra stuff for adding new line
 	$nRows = $this->RowCount();
 	$doRows = $nRows > 0;
 
@@ -530,8 +537,7 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $strDescr = $iArgs->Value('descr');
-	    $out .= "\nNo items$strDescr!";
+	    $out .= "\nNo items found.";
 	}
 	return $out;
     }

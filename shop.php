@@ -5,8 +5,6 @@
     2010-10-28 kluged the blank-order-email problem
     2010-12-24 Fixed calls to Update() so they always pass arrays
     2011-03-31 created AddMoney() and IncMoney()
-  KLUGES:
-    RenderReceipt() and TemplateVars() both have to reload the current record, which shouldn't be necessary.
 */
 
 // http query argument names

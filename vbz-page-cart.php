@@ -51,6 +51,7 @@ class clsPageBrowse_Cart extends clsVbzPage_Browse {
 	$tCarts = $this->Data()->Carts();
 	$tCarts->CheckData();	// check for any form data (added items, recalculations, etc.)
 
-	$this->Skin()->Content('cart',$this->Data()->Carts()->RenderCart());
+	// this is the regular shopping cart -- it should be editable
+	$this->Skin()->Content('cart',$tCarts->RenderCart(TRUE));
     }
 }

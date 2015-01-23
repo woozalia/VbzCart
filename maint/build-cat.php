@@ -3,7 +3,6 @@
  NAME: build-cat
  PURPOSE: maintenance script for building catalog from scources
  AUTHOR: Woozle (Nick) Staddon
- REQUIRES: data.php, site.php, store.php
  VERSION:
   2010-06-27 Excerpting relevant code from SpecialVbzAdmin
   2010-11-10 "data_tables" has been renamed "cache_tables"

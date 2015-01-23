@@ -4,27 +4,16 @@
     2014-02-13 split card classes off from cust.php
 */
 class VCT_CustCards extends clsCustCards_dyn {
+
+    // ++ SETUP ++ //
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->ClassSng('VCR_CustCard');	// override parent
-	  $this->ActionKey('card');
+	  $this->ActionKey(KS_ACTION_CUST_CARD);
     }
-    /*----
-      ACTION: Find a matching card from the given number
-      RETURNS: DataSet of matching cards (should be maximum of one row)
-      HISTORY:
-	2011-03-23 Apparently this method existed in the past but got deleted somehow.
-	  Rewriting it from scratch.
-	2011-12-18 commenting out -- this function already exists in clsCustCards_dyn
-    */
-/*
-    public function Find($iNum) {
-	//$num = str_replace (array(' ','-','.'),'',$iNum);
-	$num = self::Searchable($iNum);
-	$rs = $this->GetData('CardNum="'.$iNum.'"');
-	return $rs;
-    }
-*/
+
+    // -- SETUP -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -37,6 +26,24 @@ class VCT_CustCards extends clsCustCards_dyn {
     // -- DROP-IN API -- //
     // ++ ADMIN WEB UI ++ //
 
+    protected function AdminPage() {
+	$arCols = array(
+	  'ID'		=> '#',
+	  'WhenEnt'	=> 'Entered',
+	  'WhenUpd'	=> 'Updated',
+	  'ID_Cust'	=> 'Cust',
+	  'ID_Name'	=> 'Name',
+	  'ID_Addr'	=> 'Addr',
+	  'CardNum'	=> 'Number',
+	  'CardExp'	=> 'Exp',
+	  'OwnerName'	=> 'Owner'
+	  );
+	$rs = $this->GetData();
+	$out = $rs->AdminRows($arCols);
+	return $out;
+    }
+
+    // TODO: rewrite
     public function ListPage() {
     // PURPOSE: interface for encrypting credit card data
 	global $wgOut;
@@ -186,6 +193,7 @@ class VCT_CustCards extends clsCustCards_dyn {
     /*----
       ACTION: Encrypt data in all rows and save to Encrypted field
     */
+    /* 2015-01-04 These are no longer used; they have been moved to a CLI utility class.
     public function DoAdminEncrypt() {
 	global $wgOut;
 
@@ -204,9 +212,9 @@ class VCT_CustCards extends clsCustCards_dyn {
 		$row = $objRow->Row;
 
 		$strNumEncrOld = $row['Encrypted'];
-		$objRow->Encrypt(TRUE,FALSE);
+		$sEncNew = $objRow->Encrypt(TRUE,FALSE);
 		$strNumEncrNew = $objRow->Encrypted;
-		if ($strNumEncrOld != $strNumEncrNew) {
+		if ($strNumEncrOld != $sEncNew) {
 		    $intChanged++;
 		}
 	    }
@@ -247,13 +255,13 @@ class VCT_CustCards extends clsCustCards_dyn {
 	    while ($objRow->NextRow()) {
 		$intFound++;
 		$strPlainOld = $objRow->SingleString();
-		$strEncrypted = $objRow->Encrypted;
+		$strEncrypted = $objRow->Encrypted();
 		if (empty($strEncrypted)) {
 		    $intBlank++;
 		} else {
 		    $objRow->Decrypt(FALSE,$iPvtKey);	// don't overwrite unencrypted data
-		    $strNumEncrNew = $objRow->Encrypted;
-		    $strPlainNew = $objRow->_strPlain;
+		    $strNumEncrNew = $objRow->Encrypted();
+		    $strPlainNew = $objRow->PlainData();
 		    if ($strPlainOld == $strPlainNew) {
 			$intMatched++;
 		    } else {
@@ -343,37 +351,26 @@ class VCT_CustCards extends clsCustCards_dyn {
 	    $wgOut->addWikiText('No credit cards to decrypt!',TRUE);
 	}
     }
+    */
 
     // -- ADMIN WEB ACTIONS -- //
 }
 class VCR_CustCard extends clsCustCard {
-    /*----
-      HISTORY:
-	2010-10-11 Replaced existing code with call to static function
-    */
-//    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-//	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-//    }
-    /*----
-      HISTORY:
-	2011-02-16 Replaced existing code with boilerplate/helper code
-    */ /*
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
-	}
-	return $this->logger;
+    private $frmEdit;
+
+    protected function InitVars() {
+	parent::InitVars();
+	$this->frmEdit = NULL;
     }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
+
+    // ++ BOILERPLATE HELPERS ++ //
+
+    protected function AdminLink_name() {
+	$sText = $this->SafeString();
+	return $this->AdminLink($sText);
     }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-    public function EventListing() {
-	return $this->Log()->LogObj()->EventListing();
-    }
-    */
+
+    // -- BOILERPLATE HELPERS -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -406,7 +403,7 @@ class VCR_CustCard extends clsCustCard {
     }
     protected function CardExpiration_short() {
 	$sCardExp = $this->CardExpiration_string();
-	if ($vCardExp == '') {
+	if ($sCardExp == '') {
 	    $ftExpVal = '';
 	} else {
 	    $utExpVal = strtotime($sCardExp);
@@ -428,6 +425,18 @@ class VCR_CustCard extends clsCustCard {
     }
 
     // -- DATA FIELD ACCESS -- //
+    // ++ DATA FIELD CALCULATIONS ++ //
+
+    protected function Name_AdminLink($sNone='<i>n/a</i>') {
+	$rcName = $this->NameRecord();
+	if (is_null($rcName)) {
+	    return $sNone;
+	} else {
+	    return $rcName->AdminLink_name();
+	}
+    }
+
+    // -- DATA FIELD CALCULATIONS -- //
     // ++ DATA TABLE ACCESS ++ //
 
     protected function CustomerTable($id=NULL) {
@@ -461,6 +470,7 @@ class VCR_CustCard extends clsCustCard {
     public function Addr() {
 	throw new exception ('Addr() has been renamed AddressRecord().');
     }
+/* 2014-09-18 This seems to awkwardly duplicate functionality defined by ancestor.
     protected function AddressRecord() {
 	$doLoad = TRUE;
 	if (isset($this->rcAddr)) {
@@ -472,7 +482,7 @@ class VCR_CustCard extends clsCustCard {
 	    $this->rcAddr = $this->AddressTable($this->AddressID());
 	}
 	return $this->rcAddr;
-    }
+    } */
     public function Name() {
 	throw new exception ('Name() has been renamed NameRecord().');
     }
@@ -484,7 +494,12 @@ class VCR_CustCard extends clsCustCard {
 	    }
 	}
 	if ($doLoad) {
-	    $this->rcName = $this->NameTable($this->NameID());
+	    $idName = $this->NameID();
+	    if (is_null($idName)) {
+		$this->rcName = NULL;
+	    } else {
+		$this->rcName = $this->NameTable($idName);
+	    }
 	}
 	return $this->rcName;
     }
@@ -521,15 +536,9 @@ class VCR_CustCard extends clsCustCard {
 	$doEdit = $oPage->PathArg('edit');
 	//$htPath = $vgPage->SelfURL(array('edit'=>!$doEdit));
 	$id = $this->KeyValue();
-/*
-	$objPage = new clsWikiFormatter($vgPage);
-	//$objSection = new clsWikiAdminSection($strName);
-	$objSection = new clsWikiSection($objPage,'Credit Card ID '.$id);
-	//$out = $objSection->HeaderHtml_Edit();
-	$objSection->ToggleAdd('edit');
-	//$objSection->ActionAdd('view');
-	$out = $objSection->Generate();
-*/
+
+	// set up header action-links
+	clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
 	$arActs = array(
 	  // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL,$iDescr=NULL)
 	  new clsActionLink_option(array(),'edit')
@@ -539,7 +548,7 @@ class VCR_CustCard extends clsCustCard {
 
 	$rcCust = $this->CustomerRecord();
 	$rcAddr = $this->AddressRecord();
-	$rcName = $this->NameRecord();
+	//$rcName = $this->NameRecord();
 
 	$id = $this->KeyValue();
 
@@ -552,33 +561,49 @@ class VCR_CustCard extends clsCustCard {
 	$ftNotes = htmlspecialchars($this->Notes());
 
 	if ($doEdit) {
-	    $out .= '<form method=post action="'.$htPath.'">';
+	    $out .= '<form method=post>';
+	    /*
 	    $ftTag = '<input name="tag" size=5 value="'.$ftTagVal.'">';
 	    $ftCust = '<input name="cust" size=5 value="'.$this->CustID().'">';	// LATER: drop-down
 	    $ftAddr = '<input name="addr" size=5 value="'.$this->AddrID().'">';	// LATER: drop-down
 	    $ftName = '<input name="name" size=5 value="'.$this->NameID().'">';	// LATER: drop-down
 	    $ftNum = '<input name="num" size=19 value="'.$ftNumVal.'">';
-	    $ftExp = '<input name="exp" size=5 value="'.$ftExpVal.'">';
+	    $ftExp = '<input name="exp" size=5 value="'.$ftCardExp.'">';
 	    $ftCVV = ' CVV <input name="cvv" size=3 value="'.$ftCVVVal.'">';
 	    $ftOwnName = '<input name="owner" size=30 value="'.$ftOwnVal.'">';
 	    $ftAddrTxt = '<textarea name="addrtxt" height=3 width=20>'.$ftAddrVal.'</textarea>';
 	    $ftNotes = '<textarea name="notes" height=3 width=40>'.$ftNotes.'</textarea>';
+	    */
+	    $oForm = $this->EditForm();
+	    $ftTag	= $oForm->RenderControl('Name');
+	    $ftCust	= $oForm->RenderControl('ID_Cust');
+	    $ftAddr	= $oForm->RenderControl('ID_Addr');
+	    $ftName	= $oForm->RenderControl('ID_Name');
+	    $ftNum	= $oForm->RenderControl('CardNum');
+	    $ftExp	= $oForm->RenderControl('CardExp');
+	    $ftCVV	= $oForm->RenderControl('CardCVV');
+	    $ftOwnName	= $oForm->RenderControl('OwnerName');
+	    $ftAddrTxt	= $oForm->RenderControl('Address');
+	    $ftNotes	= $oForm->RenderControl('Notes');
+	    $ftStatus	= $oForm->RenderControl('isActive').'Active';
 	} else {
 	    $ftTag = $ftTagVal;
 	    $ftCust = $rcCust->AdminLink_name();
 	    $ftAddr = $rcAddr->AdminLink($rcAddr->AsSingleLine(' / '));
-	    $ftName = $rcName->AdminLink_name();
+	    $ftName = $this->Name_AdminLink();
 	    $ftNum = $ftNumVal;
-	    $ftExp = $ftExpVal;
+	    $ftExp = $ftCardExp;
 	    $ftCVV = empty($ftCVVVal)?'':' CVV '.$ftCVVVal;
 	    $ftOwnName = $ftOwnVal;
 	    $ftAddrTxt = '<pre>'.$ftAddrVal.'</pre>';
 	    $ftNotes = $ftNotes;
+	    $ftStatus = $this->IsActive()?'<span class="state-active">active</span>':'<span class="state-inactive">inactive</span>';
 	}
 	$out .= <<<__END__
 <table>
   <tr><td align=right><b>ID</b>:</td><td>$id</td></tr>
   <tr><td align=right><b>Tag</b>:</td><td>$ftTag</td></tr>
+  <tr><td align=right><b>Status</b>:</td><td>$ftStatus</td></tr>
   <tr><td align=right><b>Customer</b>:</td><td>$ftCust</td></tr>
   <tr><td align=right><b>Address</b>:</td><td>$ftAddr</td></tr>
   <tr><td align=right><b>Name</b>:</td><td>$ftName</td></tr>
@@ -603,98 +628,32 @@ __END__;
 	  ;
 	return $out;
     }
-/* 2010-10-25 wrote this accidentally. Try it sometime.
-    public function AdminPage() {
-	global $vgPage,$vgOut;
-
-	if (is_null($this->WhenXmitted)) {
-	    $strActDescr = 'Process ';
-	} else {
-	    if (is_null($this->WhenDecided)) {
-		$strActDescr = 'Confirm ';
-	    } else {
-		$strActDescr = '';
-	    }
-	}
-	$vgPage->UseHTML();
-	$objPage = new clsWikiFormatter($vgPage);
-	$objSection = new clsWikiSection($objPage,'Credit Card Charge',NULL,3);
-	//$objSection->ToggleAdd('edit','edit image records','edit.img');
-	$out .= $objSection->Generate();
-
-	$strCard = $this->CardTypeName().' '.$this->CardNum.$vgOut->Italic(' exp ').$this->ShortExp();
-	$out .= $vgOut->TableOpen();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('<b>Customer ID</b>:','align=right');
-	  $out .= $vgOut->TblCell($this->CustObj()->AdminLink());
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('<b>Name on card</b>:','align=right');
-	  $out .= $vgOut->TblCell($this->OwnerName);
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('record:','align=right');
-	  $out .= $vgOut->TblCell($this->NameObj()->AdminLink());
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('<b>Number</b>:','align=right');
-	  $out .= $vgOut->TblCell($strCard);
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('<b>Address</b>:','align=right');
-	  $out .= $vgOut->TblCell($this->Address);
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TblRowOpen();
-	  $out .= $vgOut->TblCell('record:','align=right');
-	  $out .= $vgOut->TblCell($this->AddrObj()->AdminLink());
-	$out .= $vgOut->TblRowShut();
-	$out .= $vgOut->TableShut();
-
-	$vgOut->AddText($out);
+    private function AdminSave() {
+	$out = $this->EditForm()->Save();
+	return $out;
     }
-*/
-    public function AdminSave() {
-	global $wgRequest;
+    private function EditForm() {
+	if (is_null($this->frmEdit)) {
+	    $frm = new clsForm_recs($this);
+	    $frm->AddField(new clsFieldTime('WhenEnt'),	new clsCtrlHTML());
+	    $frm->AddField(new clsFieldTime('WhenUpd'),	new clsCtrlHTML());
+	    $frm->AddField(new clsFieldTime('WhenInvalid'),	new clsCtrlHTML());
+	    $frm->AddField(new clsField('Name'),		new clsCtrlHTML(array('size'=>5)));
+	    $frm->AddField(new clsFieldNum('ID_Cust'),		new clsCtrlHTML());
+	    $frm->AddField(new clsFieldNum('ID_Name'),		new clsCtrlHTML());
+	    $frm->AddField(new clsFieldNum('ID_Addr'),		new clsCtrlHTML());
+	    $frm->AddField(new clsField('CardNum'),		new clsCtrlHTML(array('size'=>20)));
+	    $frm->AddField(new clsFieldTime('CardExp'),	new clsCtrlHTML(array('size'=>5)));
+	    $frm->AddField(new clsField('CardCVV'),		new clsCtrlHTML(array('size'=>3)));
+	    $frm->AddField(new clsField('CardSafe'),		new clsCtrlHTML(array('size'=>10)));
+	    $frm->AddField(new clsField('OwnerName'),		new clsCtrlHTML(array('size'=>40)));
+	    $frm->AddField(new clsField('Address'),		new clsCtrlHTML_TextArea(array('height'=>3,'width'=>50)));
+	    $frm->AddField(new clsFieldBool_Int('isActive'),	new clsCtrlHTML_CheckBox());
+	    $frm->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea(array('height'=>3,'width'=>50)));
 
-      // capture form input
-	$txtTag = $wgRequest->GetText('tag');
-	$idCust = $wgRequest->GetIntOrNull('cust');
-	$idAddr = $wgRequest->GetIntOrNull('addr');
-	$idName = $wgRequest->GetIntOrNull('name');
-	$txtNum = $wgRequest->GetText('num');
-	$txtExp = $wgRequest->GetText('exp');
-	$dtExp = clsCustCards::ExpDate($txtExp);
-	$sqlExp = is_object($dtExp)?($dtExp->Format('Y-m-d')):'';
-	$txtCVV = $wgRequest->GetText('cvv');
-	$txtOwnName = $wgRequest->GetText('owner');
-	$txtAddrTxt = $wgRequest->GetText('addrtxt');
-	$txtNotes = $wgRequest->GetText('notes');
-
-      // build update request
-	$arUpd = array(
-	  'Name'	=> SQLValue($txtTag),
-	  'ID_Cust'	=> SQLValue($idCust),
-	  'ID_Addr'	=> SQLValue($idAddr),
-	  'ID_Name'	=> SQLValue($idName),
-	  'CardNum'	=> SQLValue($txtNum),	// LATER: strip out punctuation
-	  'CardExp'	=> SQLValue($sqlExp),
-	  'CardCVV'	=> SQLValue($txtCVV),
-	  'OwnerName'	=> SQLValue($txtOwnName),
-	  'Address'	=> SQLValue($txtAddrTxt),
-	  'Notes'	=> SQLValue($txtNotes)
-	  );
-	$strDescr = 'admin edit';
-	if (!empty($txtNotes)) {
-	    $strDescr .= ': '.$txtNotes;
+	    $this->frmEdit = $frm;
 	}
-	$arEv = array(
-	  'descr'	=> $strDescr,
-	  'where'	=> __METHOD__,
-	  'code'	=> 'UPD'
-	  );
-	$this->StartEvent($arEv);	// log that we're attempting a change
-	$this->Update($arUpd);		// attempt the edit
-	$this->FinishEvent();		// log completion
+	return $this->frmEdit;
     }
 
     // -- ADMIN WEB UI -- //

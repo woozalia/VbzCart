@@ -44,13 +44,43 @@ abstract class clsVbzPage extends clsPageLogin {
 	  FALSE = just return the existing cart or NULL if there isn't one
     */
     public function CartObj($iRequire) {
-	$oSess = $this->App()->Session();
-	if ($iRequire) {
-	    return $oSess->CartRecord_toUse();
-	} else {
-	    return $oSess->CartRecord_Current();
-	}
+	throw new exception('CartObj() is deprecated.');
     }
+    protected function SessionRecord() {
+	return $this->App()->Session();
+    }
+
+    // TODO: The CartRecord_* methods are still confusingly named. Figure out better names and rename them.
+
+    /*----
+      RETURNS: the current cart record, if usable; otherwise NULL.
+    */
+    public function CartRecord_current_orNull() {
+	$rcSess = $this->SessionRecord();
+	return $rcSess->CartRecord_Current();
+    }
+    /*----
+      RETURNS: the current cart record, if usable.
+	If not usable, throws an exception.
+    */
+    protected function CartRecord_current_orError() {
+	$rcCart = $this->CartRecord_current_orNull();
+	if (is_null($rcCart)) {
+	    throw new exception('A current cart was expected but not found.');
+	}
+	return $rcCart;
+    }
+    /*----
+      RETURNS: A cart record. If the current one is not usable,
+	then a new one is created.
+    */
+    public function CartRecord_required() {
+	$rcSess = $this->App()->Session();
+	return $rcSess->CartRecord_required();
+    }
+
+    // END TODO
+
     protected function CartID() {
 	$rcCart = $this->CartObj(FALSE);
 	if (is_null($rcCart)) {

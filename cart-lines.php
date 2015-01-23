@@ -171,6 +171,7 @@ class clsShopCartLine extends clsDataSet {
     }
     /*----
       RETURNS: item's per-unit shipping cost
+      TODO: Rename ItemShip_perUnit() -> SH_perItem()
     */
     protected function ItemShip_perUnit() {
 	return $this->ShipCostRecord()->PerItem();
@@ -178,24 +179,10 @@ class clsShopCartLine extends clsDataSet {
     /*----
       RETURNS: item's per-package minimum shipping cost
       PUBLIC so Cart object can access it
+      TODO: Rename ItemShip_perPkg() -> SH_perPkg()
     */
     public function ItemShip_perPkg() {
 	return $this->ShipCostRecord()->PerPkg();
-    }
-    /*----
-      RETURNS: line total sale
-      TODO: rename ItemSale_forQty() -> ItemPrice_forQty()
-      PUBLIC so Cart object can access it
-    */
-    public function ItemSale_forQty() {
-	return $this->ItemPrice() * $this->Qty();
-    }
-    /*----
-      RETURNS: line total per-unit shipping
-      PUBLIC so Cart object can access it
-    */
-    public function ItemShip_perUnit_forQty() {
-	return $this->ItemShip_perUnit() * $this->Qty();
     }
     /*----
       PUBLIC so Cart object can access it for order conversion
@@ -222,6 +209,21 @@ class clsShopCartLine extends clsDataSet {
     }
     public function ItemPriceBuyQty() {
 	return $this->ItemRecord()->PriceBuy() * $this->Qty();
+    }
+    /*----
+      RETURNS: line total sale
+      TODO: rename ItemSale_forQty() -> ItemPrice_forQty()
+      PUBLIC so Cart object can access it
+    */
+    public function ItemSale_forQty() {
+	return $this->ItemPrice() * $this->Qty();
+    }
+    /*----
+      RETURNS: line total per-unit shipping
+      PUBLIC so Cart object can access it
+    */
+    public function ItemShip_perUnit_forQty() {
+	return $this->ItemShip_perUnit() * $this->Qty();
     }
     protected function UpdateArray() {
 	$arOut = parent::UpdateArray();
@@ -278,14 +280,37 @@ class clsShopCartLine extends clsDataSet {
     // -- ACTIONS -- //
     // ++ STORE UI ++ //
 
+    /*----
+      PURPOSE: renders header for cart contents table
+      USAGE: Cart or Order
+    */
+    static public function RenderHeader() {
+	throw new exception('CartLine::RenderHeader() is deprecated; call CartDisplay::RenderTableHeader().');
+	$out = <<<__END__
+<tr>
+<th><big>cat #</big></th>
+<th><big>description</big></th>
+<th>price<br>each</th>
+<th><small>per-item<br>s/h ea.</small></th>
+<th>qty.</th>
+<th><small>purchase<br>line total</small></th>
+<th><small>per-item<br>s/h line total</small></th>
+<th>totals</th>
+<th><small>pkg s/h<br>min.</small></th>
+</tr>
+__END__;
+	return $out;
+    }
     /*-----
       PURPOSE: Do calculations necessary for rendering the cart line
       USED BY:
 	* the shopping cart form
 	* the final order display
 	* the conversion from cart to order
+      HISTORY:
+	2014-07-01 disabling this -- this isn't a good way to do what it does
+	2014-09-14 Needed for cart-to-order conversion, so reviving it.
     */
-/* 2014-07-01 disabling this -- this isn't a good way to do what it does
     public function RenderCalc(clsShipZone $iZone) {
 	$rcItem = $this->ItemRecord();
 	//$arItem = $rcItem->DescSpecs();
@@ -307,12 +332,43 @@ class clsShopCartLine extends clsDataSet {
 	$this->ShipItmDest = $rcItem->ShipPriceItem($iZone);
 
 // calculate costs:
-	$this->CostItemQty = $this->Qty() * $this->PriceItem();
-	$this->CostShipQty = $this->Qty() * $this->ShipItmDest();
+	$this->CostItemQty = $this->ItemSale_forQty();
+	$this->CostShipQty = $this->ItemShip_perUnit_forQty();
     }
-*/
+
     public function ItemDescLong_text() {
 	return $this->ItemRecord()->DescLong();
+    }
+    /*----
+      PUBLIC because Cart object calls it to display a static cart at checkout
+      RETURNS: populated rendering object for the current line
+    */
+    public function GetRenderObject_static() {
+	$oLine = new cCartLine_static(
+	  $this->CatNum(),
+	  $this->DescText(),
+	  $this->Qty(),
+	  $this->ItemPrice(),
+	  $this->ItemShip_perUnit(),
+	  $this->ItemShip_perPkg()
+	  );
+	return $oLine;
+    }
+    /*----
+      PUBLIC because Cart object calls it to display an editable cart
+      TODO: There's got to be a cleaner way of adding just one more argument...
+    */
+    public function GetRenderObject_editable() {
+	$oLine = new cCartLine_form(
+	  $this->KeyValue(),
+	  $this->CatNum(),
+	  $this->DescText(),
+	  $this->Qty(),
+	  $this->ItemPrice(),
+	  $this->ItemShip_perUnit(),
+	  $this->ItemShip_perPkg()
+	  );
+	return $oLine;
     }
     /*
       ACTION: Render the current cart line using static HTML (no form elements; read-only)
@@ -323,11 +379,16 @@ class clsShopCartLine extends clsDataSet {
       TODO: This could probably use some rethinking, given other changes.
     */
     public function RenderStatic(/*clsShopCart $iCart*/) {
-	$rcOLine = $this->OrderLineTable()->SpawnItem();
+//	$rcOLine = $this->OrderLineTable()->SpawnItem();
 	//$objZone = $iCart->ShipZoneObj();
 	//$this->RenderCalc($objZone);	// calculate some needed fields
-	$rcOLine->Init_fromCartLine($this);
-	return $rcOLine->RenderStatic();
+
+	// set up a cart-line-display object from the shop-cart-line
+	//$rcItem = $this->ItemRecord();
+
+	//$rcOLine->Init_fromCartLine($this);
+	//return $rcOLine->RenderStatic_row();
+	return $this->GetRenderObject_static()->Render();
     }
     /*----
       ACTION: Render the current cart line as part of an interactive HTML form
@@ -335,6 +396,8 @@ class clsShopCartLine extends clsDataSet {
     public function RenderForm(clsShopCart $iCart) {
 // calculate display fields:
 	if ($this->Qty) {
+	    $oLine = $this->GetRenderObject_editable();
+	    /*
 	    //$this->RenderCalc($iCart->ShipZoneObj());
 
 	    //$htLineName = 'cart-line-'.$this->Seq;
@@ -382,10 +445,15 @@ class clsShopCartLine extends clsDataSet {
 </tr>
 __END__;
 	    return $out;
+	    */
+	    return $oLine->Render();
 /**/
 	}
     }
-    public function RenderText(/*clsShopCart $iCart,*/$sFmt) {
+    /*
+      2014-10-19 Disabled this because email confirmation should always be generated from Order records.
+
+    public function RenderText($sFmt) {
 	if ($this->Qty) {
 	    //$this->RenderCalc($iCart->ShipZoneObj());
 
@@ -408,11 +476,19 @@ __END__;
 
 	    $ftDesc = $this->DescText();
 
-	    $out = "\n".sprintf($sFmt,$ftCatNum,$ftPrice,$ftPerItm,$ftQty,$ftPriceQty,$ftPerItmQty,$ftLineTotal);
+	    $out = "\n".sprintf($sFmt,
+	      $ftCatNum,
+	      $ftPrice,
+	      $ftPerItm,
+	      $ftQty,
+	      $ftPriceQty,
+	      $ftPerItmQty,
+	      $ftLineTotal
+	      );
 	    $out .= "\n - $ftDesc";
 	    return $out;
 	}
-    }
+    } */
 
     // -- STORE UI -- //
 }

@@ -170,6 +170,27 @@ class clsVbzData extends clsDatabase_UserAuth {
     }
 
     // -- DATA TABLE ACCESS -- //
+    // ++ GLOBAL SETTINGS ++ //
+
+    private $fsPubKey;
+    public function PublicKey_FileSpec() {
+	if (empty($this->fsPubKey)) {
+	    $fn = $this->VarsGlobal()->Val('public_key.fspec');
+	    $fs =  KFP_KEYS.'/'.$fn;
+	    $this->fsPubKey = $fs;
+	}
+	return $this->fsPubKey;
+    }
+    private $sPubKey;
+    public function PublicKey_string() {
+	if (empty($this->sPubKey)) {
+	    $fs = $this->PublicKey_FileSpec();
+	    $this->sPubKey = file_get_contents($fs);
+	}
+	return $this->sPubKey;
+    }
+
+    // -- GLOBAL SETTINGS -- //
 
     // SPECIALIZED STUFF
     public function LogEvent($iWhere,$iParams,$iDescr,$iCode,$iIsError,$iIsSevere) {
@@ -185,24 +206,6 @@ class clsVbzData extends clsDatabase_UserAuth {
 	    )
 	  );
 	return $rcEv;
-    }
-    public function CryptObj() {
-	if (!isset($this->objCrypt)) {
-//	    $this->objCrypt = new Cipher($this->strCryptKey);
-	    $this->objCrypt = new vbzCipher();
-	    $objVars = $this->VarsGlobal();
-/* 2013-09-09 no longer used
-	    if ($objVars->Exists('crypt_seed')) {
-		$strSeed = $objVars->Val('crypt_seed');
-		$this->objCrypt->Seed($strSeed);
-	    } else {
-		$strSeed = $this->objCrypt->MakeSeed();
-		$objVars->Val('crypt_seed',$strSeed);
-	    }
-*/
-	    $intOrdLast = $objVars->Val('ord_seq_prev');
-	}
-	return $this->objCrypt;
     }
 }
 

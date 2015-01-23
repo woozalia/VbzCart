@@ -7,7 +7,8 @@
 
 // CONSTANTS
 
-define('KS_PAGE_KEY_ORDER',	'ord');
+define('KS_PAGE_KEY_ORDER',		'ord');
+define('KS_PAGE_KEY_ORDER_MSG',	'omsg');
 
 define('KS_CLASS_ORDERS',		'VCM_Orders');
 define('KS_CLASS_ORDER_CHARGES',	'VCT_OrderChgs');
@@ -19,9 +20,14 @@ define('KS_CLASS_ORDER_TRX_TYPES',	'VCT_OrderTrxTypes');
 
 // MENU
 
-$om = new clsMenuLink(NULL, 'ord','Orders','Order Management','management of customer orders');
-  $om->Controller(KS_CLASS_ORDERS);
+$om = new clsMenuFolder(NULL, '*ord','Orders','Customer Orders','manage customer orders');
   $om->NeedPermission(KS_PERM_ORDER_ADMIN);
+  $omi = new clsMenuLink($om, KS_PAGE_KEY_ORDER,'Orders','Order Management','management of customer orders');
+    $omi->Controller(KS_CLASS_ORDERS);
+    $omi->NeedPermission(KS_PERM_ORDER_ADMIN);
+  $omi = new clsMenuLink($om, KS_PAGE_KEY_ORDER_MSG,'Messages','Order Messages','messages attached to customer orders');
+    $omi->Controller(KS_CLASS_ORDER_MSGS);
+    $omi->NeedPermission(KS_PERM_ORDER_ADMIN);
 /*
 $om = new clsMenuFolder(NULL, '*ord','Orders','Order Management','management of customer orders');
   $omi = new clsMenuLink($om,KS_ACTION_STOCK_PLACE,'Places','Stock Places','places where bins (stock boxes) may be found');
@@ -48,7 +54,6 @@ $arDropin = array(
     'item.php'		=> array(KS_CLASS_ORDER_ITEMS),
     'msg.php'		=> array(KS_CLASS_ORDER_MSGS),
     'pull.php'		=> array(KS_CLASS_ORDER_PULLS),
-    'total.php'		=> array('clsTotals'),
     'trxact.php'	=> array(KS_CLASS_ORDER_TRXS),
      ),
   'menu'	=> $om,

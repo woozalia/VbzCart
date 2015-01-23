@@ -359,13 +359,13 @@ class clsItem extends clsDataSet {
       RETURNS: The item's base per-item shipping price (no zone calculations)
     */
     public function ShPerItm() {
-	return $this->ShipCostObj()->PerItem();
+	return $this->ShipCostRecord()->PerItem();
     }
     /*----
       RETURNS: The item's per-package shipping price, with no zone calculations
     */
     public function ShPerPkg() {
-	return $this->ShipCostObj()->PerPkg();
+	return $this->ShipCostRecord()->PerPkg();
     }
 
     // -- FIELD CALCULATIONS -- //

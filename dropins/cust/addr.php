@@ -76,6 +76,13 @@ class VCR_MailAddr extends clsCustAddr {
 
     // ++ BOILERPLATE HELPERS ++ //
 
+    public function AdminLink($sText=NULL,$sPopup=NULL,array $arArgs=NULL) {
+	$out = parent::AdminLink($sText,$sPopup,$arArgs);
+	if ($this->IsVoid()) {
+	    $out = "<span class='voided'>$out</span>";
+	}
+	return $out;
+    }
     public function AdminLink_name() {
 	$strVal = $this->AsSingleLine();
 	return $this->AdminLink($strVal);
@@ -172,7 +179,7 @@ class VCR_MailAddr extends clsCustAddr {
 	    $ftDescr	= $objForm->Render('Descr');
 	} else {
 	    $ftName	= $this->Value('Name');
-	    $ftCust	= $this->CustObj()->AdminLink();
+	    $ftCust	= $this->CustomerRecord()->AdminLink();
 	    $ftWhenAct	= $this->Value('WhenAct');
 	    $ftWhenExp	= $this->Value('WhenExp');
 	    //$ftFull	= $this->Value('Full');

@@ -11,17 +11,6 @@
 */
 class VCA_Items extends clsItems {
 
-    // ++ STATIC ++ //
-    /*----
-      HISTORY:
-	2010-10-13 Re-enabled as a boilerplate call
-    */
-/* 2014-01-20 how is this supposed to work?
-    public static function AdminLink($iID,$iShow=NULL,$iPopup=NULL) {
-	return clsMenuData_helper::AdminLink($iID,$iShow,$iPopup);
-    }
-*/
-    // -- STATIC -- //
     // ++ INITIALIZATION ++ //
 
     public function __construct($iDB) {

@@ -230,29 +230,30 @@ class VCR_RstkReqItem extends clsRstkReqItem {
     // ++ ADMIN WEB INTERFACE ++ //
 
     protected function PageForm() {
-	if (is_null($this->objForm)) {
+	if (empty($this->frmRow)) {
 	    // create fields & controls
-	    $objForm = new clsForm_recs($this);
+	    $frmRow = new clsForm_recs($this);
 
 	    // these are the key fields, so let's not make them editable
 	    //$objForm->AddField(new clsFieldNum('ID_Restock'),	new clsCtrlHTML(array('size'=>4)));
 	    //$objForm->AddField(new clsFieldNum('ID_Item'),	new clsCtrlHTML(array('size'=>4)));
-	    $objForm->AddField(new clsField('Descr'),		new clsCtrlHTML(array('size'=>20)));
-	    $objForm->AddField(new clsField('WhenCreated'),	new clsCtrlHTML(array('size'=>10)));
-	    $objForm->AddField(new clsField('WhenVoided'),	new clsCtrlHTML(array('size'=>10)));
-	    $objForm->AddField(new clsFieldNum('QtyNeed'),	new clsCtrlHTML(array('size'=>6)));
-	    $objForm->AddField(new clsFieldNum('QtyCust'),	new clsCtrlHTML(array('size'=>6)));
-	    $objForm->AddField(new clsFieldNum('QtyOrd'),	new clsCtrlHTML(array('size'=>6)));
-	    $objForm->AddField(new clsFieldNum('QtyExp'),	new clsCtrlHTML(array('size'=>6)));
-	    $objForm->AddField(new clsFieldBool('isGone'),	new clsCtrlHTML_CheckBox());
-	    $objForm->AddField(new clsFieldNum('CostExpPer'),	new clsCtrlHTML(array('size'=>6)));
-	    $objForm->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea());
+	    $frmRow->AddField(new clsField('Descr'),		new clsCtrlHTML(array('size'=>20)));
+	    $frmRow->AddField(new clsField('WhenCreated'),	new clsCtrlHTML(array('size'=>14)));
+	    $frmRow->AddField(new clsField('WhenVoided'),	new clsCtrlHTML(array('size'=>14)));
+	    $frmRow->AddField(new clsFieldNum('QtyNeed'),	new clsCtrlHTML(array('size'=>4)));
+	    $frmRow->AddField(new clsFieldNum('QtyCust'),	new clsCtrlHTML(array('size'=>4)));
+	    $frmRow->AddField(new clsFieldNum('QtyOrd'),	new clsCtrlHTML(array('size'=>4)));
+	    $frmRow->AddField(new clsFieldNum('QtyExp'),	new clsCtrlHTML(array('size'=>4)));
+	    $frmRow->AddField(new clsFieldBool('isGone'),	new clsCtrlHTML_CheckBox());
+	    $frmRow->AddField(new clsFieldNum('CostExpPer'),	new clsCtrlHTML(array('size'=>6)));
+	    $frmRow->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea());
 
-	    $this->objForm = $objForm;
+	    $this->frmRow = $frmRow;
 	}
-	return $this->objForm;
+	return $this->frmRow;
     }
     protected function AdminPage() {
+	clsActionLink_option::UseRelativeURL_default(TRUE);
 	$arActs = array(
 	  new clsActionLink_option(array(),'edit'),
 	  );
@@ -267,7 +268,7 @@ class VCR_RstkReqItem extends clsRstkReqItem {
 
 	if ($doEdit || $doSave) {
 	    if ($doSave) {
-		$out .= $this->PageForm->Save();
+		$out .= $this->PageForm()->Save();
 	    }
 	}
 
@@ -294,8 +295,9 @@ class VCR_RstkReqItem extends clsRstkReqItem {
 	    $ctQtyCust = $this->Value('QtyCust');
 	    $ctQtyOrd = $this->Value('QtyOrd');
 	    $ctQtyExp = $this->Value('QtyExp');
-	    $ctIsGone = clsHTML::fromBool($this->Value('isGone'));
-	    $ctCostExp = clsMoney::BasicFormat($this->Value('CostExpPer'));
+	    $vIsGone = $this->Value('isGone');
+	    $ctIsGone = clsHTML::fromBool($vIsGone);
+	    $ctCostExp = clsMoney::Format_withSymbol($this->Value('CostExpPer'));
 	    $ctNotes = $this->Value('Notes');
 	}
 
@@ -310,15 +312,16 @@ class VCR_RstkReqItem extends clsRstkReqItem {
 <tr><td align=right><b>Voided</b>:</td><td>$ctWhenVoi</td></tr>
 <tr><td align=right><b>Qty Needed</b>:</td><td>$ctQtyNeed</td></tr>
 <tr><td align=right><b>Qty for Cust</b>:</td><td>$ctQtyCust</td></tr>
-<tr><td align=right><b>Qty expected</b>:</td><td>$ctQtyOrd</td></tr>
-<tr><td align=right><b>Is Gone</b>:</td><td>$ctQtyExp</td></tr>
-<tr><td align=right><b>Cost Per</b>:</td><td>$ctIsGone</td></tr>
-<tr><td colspan=2><b>Notes</b>: $ctNotes</tg></tr>
+<tr><td align=right><b>Qty Ordered</b>:</td><td>$ctQtyOrd</td></tr>
+<tr><td align=right><b>Qty Expected</b>:</td><td>$ctQtyExp</td></tr>
+<tr><td align=right><b>Is Gone</b>:</td><td>$ctIsGone</td></tr>
+<tr><td align=right><b>Cost Per</b>:</td><td>$ctCostExp</td></tr>
+<tr><td colspan=2><b>Notes</b>:<br> $ctNotes</td></tr>
 </table>
 __END__;
 	if ($doEdit) {
 	    $out .=
-	      "\n<tr><td align=center colspan=2><input name=btnSave value='Save'></td></tr>"
+	      "\n<tr><td align=center colspan=2><input type=submit name=btnSave value='Save'></td></tr>"
 	      ."\n</form>";
 	}
 	return $out;

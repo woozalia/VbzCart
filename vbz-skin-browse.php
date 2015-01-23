@@ -197,27 +197,23 @@ __END__;
 	return "\n<!-- ContentFooter in ".__CLASS__." -->";
     }
     protected function PageFooter() {
-	$sServer = $_SERVER['SERVER_SOFTWARE'];
+	$this->AddFooterStat('httpd',$_SERVER['SERVER_SOFTWARE']);
 	$dat = getrusage();
-	$fltUserTime = $dat['ru_utime.tv_usec']/1000000;
-	$fltSysTime = $dat['ru_stime.tv_usec']/1000000;
-	$fltExecTime = $this->ExecTime();
+	$this->AddFooterStat('user time',$dat['ru_utime.tv_usec']/1000000);
+	$this->AddFooterStat('sys time',$dat['ru_stime.tv_usec']/1000000);
+	$this->AddFooterStat('exec time',$this->ExecTime());
+	$this->AddFooterStat('now',date('Y-m-d H:i:s'));
+	$this->AddFooterStat('PHP',phpversion());
 	$htHLine = $this->HLine();
-	$sVersion = phpversion();
-	$sDate = date('Y-m-d H:i:s');
 
-	$out = "\n<!-- BEGIN PageFooter in ".__CLASS__." -->" . <<<__END__
-$htHLine
-<div class="footer-stats">
-$sServer .. PHP $sVersion .. execution time in seconds:
-<b>$fltUserTime</b> (user) /
-<b>$fltSysTime</b> (system) /
-<b>$fltExecTime</b> (calcuated) ..
-$sDate
-</div>
-__END__;
-	$out .= "\n<!-- END PageFooter in ".__CLASS__." -->"
-	  .parent::PageFooter();
+	$out = "\n<!-- BEGIN PageFooter in ".__CLASS__." -->"
+	  .$htHLine
+	  ."\n".'<div class="footer-stats">'
+	  .$this->RenderFooterStats()
+	  ."\n</div>"
+	  ."\n<!-- END PageFooter in ".__CLASS__." -->"
+	  .parent::PageFooter()
+	  ;
 	return $out;
     }
 

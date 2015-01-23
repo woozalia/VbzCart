@@ -39,18 +39,39 @@ class cVbzSession extends clsUserSession {
 	    return 'clsVbzUserTable';
 	}
     }
+    protected function CartsClass() {
+	return 'clsShopCarts';
+    }
 
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLE ACCESS ++ //
 
+    protected function CartTable($id=NULL) {
+	return $this->Engine()->Make($this->CartsClass(),$id);
+    }
+
+    // -- DATA TABLE ACCESS -- //
     // ++ FIELD ACCESS ++ //
 
-    /* 2014-07-06 is this really needed still?
-    public function SetCart($iID) {
-	$this->Value('ID_Cart',$iID);
-	$this->Update(array('ID_Cart'=>$iID));
-    }*/
+    protected function OrderID() {
+	return $this->Value('ID_Order');
+    }
     protected function CartID($id=NULL) {
 	return $this->Value('ID_Cart',$id);
     }
+    protected function WhenCreated() {
+	return $this->Value('WhenCreated');
+    }
+    protected function WhenExpires() {
+	return $this->Value('WhenExpires');
+    }
+    protected function WhenClosed() {
+	return $this->Value('WhenClosed');
+    }
+
+    // -- FIELD ACCESS -- //
+    // ++ FIELD CALCULATIONS ++ //
+
     /*----
       RETURNS: TRUE iff a cart is currently attached to this session
     */
@@ -62,28 +83,45 @@ class cVbzSession extends clsUserSession {
 	}
     }
 
-    // -- FIELD ACCESS -- //
+    // -- FIELD CALCULATIONS -- //
     // ++ RECORD ACCESS ++ //
 
     /*----
-      ACTION: return an object for the current cart ID, or NULL if ID is NULL.
-      ASSUMES: If there is a cart object already, it is the correct one for this session.
-      HISTORY:
-	2013-11-24 when the cart is new, apparently there is no ID_Cart field here.
-	  Calling $this->HasValue('ID_Cart') causes an error.
+      RETURNS: The current cart record, regardless of status.
+	Only returns NULL if Cart ID is not set.
     */
-    public function CartRecord_Current() {
+    protected function CartRecord_asSet() {
 	$rcCart = $this->rcCart;
 	if (is_null($rcCart)) {
 	    if (!$this->IsNew()) {
 		$idCart = $this->CartID();
 		if (!is_null($idCart)) {
-		    $rcCart = $this->Engine()->Carts($idCart);
+		    $rcCart = $this->CartTable($idCart);
+		    $this->rcCart = $rcCart;
 		}
 	    }
 	}
-	$this->rcCart = $rcCart;
 	return $rcCart;
+    }
+    /*----
+      ACTION: return an object for the current cart ID if it is usable.
+	If the cart ID is NULL or if the cart is voided, returns NULL.
+      ASSUMES: If there is a cart object already, it is the correct one for this session.
+      HISTORY:
+	2013-11-24 when the cart is new, apparently there is no ID_Cart field here.
+	  Calling $this->HasValue('ID_Cart') causes an error.
+	2014-09-23 Now checks cart status and returns NULL for voided cart.
+    */
+    public function CartRecord_Current() {
+	$rcCart = $this->CartRecord_asSet();
+	if (is_null($rcCart)) {
+	    $this->rcCart = NULL;
+	} else {
+	    if ($rcCart->IsVoided()) {
+		$this->rcCart = NULL;
+	    }
+	}
+	return $this->rcCart;
     }
     /*----
       ACTION: Return a cart object. If there isn't an associated cart yet, or if
@@ -97,11 +135,12 @@ class cVbzSession extends clsUserSession {
       ASSUMES: If there is a cart object already, it is the correct one for this session
 	-- unless the order has been locked, in which case we'll get a new one.
     */
-    public function CartRecord_toUse() {
+    public function CartRecord_required() {
 // if there's a cart for this session, load it; otherwise create a new one but don't save it:
 
 	$rcCart = $this->CartRecord_Current();
-	if (is_null($rcCart) || !$rcCart->HasRows() || $rcCart->IsLocked()) {
+	//if (is_null($rcCart) || !$rcCart->HasRows() || $rcCart->IsLocked()) {
+	if (is_null($rcCart) || $rcCart->IsLocked()) {
 	    // if no cart, or cart is locked, get a new one:
 	    $idSess = $this->KeyValue();
 	    $idCart = $this->Engine()->Carts()->Create($idSess);

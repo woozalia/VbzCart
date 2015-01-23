@@ -2,6 +2,7 @@
 /*
   FILE: admin.user.php
   PURPOSE: user administrative classes for gneneric HTML (not MW-specific)
+  THIS HAS BEEN ABANDONED FOR NOW. It will need rewriting in order to work again.
 */
 class clsVbzUserRecs_admin extends clsVbzUserTable {
     public function __construct($iDB) {
@@ -25,7 +26,7 @@ class clsVbzUserRecs_admin extends clsVbzUserTable {
 	    }
 	    if ($doChg) {
 		$this->objUser = $oUser;
-		$this->SetUser($rcUserNew->KeyValue());
+		$this->SaveUserID($rcUserNew->KeyValue());
 	    }
 	} else {
 	    // we are trying to RETRIEVE the user
@@ -40,7 +41,6 @@ class clsVbzUserRecs_admin extends clsVbzUserTable {
 	}
 	return $this->objUser;
     }
-
 }
 class clsVbzUserRec_admin extends clsVbzUserRec {
 }

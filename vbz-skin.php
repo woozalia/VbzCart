@@ -15,6 +15,7 @@
 abstract class clsVbzSkin extends clsSkin_login {
     private $fltStart;
     private $oNavBar;	// navigation bar object
+    private $arFtrStats;
 
     // ++ ACTION ++ //
 
@@ -117,6 +118,19 @@ __END__;
 	  .'<td>'.$iText.'</td>'
 	  .'</tr></table>'
 	  .'</center>';
+    }
+    /*----
+      PUBLIC so other objects can add items to the footer stats
+    */
+    public function AddFooterStat($sDescr,$sVal) {
+	$this->arFtrStats[$sDescr] = $sVal;
+    }
+    protected function RenderFooterStats() {
+	$out = NULL;
+	foreach ($this->arFtrStats as $sDescr => $sVal) {
+	    $out .= "\n<span class=footer-stat>$sDescr: <b>$sVal</b></span>";
+	}
+	return $out;
     }
 
     // -- PIECES -- //

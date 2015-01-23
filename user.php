@@ -183,6 +183,9 @@ class clsVbzUserRec extends clsUserAcct {
       RETURNS: recordset of customers for this user (NULL if none)
     */
     public function CustRecs() {
+	throw new exception('CustRecs() is deprecated; call ContactRecords().');
+    }
+    public function ContactRecords() {
 	$tCusts = $this->Engine()->Custs();
 	$rs = $tCusts->Recs_forUser($this->KeyValue());
 	return $rs;

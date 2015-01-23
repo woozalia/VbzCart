@@ -665,7 +665,7 @@ class VbzAdminOrder extends clsOrder {
 
 	$idCart = $vgPage->Arg('cart');
 	$objCart = $this->Cart($idCart);
-	$objData = $objCart->CartData();
+	$objData = $objCart->FieldRecords();
 
 	$doImport = $wgRequest->GetBool('btnImport');
 

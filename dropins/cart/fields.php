@@ -83,7 +83,9 @@ class VCR_CartField_admin extends clsCartVar {
     // display-strings for field-types
     static $arTypeNames = array (
       KI_CART_SHIP_ZONE		=> 'ship zone',
-      KI_CART_RECIP_ID		=> 'ship-to ID',
+     // KI_CART_RECIP_ID		=> 'ship-to ID',
+      KI_CART_RECIP_INTYPE	=> 'ship-to input type',
+      KI_CART_RECIP_CHOICE	=> 'ship-to address ID',
       KI_CART_RECIP_NAME	=> 'ship-to name',
       KI_CART_RECIP_STREET	=> 'ship-to street',
       KI_CART_RECIP_CITY	=> 'ship-to city',
@@ -96,6 +98,8 @@ class VCR_CartField_admin extends clsCartVar {
       KI_CART_RECIP_EMAIL	=> 'ship-to email',
       KI_CART_RECIP_PHONE	=> 'ship-to phone',
 // -- payment
+      KI_CART_PAY_CARD_INTYPE	=> 'card input type',
+      KI_CART_PAY_CARD_CHOICE	=> 'card ID',
       KI_CART_PAY_CARD_NUM	=> 'card number',
       KI_CART_PAY_CARD_EXP	=> 'card expiry',
       KI_CART_PAY_CARD_NAME	=> 'card owner',
@@ -151,7 +155,7 @@ class VCR_CartField_admin extends clsCartVar {
 
     public function AdminLine($idEdit,$cssClass) {
 	$txtType = $this->ValueText();
-	$idType = $this->Value('Type');
+	$idType = $this->Value('ID_Type');
 	$htType = htmlspecialchars($txtType);
 
 	// TODO: the link setup will need fixing

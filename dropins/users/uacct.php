@@ -3,9 +3,11 @@
   PURPOSE: user access control classes: user accounts
   HISTORY:
     2013-12-19 started
-  TODO: These should descend from clsVbzUserRec and clsVbzUserRecs in vbzcart/user.php
+  FAMILY:
+    * VCM_UserAccts <- clsVbzUserTable (vbzcart/user.php) <- clsUserAccts (user-access)
+    * VC_UserAcct <- clsVbzUserRec (vbzcart/user.php) <- clsUserAcct (user-access)
 */
-class VCM_UserAccts extends clsUserAccts {
+class VCM_UserAccts extends clsVbzUserTable {
 
     // ++ SETUP ++ //
 
@@ -85,7 +87,7 @@ class VCM_UserAccts extends clsUserAccts {
 
     // -- WEB UI -- //
 }
-class VC_UserAcct extends clsUserAcct {
+class VC_UserAcct extends clsVbzUserRec {
     private $frmPage;
 
     // ++ CLASS NAMES ++ //

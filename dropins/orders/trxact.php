@@ -115,9 +115,7 @@ class VCR_OrderTrxact extends clsDataSet {
 	2011-01-01 Adapted from clsAdminRstkReq::BuildEditForm()
 	2011-01-02 Re-adapted from VbzAdminItem::BuildEditForm()
     */
-    private function BuildEditForm() {
-	global $vgOut;
-
+    private function EditForm() {
 	if (is_null($this->objForm)) {
 	    $objForm = new clsForm_DataSet($this,$vgOut);
 
@@ -230,12 +228,65 @@ class VCR_OrderTrxact extends clsDataSet {
 	$wgOut->AddHTML($out);
 	return NULL;
     }
+/* 2010-10-25 wrote this accidentally.
+  2014-09-01 Finally figured out that it's for a transaction record, not a card record.
+    Make sure there isn't anything useful in it before deleting.
+
+    public function AdminPage() {
+	global $vgPage,$vgOut;
+
+	if (is_null($this->WhenXmitted)) {
+	    $strActDescr = 'Process ';
+	} else {
+	    if (is_null($this->WhenDecided)) {
+		$strActDescr = 'Confirm ';
+	    } else {
+		$strActDescr = '';
+	    }
+	}
+	$vgPage->UseHTML();
+	$objPage = new clsWikiFormatter($vgPage);
+	$objSection = new clsWikiSection($objPage,'Credit Card Charge',NULL,3);
+	//$objSection->ToggleAdd('edit','edit image records','edit.img');
+	$out .= $objSection->Generate();
+
+	$strCard = $this->CardTypeName().' '.$this->CardNum.$vgOut->Italic(' exp ').$this->ShortExp();
+	$out .= $vgOut->TableOpen();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('<b>Customer ID</b>:','align=right');
+	  $out .= $vgOut->TblCell($this->CustObj()->AdminLink());
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('<b>Name on card</b>:','align=right');
+	  $out .= $vgOut->TblCell($this->OwnerName);
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('record:','align=right');
+	  $out .= $vgOut->TblCell($this->NameObj()->AdminLink());
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('<b>Number</b>:','align=right');
+	  $out .= $vgOut->TblCell($strCard);
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('<b>Address</b>:','align=right');
+	  $out .= $vgOut->TblCell($this->Address);
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TblRowOpen();
+	  $out .= $vgOut->TblCell('record:','align=right');
+	  $out .= $vgOut->TblCell($this->AddrObj()->AdminLink());
+	$out .= $vgOut->TblRowShut();
+	$out .= $vgOut->TableShut();
+
+	$vgOut->AddText($out);
+    }
+*/
     /*----
       MINOR BUG: When deleting, the first row of the resultset is not shown.
 	This is due to Reload() advancing the pointer. We need some way to
 	prevent that action. (2010-10-25)
     */
-    public function AdminTable(array $iArgs=NULL, clsVbzRecs $iContext=NULL) {
+    public function AdminTable(clsVbzRecs $rcContext=NULL) {
 	$oPage = $this->Engine()->App()->Page();
 
 	$strDo = $oPage->PathArg('trx.do');
@@ -251,10 +302,11 @@ class VCR_OrderTrxact extends clsDataSet {
 	    $objOrd->StartEvent($arEv);
 	    $objTrx->Update(array('WhenVoid'=>'NOW()'));
 	    $objOrd->FinishEvent();
-	    if (is_null($iContext)) {
+
+	    if (is_null($rcContext)) {
 		$this->Reload();
 	    } else {
-		$iContext->AdminRedirect();
+		$rcContext->AdminRedirect();
 	    }
 	}
 
@@ -357,8 +409,7 @@ __END__;
 	    $this->arBal['total'] = $dlrBalSale + $dlrBalShip;
 	} else {
 	    $this->arBal = NULL;
-	    $strDescr = nz($iArgs['descr']);
-	    $out = "\nNo transactions$strDescr.";
+	    $out = "\nNo transactions.";
 	}
 	return $out;
     }

@@ -11,15 +11,15 @@
 require_once('vbz-const-cart.php');
 require_once('config-admin.php');
 
+define('KS_FORM_INTYPE_EXISTING','old');
+define('KS_FORM_INTYPE_NEWENTRY','new');
+
 /*%%%%
   RULES: call FieldRows(cart ID) to get a dataset for the given cart
     Use the dataset's access methods to look up row data.
 */
 class clsCartVars extends clsTable_indexed {
 
-    //protected $arData;
-    protected $arChg;	// list of fields changed from what is in db
-    protected $arInput;	// user data retrieved from form
     //protected $objCust, $objShip, $objPay;
     // object cache
     private $idCart;	// ID of cart currently loaded
@@ -29,7 +29,7 @@ class clsCartVars extends clsTable_indexed {
 
     public function __construct($iDB) {
 	$objIdx = new clsIndexer_Table_multi_key($this);
-	$objIdx->KeyNames(array('ID_Cart','Type'));
+	$objIdx->KeyNames(array('ID_Cart','ID_Type'));
 
 	$this->arChg = NULL;
 	$this->idCart = NULL;
@@ -42,54 +42,6 @@ class clsCartVars extends clsTable_indexed {
     }
 
     // -- SETUP -- //
-    // ++ STATIC ++ //
-
-    /*----
-      WHAT: This seems to be a list of mappings from input form field names
-	to cart data index numbers.
-    */
-    protected static $arFormIdxs = array(
-      KI_CART_SHIP_ZONE		=> KSF_CART_RECIP_SHIP_ZONE,
-
-      KI_CART_SHIP_IS_CARD	=> KSF_SHIP_IS_CARD,
-      KI_CART_RECIP_INTYPE	=> KSF_CART_RECIP_CONT_INTYPE,
-      KI_CART_RECIP_CHOICE	=> KSF_CART_RECIP_CONT_CHOICE,
-      KI_CART_RECIP_IS_BUYER	=> KSF_CART_RECIP_IS_BUYER,
-      KI_CART_RECIP_MESSAGE	=> KSF_SHIP_MESSAGE,
-      KI_CART_RECIP_NAME	=> KSF_CART_RECIP_NAME,
-      KI_CART_RECIP_STREET	=> KSF_CART_RECIP_STREET,
-      KI_CART_RECIP_CITY	=> KSF_CART_RECIP_CITY,
-      KI_CART_RECIP_STATE	=> KSF_CART_RECIP_STATE,
-      KI_CART_RECIP_ZIP		=> KSF_CART_RECIP_ZIP,
-      KI_CART_RECIP_COUNTRY	=> KSF_CART_RECIP_COUNTRY,
-      KI_CART_RECIP_EMAIL	=> KSF_CART_RECIP_EMAIL,
-      KI_CART_RECIP_PHONE	=> KSF_CART_RECIP_PHONE,
-
-      // -- payment
-      KI_CART_BUYER_INTYPE	=> KSF_CART_PAY_CARD_INTYPE,
-      KI_CART_BUYER_CHOICE	=> KSF_CART_PAY_CARD_CHOICE,
-      KI_CART_PAY_CARD_NUM	=> KSF_CART_PAY_CARD_NUM,
-      KI_CART_PAY_CARD_EXP	=> KSF_CART_PAY_CARD_EXP,
-      KI_CART_PAY_CARD_ENCR	=> KSF_CART_PAY_CARD_ENCR,
-      KI_CART_PAY_CARD_NAME	=> KSF_CART_PAY_CARD_NAME,
-      KI_CART_PAY_CARD_STREET	=> KSF_CART_PAY_CARD_STREET,
-      KI_CART_PAY_CARD_CITY	=> KSF_CART_PAY_CARD_CITY,
-      KI_CART_PAY_CARD_STATE	=> KSF_CART_PAY_CARD_STATE,
-      KI_CART_PAY_CARD_ZIP	=> KSF_CART_PAY_CARD_ZIP,
-      KI_CART_PAY_CARD_COUNTRY	=> KSF_CART_PAY_CARD_COUNTRY,
-      KI_CART_PAY_CHECK_NUM	=> KSF_CART_PAY_CHECK_NUM,
-      KI_CART_BUYER_EMAIL	=> KSF_CART_BUYER_EMAIL,
-      KI_CART_BUYER_PHONE	=> KSF_CART_BUYER_PHONE,
-      );
-
-    static public function NameFromIndex($nIdx) {
-	return self::$arFormIdxs[$nIdx];
-    }
-    static public function IndexFromName($sName) {
-	return array_search($sName,self::$arFormIdxs);
-    }
-
-    // -- STATIC -- //
     // ++ DATA RECORDS ACCESS ++ //
 
     /*----
@@ -102,7 +54,7 @@ class clsCartVars extends clsTable_indexed {
     public function FieldRows($idCart=NULL) {
 	if (!is_null($idCart) && ($this->idCart != $idCart)) {
 	    // if cart fields not already loaded for the given cart, load them:
-	    $sql = 'SELECT Type, Val FROM '.$this->NameSQL().' WHERE ID_Cart='.$idCart;
+	    $sql = 'SELECT ID_Type, Val FROM '.$this->NameSQL().' WHERE ID_Cart='.$idCart;
 	    $this->rsFields = $this->DataSQL($sql);
 	    $this->idCart = $idCart;		// we need to know which cart the recordset has, for caching
 	    $this->rsFields->CartID($idCart);	// recordset needs to know it too (not sure why)
@@ -118,6 +70,8 @@ class clsCartVars extends clsTable_indexed {
       INPUT: current free-form cart data
       OUTPUT: returns array
 	array[ID] = text describing what that ID matches
+      HISTORY:
+	2014-11-10 This will need fixing, because ShipObj() has been renamed or something.
     */
     public function FindMatches() {
 	$obj = $this->ShipObj(FALSE);
@@ -147,6 +101,232 @@ class clsCartVars extends clsTable_indexed {
     }
 
     // -- SEARCHING -- //
+}
+class clsCartVar extends clsRecs_indexed {
+    private $arInput;	// user data retrieved from form
+    private $arValues;	// latest data values
+    private $arChg;	// list of fields changed from what is in db
+    private $idCart;	// ID of cart for current recordset
+
+    // ++ SETUP ++ //
+
+    protected function InitVars() {
+	$this->arValues = NULL;
+	$this->arChg = NULL;
+	$this->idCart = NULL;
+    }
+
+    // -- SETUP -- //
+    // ++ STATIC ++ //
+
+    /*----
+      WHAT: mapping from input form field names to cart data index numbers.
+    */
+    protected static $arFormIdxs = array(
+      KI_CART_SHIP_ZONE		=> KSF_CART_RECIP_SHIP_ZONE,
+
+      KI_CART_SHIP_IS_CARD	=> KSF_SHIP_IS_CARD,
+      KI_CART_RECIP_INTYPE	=> KSF_CART_RECIP_CONT_INTYPE,
+      KI_CART_RECIP_CHOICE	=> KSF_CART_RECIP_CONT_CHOICE,
+      KI_CART_RECIP_IS_BUYER	=> KSF_CART_RECIP_IS_BUYER,
+      KI_CART_RECIP_MESSAGE	=> KSF_SHIP_MESSAGE,
+      KI_CART_RECIP_NAME	=> KSF_CART_RECIP_NAME,
+      KI_CART_RECIP_STREET	=> KSF_CART_RECIP_STREET,
+      KI_CART_RECIP_CITY	=> KSF_CART_RECIP_CITY,
+      KI_CART_RECIP_STATE	=> KSF_CART_RECIP_STATE,
+      KI_CART_RECIP_ZIP		=> KSF_CART_RECIP_ZIP,
+      KI_CART_RECIP_COUNTRY	=> KSF_CART_RECIP_COUNTRY,
+      KI_CART_RECIP_EMAIL	=> KSF_CART_RECIP_EMAIL,
+      KI_CART_RECIP_PHONE	=> KSF_CART_RECIP_PHONE,
+
+      // -- payment
+      KI_CART_PAY_CARD_INTYPE	=> KSF_CART_PAY_CARD_INTYPE,
+      KI_CART_PAY_CARD_CHOICE	=> KSF_CART_PAY_CARD_CHOICE,
+      KI_CART_PAY_CARD_NUM	=> KSF_CART_PAY_CARD_NUM,
+      KI_CART_PAY_CARD_EXP	=> KSF_CART_PAY_CARD_EXP,
+      KI_CART_PAY_CARD_ENCR	=> KSF_CART_PAY_CARD_ENCR,
+      KI_CART_PAY_CARD_NAME	=> KSF_CART_PAY_CARD_NAME,
+      KI_CART_PAY_CARD_STREET	=> KSF_CART_PAY_CARD_STREET,
+      KI_CART_PAY_CARD_CITY	=> KSF_CART_PAY_CARD_CITY,
+      KI_CART_PAY_CARD_STATE	=> KSF_CART_PAY_CARD_STATE,
+      KI_CART_PAY_CARD_ZIP	=> KSF_CART_PAY_CARD_ZIP,
+      KI_CART_PAY_CARD_COUNTRY	=> KSF_CART_PAY_CARD_COUNTRY,
+      KI_CART_PAY_CHECK_NUM	=> KSF_CART_PAY_CHECK_NUM,
+      KI_CART_BUYER_EMAIL	=> KSF_CART_BUYER_EMAIL,
+      KI_CART_BUYER_PHONE	=> KSF_CART_BUYER_PHONE,
+      );
+
+    static public function NameFromIndex($nIdx) {
+	return self::$arFormIdxs[$nIdx];
+    }
+    static public function IndexFromName($sName) {
+	return array_search($sName,self::$arFormIdxs);
+    }
+
+    // -- STATIC -- //
+    // ++ FIELD CACHE/STATUS ++ //
+
+    /*----
+      ACTION: set stored value for the given index
+      NOTE: Named SetCartValue() to distinguish CART values from RECORD values,
+	e.g. as in standard recordset Value() and Values() methods.
+    */
+    protected function CartValues() {
+	if (is_null($this->arValues)) {
+	    $this->arValues = array();	// even if there's no data, we want to return an array
+	    while ($this->NextRow()) {
+		$nType = $this->TypeID();
+		$this->SetCartValue($nType,$this->Value('Val'));
+	    }
+	}
+	return $this->arValues;
+    }
+    /*----
+      PURPOSE: This remains set even when no record is loaded.
+    */
+    protected function CartID_master() {
+	return $this->idCart;
+    }
+    /*----
+      RETURNS: Record object for the current Cart ID and given Type ID
+    */
+    protected function LoadType($idType) {
+	$idCart = $this->CartID_master();
+	$sqlFilt = "(ID_Cart=$idCart) AND (ID_Type=$idType)";
+	$rc = $this->Table()->GetData($sqlFilt);
+	$rc->NextRow();		// load the first/only row
+	return $rc;
+    }
+    /*----
+      PUBLIC so that clsPerson can call it to load existing data
+    */
+    public function SetCartValue($idx,$val) {
+	$this->arValues[$idx] = $val;
+    }
+    /*----
+      RETURNS: form input for the given index
+    */
+    protected function GetInput($idx) {
+	return $this->arInput[$idx];
+    }
+    protected function SetInput($idx,$val) {
+	$this->arInput[$idx] = $val;
+    }
+    protected function FlagChange($idx) {
+	$this->arChg[$idx] = TRUE;
+    }
+    protected function ChangeList() {
+	return $this->arChg;
+    }
+    protected function HasChanges() {
+	return is_array($this->arChg);
+    }
+    public function FieldValue_forName($sFld) {
+	$nIdx = self::IndexFromName($sFld);
+	if ($nIdx > 0) {
+	    return $this->FieldValue_forIndex($nIdx);
+	} else {
+	    if (is_object($sFld)) {
+		throw new exception('Received object of type "'.get_class($sFld).'" for $sFld. Should be a string.');
+	    } else {
+		throw new exception("No index found for field name [$sFld].");
+	    }
+	}
+    }
+    /*----
+      HISTORY:
+	2014-03-02 making this writable
+    */
+    public function FieldValue_forIndex($idType,$val=NULL) {
+	if (!is_numeric($idType)) {
+	    throw new exception('$idIndex should be a numeric ID; type ['.gettype($idIndex).'] was received.');
+	}
+	$idCart = $this->CartID_master();
+	if (is_null($idCart)) {
+	    throw new exception('Internal error: trying to update cart data when cart ID is not set.');
+	}
+	$arVals = $this->CartValues();
+	if (is_null($val)) {
+	    if (array_key_exists($idType,$arVals)) {
+		return $arVals[$idType];
+	    } else {
+		return NULL;
+	    }
+	} else {
+	    $arChg = array(
+	      'ID_Type'	=> $idType,
+	      'Val'	=> SQLValue($val)
+	      );
+
+	    // check to see if assigned value represents a change from what is stored
+
+	    if (array_key_exists($idType,$arVals)) {
+		if ($arVals[$idType] != $val) {
+		    $rcCart = $this->LoadType($idType);
+		    $rcCart->Update($arChg);
+		}
+	    } else {
+		$arChg['ID_Cart'] = $idCart;
+		$this->Table()->Insert($arChg);
+	    }
+	    $this->arVals[$idType]=$val;		// update the loaded value
+	    return $val;
+	}
+    }
+
+    // -- FIELD CACHE/STATUS -- //
+    // ++ ACTIONS ++ //
+
+    /*----
+      ACTION: Copy shipping address to buyer address
+    */
+    public function CopyShipToCust() {
+	$sShip = $this->RecipFields()->AsString();
+	$this->BuyerFields()->AsString($sShip);
+	$this->BuyerFields->SaveCartData();	// write to database
+    }
+    /*----
+      ACTION: Save all modified data
+      NOTE: The data is presumably already loaded, in order to compare new and old values
+	in order to determine which ones need updating/adding (stored in $arChg),
+	so we *also* need to update the loaded data as we are saving it. (2013-04-03)
+	There is almost certainly a better way to do this, e.g. if arValues[idx] is set,
+	  then we should be able to assume the row exists, and not look it up.
+	  This will need to be tested carefully, however. TODO
+    */
+    public function SaveCart() {
+	if ($this->HasChanges()) {
+	    $idCart = $this->idCart;
+	    if (is_null($idCart)) {
+		throw new exception('Attempting to save cart without loading it.');
+	    }
+
+	    // possibly this code, or part of it, should be a Table method
+	    foreach ($this->ChangeList() as $idx => $on) {
+		$sqlFilt = '(ID_Cart='.$idCart.') AND (ID_Type='.$idx.')';
+
+		// are we inserting, or updating?
+		$tbl = $this->Table();
+		$rc = $tbl->GetData($sqlFilt.' LIMIT 1');
+		$vIn = $this->GetInput($idx);		// new value from form
+		$this->SetCartValue($idx,$vIn);	// save new value locally
+		$sqlVal = SQLValue($vIn);		// new value in SQL-safe format
+		if ($rc->HasRows()) {
+		    $sql = 'UPDATE '.$tbl->Name().' SET Val='.$sqlVal.' WHERE '.$sqlFilt;
+		    $this->Engine()->Exec($sql);
+		} else {
+		    $arIns = array(
+		      'ID_Cart'	=> $idCart,
+		      'ID_Type'	=> $idx,
+		      'Val'	=> $sqlVal,
+		      );
+		   $tbl->Insert($arIns);
+		}
+	    }
+	}
+    }
+
+    // -- ACTIONS -- //
     // ++ FORM PROCESSING ++ //
 
     /*----
@@ -163,6 +343,8 @@ class clsCartVars extends clsTable_indexed {
 	switch($sPage) {
 	  case KSQ_PAGE_SHIP:	// shipping / payment-type page
 	    $arInUse = array(
+	      KI_CART_RECIP_INTYPE,
+	      KI_CART_RECIP_CHOICE,
 	      KI_CART_RECIP_IS_BUYER,
 	      KI_CART_SHIP_IS_CARD,		// is this redundant?
 	      KI_CART_RECIP_NAME,
@@ -172,13 +354,17 @@ class clsCartVars extends clsTable_indexed {
 	      KI_CART_RECIP_ZIP,
 	      KI_CART_RECIP_COUNTRY,
 	      KI_CART_SHIP_ZONE,
-	      KI_CART_RECIP_EMAIL,
-	      KI_CART_RECIP_PHONE,
+	      KI_CART_RECIP_EMAIL,	// not actually used yet
+	      KI_CART_RECIP_PHONE,	// not actually used yet
+	      KI_CART_BUYER_EMAIL,
+	      KI_CART_BUYER_PHONE,
 	      KI_CART_RECIP_MESSAGE,
 	      );
 	    break;
 	  case KSQ_PAGE_PAY:	// payment page
 	    $arInUse = array(
+	      KI_CART_PAY_CARD_INTYPE,
+	      KI_CART_PAY_CARD_CHOICE,
 	      KI_CART_PAY_CARD_NUM,
 	      KI_CART_PAY_CARD_EXP,
 	      KI_CART_PAY_CARD_NAME,
@@ -188,8 +374,6 @@ class clsCartVars extends clsTable_indexed {
 	      KI_CART_PAY_CARD_ZIP,
 	      KI_CART_PAY_CARD_COUNTRY,
 	      KI_CART_PAY_CHECK_NUM,
-	      KI_CART_BUYER_EMAIL,
-	      KI_CART_BUYER_PHONE,
 	      KI_CART_SHIP_IS_CARD,	// editing the card's address can override this
 	      );
 	    break;
@@ -205,180 +389,55 @@ class clsCartVars extends clsTable_indexed {
 		echo 'Unknown index <b>'.$index.'</b> requested. Indexes available in form:<pre>'.print_r(self::$arFormIdxs,TRUE).'</pre>';
 		throw new exception('Requested index '.$index.' not found in form data.');
 	    }
-	    $sName = self::$arFormIdxs[$index];		// get name as submitted by form
-	    $valNew = NzArray($_POST,$sName);	// get value submitted by form
+	    $sName = self::$arFormIdxs[$index];	// get name as submitted by form
+	    $valNew = NzArray($_POST,$sName);		// get value submitted by form
 	    //$valOld = NzArray($this->arData,$index);
-	    $valOld = $this->FieldRows()->FieldValue_forIndex($index);
-	    $this->arInput[$index] = $valNew;
+	    $valOld = $this->FieldValue_forIndex($index);
+	    $this->SetInput($index,$valNew);
 	    if ($valNew != $valOld) {
-		$this->arChg[$index] = TRUE;
+		$this->FlagChange($index);
+		$this->SetCartValue($index,$valNew);
 	    }
 	}
-    }
-    /*----
-      NOTE: for parallellism, this should be called FormVal (or FieldVal should be called FieldValue).
-	On the other hand, there's probably some benefit in having the names at different lengths
-	  so they're more difficult to confuse with each other.
-    */
-    public function FormValue($iIndex) {
-	if (!array_key_exists($iIndex,$this->arInput)) {
-	    echo 'Form data does not include the key "<b>'.$iIndex.'</b>".<br>';
-	    echo 'Form data:<pre>'.print_r($this->arInput,TRUE).'</pre>';
-	    throw new exception("Key $iIndex expected, but not found in data.");
-	}
-	return $this->arInput[$iIndex];
-    }
-    /*----
-      ACTION: Same as FormValue(), but does not throw an exception if the value is not found.
-	Uses the default value instead, when this happens.
-	This is useful for checkboxes, which are simply not listed when not checked.
-	Perhaps checkboxes should all be named the same and given different values, but that
-	  complicates things -- so, LATER.
-    */
-    public function FormValueNz($iIndex,$iDefault=FALSE) {
-	if (!array_key_exists($iIndex,$this->arInput)) {
-	    $val = $iDefault;
-	} else {
-	    $val = $this->arInput[$iIndex];
-	}
-	return $val;
     }
 
     // -- FORM PROCESSING -- //
-    // ++ ACTIONS ++ //
-
-    public function CopyShipToCust() {
-	$sShip = $this->ShipObj()->AsString();
-	$this->CustObj()->AsString($sShip);
-    }
-    /*----
-      ACTION: Save all modified data
-      NOTE: The data is presumably already loaded, in order to compare new and old values
-	in order to determine which ones need updating/adding (stored in $arChg),
-	so we *also* need to update the loaded data as we are saving it. (2013-04-03)
-	There is almost certainly a better way to do this, e.g. if arData[idx] is set,
-	  then we should be able to assume the row exists, and not look it up.
-	  This will need to be tested carefully, however. TODO
-    */
-    public function SaveCart() {
-	if (is_array($this->arChg)) {
-	    $idCart = $this->idCart;
-	    if (is_null($idCart)) {
-		throw new exception('Attempting to save cart without loading it.');
-	    }
-
-	    foreach ($this->arChg as $idx => $on) {
-		$sqlFilt = '(ID_Cart='.$idCart.') AND (Type='.$idx.')';
-
-		// are we inserting, or updating?
-		$rc = $this->GetData($sqlFilt.' LIMIT 1');
-		$vIn = $this->arInput[$idx];	// new value
-		$this->arData[$idx] = $vIn;	// save new value locally
-		$sqlVal = SQLValue($vIn);	// new value in SQL-safe format
-		if ($rc->HasRows()) {
-		    $sql = 'UPDATE '.$this->Name().' SET Val='.$sqlVal.' WHERE '.$sqlFilt;
-		    $this->Engine()->Exec($sql);
-		} else {
-		    $arIns = array(
-		      'ID_Cart'	=> $idCart,
-		      'Type'	=> $idx,
-		      'Val'	=> $sqlVal,
-		      );
-		   $this->Insert($arIns);
-		}
-	    }
-	}
-    }
-
-    // -- ACTIONS -- //
-    // ++ DEBUGGING ++ //
-
-    /*----
-      ACTION: Dump all loaded cart values in HTML
-      RETURNS: text of dump, ready to display
-    */
-    public function DumpData() {
-	$out = '<table>';
-	foreach ($this->arData as $idx => $val) {
-	    $sName = self::$arFormIdxs[$idx];
-	    $out .= "\n<tr><td>$sName</td><td>$val</td></tr>";
-	}
-	$out .= "\n</table>";
-	return $out;
-    }
-
-    // -- DEBUGGING -- //
-}
-class clsCartVar extends clsRecs_indexed {
-    private $arVals;
-    private $idCart;
-
-    // ++ SETUP ++ //
-
-    protected function InitVars() {
-	$this->arVals = NULL;
-	$this->idCart = NULL;
-    }
-
-    // -- SETUP -- //
     // ++ RECORD FIELD ACCESS ++ //
 
     public function TypeID() {
-	return $this->Value('Type');
+	return $this->Value('ID_Type');
     }
 
     // -- RECORD FIELD ACCESS -- //
-    // ++ FIELD CACHE ++ //
+    // ++ CLASS NAMES ++ //
 
-    protected function LoadValues() {
-	$this->arVals = array();	// in case there's no data yet
-	while ($this->NextRow()) {
-	    $nType = $this->TypeID();
-	    $this->arVals[$nType] = $this->Value('Val');
-	}
+    protected function CardsClass() {
+	return 'clsCustCards_dyn';
     }
-    public function FieldValue_forName($sFld) {
-	$nIdx = clsCartVars::IndexFromName($sFld);
-	if ($nIdx > 0) {
-	    return $this->FieldValue_forIndex($nIdx);
-	} else {
-	    throw new exception("No index found for field name [$sFld].");
-	}
+    protected function AddrsClass() {
+	return 'clsCustAddrs';
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA TABLES ++ //
+
+    /*----
+      PUBLIC so clsPerson can access it
+    */
+    public function CardTable($id=NULL) {
+	return $this->Engine()->Make($this->CardsClass(),$id);
     }
     /*----
-      HISTORY:
-	2014-03-02 making this writable
+      PUBLIC so clsPerson can access it
     */
-    public function FieldValue_forIndex($idType,$val=NULL) {
-	if (!is_numeric($idType)) {
-	    throw new exception('$idIndex should be a numeric ID; type ['.gettype($idIndex).'] was received.');
-	}
-	if (is_null($val)) {
-	    if (is_null($this->arVals)) {
-		$this->LoadValues();
-	    }
-	    if (array_key_exists($idType,$this->arVals)) {
-		return $this->arVals[$idType];
-	    } else {
-		return NULL;
-	    }
-	} else {
-	    $arUpd = array(
-	      'Type'	=> $idType,
-	      'Val'	=> SQLValue($val)
-	      );
-	    $idCart = $this->CartID();
-	    $sqlFilt = "(ID_Cart=$idCart) AND (Type=$idType)";
-	    $this->Table()->Make($arUpd,$sqlFilt);
-	    return $val;
-	}
+    public function AddrTable($id=NULL) {
+	return $this->Engine()->Make($this->AddrsClass(),$id);
     }
 
-    // -- FIELD CACHE -- //
-    // ++ SPECIFIC FIELD VALUES ++ //
+    // -- DATA TABLES -- //
+    // ++ CART DATA VALUES ++ //
 
-
-      // ++ cross-form values
+      // ++ inter-group values
 
     public function IsShipToCard($iFlag=NULL) {
 	if (is_null($iFlag)) {
@@ -392,20 +451,42 @@ class clsCartVar extends clsRecs_indexed {
     public function IsShipToSelf() {
 	throw new exception('IsShipToSelf() is deprecated until I can figure out why it is necessary.');
     }
-    public function IsRecipNewEntry() {
-	return $this->FieldValue_forIndex(KI_CART_RECIP_INTYPE);
+    public function IsRecipOldEntry() {
+	$sInType = $this->FieldValue_forIndex(KI_CART_RECIP_INTYPE);
+	return ($sInType == KS_FORM_INTYPE_EXISTING);
     }
-    public function IsBuyerNewEntry() {
-	return $this->FieldValue_forIndex(KI_CART_BUYER_INTYPE);
+    protected function RecipChoiceID() {
+	return $this->FieldValue_forIndex(KI_CART_RECIP_CHOICE);
+    }
+    public function IsCardOldEntry() {
+	$sInType = $this->FieldValue_forIndex(KI_CART_PAY_CARD_INTYPE);
+	return ($sInType == KS_FORM_INTYPE_EXISTING);
+    }
+    protected function CardChoiceID() {
+	return $this->FieldValue_forIndex(KI_CART_PAY_CARD_CHOICE);
+    }
+    public function BuyerEmailAddress_entered() {
+	return $this->FieldValue_forIndex(KI_CART_BUYER_EMAIL);
+    }
+    public function BuyerPhoneNumber_entered() {
+	return $this->FieldValue_forIndex(KI_CART_BUYER_PHONE);
     }
 
-      // ++ form-specific values
+      // ++ group-specific values
 
     public function CardNumber() {
-	return $this->FieldValue_forIndex(KI_CART_PAY_CARD_NUM);
+	if ($this->IsCardOldEntry()) {
+	    return $this->CardRecord()->NumberRaw();
+	} else {
+	    return $this->FieldValue_forIndex(KI_CART_PAY_CARD_NUM);
+	}
     }
     public function CardExpiry() {
-	return $this->FieldValue_forIndex(KI_CART_PAY_CARD_EXP);
+	if ($this->IsCardOldEntry()) {
+	    return $this->CardRecord()->ExpiryRaw();
+	} else {
+	    return $this->FieldValue_forIndex(KI_CART_PAY_CARD_EXP);
+	}
     }
     public function CostTotalSale($nVal=NULL) {
 	return $this->FieldValue_forIndex(KI_CART_CALC_SALE_TOTAL,$nVal);
@@ -429,14 +510,39 @@ class clsCartVar extends clsRecs_indexed {
 	return $this->PayCardName();
     }
     public function PayCardName() {
-	return $this->FieldValue_forIndex(KI_CART_PAY_CARD_NAME);
+	if ($this->IsCardOldEntry()) {
+	    $sName = $this->CardRecord()->OwnerName();
+	    return $sName;
+	} else {
+	    return $this->FieldValue_forIndex(KI_CART_PAY_CARD_NAME);
+	}
     }
     public function RecipName() {
-	return $this->FieldValue_forIndex(KI_CART_RECIP_NAME);
+	if ($this->IsCardOldEntry()) {
+	    $rcRecip = $this->RecipRecord();
+	    if ($rcRecip->IsNew()) {
+		throw new exception('No recipient record found; ID='.$this->RecipChoiceID());
+	    } else {
+		$sName = $rcRecip->NameString();
+		if (is_null($sName)) {
+		    throw new exception('Recipient record has no value for name. Record:<pre>'.print_r($rcRecip->Values,TRUE).'</pre>');
+		}
+		return $sName;
+	    }
+	} else {
+	    return $this->FieldValue_forIndex(KI_CART_RECIP_NAME);
+	}
+    }
+    public function BuyerAddr_text() {
+	$oFlds = $this->BuyerFields();
+	return $oFlds->Addr_AsText();
+    }
+    public function CardAddrBlank() {
+	return $this->PayFields()->AddrIsBlank();
     }
     public function RecipAddr_text() {
-	$oRecip = $this->RecipFields();
-	return $oRecip->Addr_AsText();
+	$oFlds = $this->RecipFields();
+	return $oFlds->Addr_AsText();
     }
     public function ShipMsg() {
 	return $this->FieldValue_forIndex(KI_CART_RECIP_MESSAGE);
@@ -448,7 +554,7 @@ class clsCartVar extends clsRecs_indexed {
 	return $this->FieldValue_forIndex(KI_CART_SHIP_ZONE);
     }
 
-    // -- SPECIFIC FIELD VALUES -- //
+    // -- CART DATA VALUES -- //
     // ++ NON-DATA FIELD ACCESS ++ //
 
     public function CartID($id=NULL) {
@@ -458,12 +564,25 @@ class clsCartVar extends clsRecs_indexed {
 	return $this->idCart;
     }
 
-    // ++ FIELD VALUE COLLECTIONS ++ //
+    // -- NON-DATA FIELD ACCESS -- //
+    // ++ DATA RECORD ACCESS ++ //
 
-    public function CardAddrBlank() {
-	return $this->PayFields()->AddrIsBlank();
+    protected function RecipRecord() {
+	$idAddr = $this->RecipChoiceID();
+	$rcAddr = $this->AddrTable($idAddr);
+	return $rcAddr;
     }
-      // ++ objects
+    protected function CardRecord() {
+	$idCard = $this->CardChoiceID();
+	if (is_null($idCard)) {
+	    throw new exception('Attempting to look up record for NULL card choice.');
+	}
+	$rcCard = $this->CardTable($idCard);
+	return $rcCard;
+    }
+
+    // -- DATA RECORD ACCESS -- //
+    // ++ FIELD COLLECTIONS ++ //
 
     /*====
       USED BY: cart-to-order conversion in Cart class
@@ -487,570 +606,38 @@ class clsCartVar extends clsRecs_indexed {
 	return new clsPayment($this);
     }
 
-    // -- FIELD VALUE COLLECTIONS -- //
-}
-
-/*%%%%
-  PURPOSE: This class is for handling the mapping of a set of cart-var fields (rows) onto a set of
-    common names, so that we can use the same code to handle (for example) customer billing addresses
-    and recipient shipping addresses.
-*/
-abstract class clsCartDataGrp {
-    private $arMap;
-    private $rsVals;
-    //protected $arIdxs;
-
-    // ++ SETUP ++ //
-
-    /*----
-      INPUT:
-	$arMap[suffix name] = cart var index to use
-	$rsVals = recordset of the data rows to be loaded
-    */
-    public function __construct(array $arMap, clsCartVar $rsVals) {
-	$this->MapArray($arMap);
-	$this->ValueRecords($rsVals);
-    }
-
-    // -- SETUP -- //
-    // ++ OBJECT ACCESS ++ //
-
-    protected function ValueRecords(clsCartVar $rsVals=NULL) {
-	if (!is_null($rsVals)) {
-	    $this->rsVals = $rsVals;
-	}
-	return $this->rsVals;
-    }
-    /*----
-      INPUT:
-	$arMap[suffix name] = clsFormIndex object
-    */
-    protected function MapArray(array $arMap=NULL) {
-	if (!is_null($arMap)) {
-	    $this->arMap = $arMap;
-	}
-	return $this->arMap;
-    }
-    protected function MapArray_add(array $arMap) {
-	$this->arMap = array_merge($this->arMap,$arMap);
-    }
-
-    // -- OBJECT ACCESS -- //
-    // ++ FIELD VALUE ACCESS ++ //
-
-    /*----
-      PUBLIC so checkout Page can retrieve names to use for form fields
-    */
-    public function NameForSuffix($sSfx) {
-	$ar = $this->MapArray();	// get map array
-	$sFld = $ar[$sSfx];		// get cart field name
-	if (empty($sFld)) {
-	    throw new exception('No field name found for suffix "'.$sSfx.'".');
-	}
-	return $sFld;
-    }
-    /*----
-      RETURNS: The cart value for the given suffix
-    */
-    protected function ValueForSuffix($sSfx) {
-	$sFld = $this->NameForSuffix($sSfx);
-	return $this->ValueRecords()->FieldValue_forName($sFld);
-    }
-
-    // -- FIELD VALUE ACCESS -- //
-}
-
-abstract class clsPerson extends clsCartDataGrp {
-    /*----
-      FIELDS NEEDED:
-	0: Name
-	1: Street
-	2: Town
-	3: State
-	4: Zip
-	5: Ctry
-	6: Email
-	7: Phone
-    */
-
-    // ++ STATUS ACCESS ++ //
-
-    /*----
-      PUBLIC so checkout page can discover whether an email address is available or not
-    */
-    public function DoEmail() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_EMAIL));
-    }
-    /*----
-      PUBLIC so checkout page can discover whether a phone number is available or not
-    */
-    public function DoPhone() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_PHONE));
-    }
-/*
-    protected function DoStreet() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_STREET));
-    }
-*/
-    protected function DoTown() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_CITY));
-    }
-    protected function DoState() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_STATE));
-    }
-    protected function DoZipcode() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_ZIP));
-    }
-    protected function DoCountry() {
-	return !is_null($this->ValueForSuffix(_KSF_CART_SFX_CONT_COUNTRY));
-    }
-
-    // -- STATUS ACCESS -- //
-    // ++ FIELD COLLECTIONS ++ //
-
-    public function NameValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_NAME);
-    }
-    public function StreetValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_STREET);
-    }
-    public function TownValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_CITY);
-    }
-    public function StateValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_STATE);
-    }
-    public function ZipcodeValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_ZIP);
-    }
-    public function CountryValue() {
-	return $this->ValueForSuffix(_KSF_CART_SFX_CONT_COUNTRY);
-    }
-    abstract public function DirectionsValue();
-
-    // -- FIELD ACCESS -- //
-    // ++ FIELD CALCULATIONS ++ //
-
-    /*----
-      RETURNS: address (not including name) basically unformatted, in a single line
-	Ready to be stripped down for search, but not actually stripped down yet.
-    */
-    public function Addr_forSearch($doUseName) {
-	$objZone = $this->ZoneObj();
-
-	$strAddr = NULL;
-	if ($doUseName) {
-	    $strAddr = $this->NameValue();
-	}
-	$strAddr .=
-	  $this->StreetValue()
-	  .' '.$this->TownValue()
-	  .' '.$this->StateValue()
-	  .' '.$this->ZipcodeValue();
-	if (!$objZone->isDomestic()) {
-	    $strAddr .= ' '.$this->CountryValue();
-	}
-
-	return $strAddr;
-    }
-    /*----
-      RETURNS: Same as Addr_forSearch(), but massaged for searching:
-	* all chars lowercase
-	* all blank and CRLF sequences condensed to a single space
-    */
-    public function Addr_forSearch_stripped($doUseName) {
-	$s = $this->Addr_forSearch($doUseName);
-	return strtolower(xtString::_ReplaceSequence($s, " \t\n\r", ' '));
-    }
-
-    /*----
-      RETURNS: Main address as single string, in multiple lines
-      HISTORY:
-	2012-01-11 extracted from AsText() so instructions can be left out of search
-	2012-05-27 moved to clsPerson
-    */
-    public function Addr_AsText($iLineSep="\n") {
-	$xts = new xtString($this->StreetValue(),TRUE);
-	$xts->ReplaceSequence(chr(8).' ',' ',0);		// replace any blank sequences with single space
-	$xts->ReplaceSequence(chr(10).chr(13),$iLineSep,0);	// replace any sequences of newlines with line sep string
-
-	$xts->Value .= $iLineSep.$this->TownValue();
-	if ($this->DoState()) {
-	    $xts->Value .= ', '.$this->StateValue();
-	}
-	if ($this->DoZipcode()) {
-	    $xts->Value .= ' '.$this->ZipcodeValue();
-	}
-	if ($this->DoCountry()) {
-	    $xts->Value .= ' '.$this->CountryValue();
-	}
-	return $xts->Value;
-    }
-    public function AddrIsBlank() {
-	if ($this->NameValue() == '') {
-	    if ($this->StreetValue() == '') {
-		if ($this->TownValue() == '') {
-		    if ($this->StateValue() == '') {
-			if ($this->ZipcodeValue() == '') {
-			    if ($this->ZoneObj()->isDomestic()) {
-				return TRUE;
-			    } else {
-				if ($this->CountryValue() == '') {
-				    return TRUE;
-				}
-			    }
-			}
-		    }
-		}
-	    }
-	}
-	return FALSE;
-    }
-    public function AsString($iString=NULL) {
-	if (!is_null($iString)) {
-	    clsModule::LoadFunc('Xplode');
-	    $arStr = Xplode($iString);
-	    $this->NameVal($arStr[0]);
-	    $this->StreetVal($arStr[1]);
-	    $this->TownVal($arStr[2]);
-	    $this->StateVal($arStr[3]);
-	    $this->ZipVal($arStr[4]);
-	    if (count($arStr) > 5) {
-		$this->CountryVal($arStr[5]);
-	    }
-	}
-	$out = "\t".$this->NameVal()
-	  ."\t".$this->StreetVal()
-	  ."\t".$this->TownVal()
-	  ."\t".$this->StateVal()
-	  ."\t".$this->ZipVal();
-	if (!$this->ZoneObj()->isDomestic()) {
-	    $out .= "\t".$this->CountryVal();
-	}
-	return $out;
-    }
-
-    // -- FIELD CALCULATIONS -- //
-    // ++ DATA OBJECT ACCESS ++ //
-
-    protected function ZoneObj() {
-	$objZone = new clsShipZone();
-	$objZone->Set_fromName($this->CountryValue());
-	return $objZone;
-    }
-
-    // -- DATA OBJECT ACCESS -- //
-    // ++ ACTIONS ++ //
-
-    public function Capture(clsPageCkout $iPage) {
-
-throw new exception('Who calls this? (2013-11-07)');
-
-	$objCart = $iPage->CartObj();
-	$objZone = $objCart->ShipZoneObj();
-	$objVars = $iPage->CartData();
-
-	// this is a bit of a kluge; there may be a better way.
-	$objVars->LoadCart($objCart->KeyValue());	// get data already loaded
-
-	foreach ($this->arIdxs as $idxArr => $obj) {
-
-	    if (is_object($obj)) {
-		$strName = $obj->Name();
-		$idxForm = $obj->Index();
-		$valForm = $iPage->GetFormItem($strName);	// get user input
-echo '<br>INDEX='.$idxForm.' NAME=['.$strName.'] VAL=['.$valForm.']';
-		$objVars->SaveField($idxForm,$valForm);		// save to database
-		$this->arVals[$idxArr] = $valForm;		// save to object (to update display)
-
-/*
-Defined in $this->Init():
-
-	  $this->strName,	0
-	  $this->strStreet,	1
-	  $this->strTown,	2
-	  $this->strState,	3
-	  $this->strZip,	4
-	  $this->strCtry,	5
-	  $this->strEmail,	6
-	  $this->strPhone	7
-*/
-/*
-		switch ($idxArr) {
-		  case 0:
-		    $custName = $valForm;
-		    break;
-		  case 1:
-		    $custStreet = $valForm;
-		    break;
-		  case 2:
-		    $custCity = $valForm;
-		    break;
-		  case 3:
-		    $custState = $valForm;
-		    break;
-		  case 6:
-		    $custEmail = $valForm;
-		    break;
-		}
-*/
-	    }
-	}
-	$objVars->SaveCart();
-	$custName = $this->NameVal();
-	$custStreet = $this->StreetVal();
-	$custCity = $this->TownVal();
-	$custState = $this->StateVal();
-	$custEmail = $this->EmailVal();
-
-/*
-	$shipZone	= $iCart->GetFormItem(KSF_CART_RECIP_SHIP_ZONE);
-	  $objShipZone->Abbr($shipZone);
-	$custShipToSelf	= $iCart->GetFormItem(KSF_SHIP_TO_SELF);
-	$custShipIsCard	= $iCart->GetFormItem(KSF_SHIP_IS_CARD);
-	$custName	= $iCart->GetFormItem(KSF_CART_RECIP_NAME);
-	$custStreet	= $iCart->GetFormItem(KSF_CART_RECIP_STREET);
-	$custCity	= $iCart->GetFormItem(KSF_CART_RECIP_CITY);
-	$custState	= $iCart->GetFormItem(KSF_CART_RECIP_STATE);
-	$custZip	= $iCart->GetFormItem(KSF_CART_RECIP_ZIP);
-	$custCountry	= $iCart->GetFormItem(KSF_CART_RECIP_COUNTRY);
-	$custEmail	= $iCart->GetFormItem(KSF_CART_RECIP_EMAIL);
-	$custPhone	= $iCart->GetFormItem(KSF_CART_RECIP_PHONE);
-	$custMessage	= $iCart->GetFormItem(KSF_SHIP_MESSAGE);
-
-
-	$objCD->ShipZone($shipZone);
-	$objCD->RecipName($custName);
-	$objCD->ShipAddrStreet($custStreet);
-	$objCD->ShipAddrTown($custCity);
-	$objCD->ShipAddrState($custState);
-	$objCD->ShipAddrZip($custZip);
-	$objCD->ShipAddrCountry($custCountry);
-
-	$objCD->ShipToSelf($custShipToSelf);
-	$objCD->ShipToCard($custShipIsCard);
-	$objCD->ShipEmail($custEmail);
-	$objCD->ShipPhone($custPhone);
-	$objCD->ShipMessage($custMessage);
-*/
-	$iPage->CheckField('name',$custName);
-	if (!$objVars->IsShipToCard()) {
-	    $iPage->CheckField('street address',$custStreet);
-	    $iPage->CheckField('city',$custCity);
-	    if (($custState == '') && ($objZone->hasState())) {
-		    $iPage->AddMissing($objZone->StateLabel());
-	    }
-	    if (!$objZone->isDomestic()) {
-		$iPage->CheckField('country',$custCountry);
-	    }
-	}
-	if ($this->DoEmail()) {
-	    $iPage->CheckField('email',$custEmail);
-	}
-    }
-}
-
-class clsPerson_Buyer extends clsPerson {
-    // ++ SETUP ++ //
-
-    /*----
-      INPUT:
-	$rsVals = recordset of the data rows to be loaded
-    */
-    public function __construct(clsCartVar $rsVals) {
-    /*----
-      FIELDS NEEDED:
-	0: Name
-	1: Street
-	2: Town
-	3: State
-	4: Zip
-	5: Ctry
-	6: Email
-	7: Phone
-	8: Entry Type
-    */
-
-	// this seems to be a list of all the fields needed for this group
-	$arMap = array(
-	  _KSF_CART_SFX_CONT_NAME	=> KSF_CART_PAY_CARD_NAME,
-	  _KSF_CART_SFX_CONT_STREET	=> KSF_CART_PAY_CARD_STREET,
-	  _KSF_CART_SFX_CONT_CITY	=> KSF_CART_PAY_CARD_CITY,
-	  _KSF_CART_SFX_CONT_STATE	=> KSF_CART_PAY_CARD_STATE,
-	  _KSF_CART_SFX_CONT_ZIP	=> KSF_CART_PAY_CARD_ZIP,
-	  _KSF_CART_SFX_CONT_COUNTRY	=> KSF_CART_PAY_CARD_COUNTRY,
-	  _KSF_CART_SFX_CONT_EMAIL	=> KSF_CART_BUYER_EMAIL,
-	  _KSF_CART_SFX_CONT_PHONE	=> KSF_CART_BUYER_PHONE,
-	  _KSF_CART_SFX_CONT_INTYPE	=> KSF_CART_PAY_CARD_INTYPE,
-	  );
-	  parent::__construct($arMap,$rsVals);
-    }
-
-    // -- SETUP -- //
-
-    public function DirectionsValue() {
-	return NULL;	// not currently supported for buyer
-    }
-}
-
-class clsPerson_Recip extends clsPerson {
-    // ++ SETUP ++ //
-
-    /*----
-      INPUT:
-	$rsVals = recordset of the data rows to be loaded
-    */
-    public function __construct(clsCartVar $rsVals) {
-	// $arMap[suffix name] = cart var index to use
-	$arMap = array(
-	  _KSF_CART_SFX_CONT_NAME	=> KSF_CART_RECIP_NAME,
-	  _KSF_CART_SFX_CONT_STREET	=> KSF_CART_RECIP_STREET,
-	  _KSF_CART_SFX_CONT_CITY	=> KSF_CART_RECIP_CITY,
-	  _KSF_CART_SFX_CONT_STATE	=> KSF_CART_RECIP_STATE,
-	  _KSF_CART_SFX_CONT_ZIP	=> KSF_CART_RECIP_ZIP,
-	  _KSF_CART_SFX_CONT_COUNTRY	=> KSF_CART_RECIP_COUNTRY,
-	  _KSF_CART_SFX_CONT_EMAIL	=> KSF_CART_RECIP_EMAIL,
-	  _KSF_CART_SFX_CONT_PHONE	=> KSF_CART_RECIP_PHONE,
-	  _KSF_CART_SFX_CONT_INTYPE	=> KSF_CART_RECIP_CONT_INTYPE,
-	  );
-	  parent::__construct($arMap,$rsVals);
-    }
-
-    // -- SETUP -- //
-
-    public function DirectionsValue() {
-	return $this->ValueRecords()->FieldValue_forIndex(KI_CART_RECIP_MESSAGE);
-    }
-}
-
-class clsPayment extends clsPerson_Buyer {
-    //private $objCust;
-
-    public function __construct(clsCartVar $rsVals) {
-	// $arMap[suffix name] = cart var index to use
-	$arMap = array(
-	  KSF_CART_PAY_CARD_NAME		=> KSF_CART_PAY_CARD_NAME,
-	  KSF_CART_PAY_CARD_ENCR		=> KSF_CART_PAY_CARD_ENCR,
-	  KSF_CART_PAY_CARD_NUM			=> KSF_CART_PAY_CARD_NUM,
-	  KSF_CART_PAY_CARD_EXP			=> KSF_CART_PAY_CARD_EXP,
-	  );
-	parent::__construct($rsVals);
-	$this->MapArray_add($arMap);
-    }
-    // ++ FIELD COLLECTIONS ++ //
-/*
-    protected function FieldsToReturn() {
-	return array(
-	  KSF_CART_PAY_CARD_NAME,
-	  KSF_CART_PAY_CARD_ENCR,
-	  KSF_CART_PAY_CARD_NUM	,
-	  KSF_CART_PAY_CARD_EXP,
-	  );
-    }
-*/
     // -- FIELD COLLECTIONS -- //
-    // ++ FIELD ACCESS ++ //
+    // ++ DEBUGGING ++ //
 
-    public function CardNumValue() {
-	return $this->ValueRecords()->FieldValue_forIndex(KI_CART_PAY_CARD_NUM);
-    }
-    public function CardExpValue() {
-	return $this->ValueRecords()->FieldValue_forIndex(KI_CART_PAY_CARD_EXP);
-    }
-    public function CardAddrValue() {
-	return $this->Addr_AsText();
-    }
-    public function CardNameValue() {
-	return $this->NameValue();
-    }
-
-    // -- FIELD ACCESS -- //
-
-    /*----
-      ASSUMES: $arIdxs is in a particular order
-    */
-/*
-    public function Init(array $arData, array $arIdxs) {
-	parent::Init($arData,$arIdxs);
-	list(
-	  $this->strCardNum,
-	  $this->strCardExp,
-	  $this->strCheckNum,
-	  ) = $this->arVals;
-	list(
-	  $this->ftCardNum,
-	  $this->ftCardExp,
-	  $this->ftCheckNum,
-	  ) = $this->arNames;
-    }
-    protected function CustObj() {
-	return $this->objCust;
-    }
-    protected function CardNum() {
-	return $this->arVals[0];
-    }
-    protected function CardExp() {
-	return $this->arVals[1];
-    }
-    protected function CheckNum() {
-	return $this->arVals[2];
-    }
-*/
-    public function Capture(clsPageCkout $iCart) {
-	$objCart = $iCart->CartObj();
-	$objZone = $objCart->ShipZoneObj();
-	$objVars = $iCart->CartData();
-
-	// this is a bit of a kluge; there may be a better way.
-	$objVars->LoadCart($objCart->KeyValue());	// get data already loaded
-
-	foreach ($this->arIdxs as $idxArr => $obj) {
-
-	    if (is_object($obj)) {
-		$strName = $obj->Name();
-		$idxForm = $obj->Index();
-		$valForm = $iCart->GetFormItem($strName);	// get user input
-		$objVars->SaveField($idxForm,$valForm);		// save to database
-
-		switch ($idxArr) {
-		  case 0:
-		    $cardNum = $valForm;
-		    break;
-		  case 1:
-		    $cardExp = $valForm;
-		    break;
-		  case 2:
-		    $checkNum = $valForm;
-		    break;
-		}
+    public function DumpVals() {
+	$out = NULL;
+	$arVals = $this->CartValues();
+	if (count($arVals) == 0) {
+	    $out = 'NO CART DATA<br>';
+	} else {
+	    foreach($arVals as $key => $val) {
+		$out .= "KEY=[$key] VAL=[$val]<br>";
 	    }
 	}
-
-	if (is_null($checkNum)) {
-	    $iCart->CheckField('card number',$cardNum);
-	    $iCart->CheckField('card expiration',$cardExp);
-	}
-
-	$objVars->SaveCart();
-
-/*
-	    # check for missing data
-	    $this->CheckField("cardholder's name",$custCardName);
-	    $this->CheckField("card's billing address",$custCardStreet);
-	    $this->CheckField("card's billing address - city",$custCardCity);
-*/
-    }
-
-    /*----
-      ACTION: Return a description of the payment in a safe format
-	(incomplete credit card number)
-      TO DO: Allow for payment types other than credit card
-    */
-    public function SafeDisplay() {
-	$out = clsCustCards::SafeDescr_Long($this->CardNum(),$this->CardExp());
-	$out .= '<br>'.$this->CustObj()->Addr_AsText("\n<br>");
 	return $out;
     }
+    /*----
+      ACTION: Dump all loaded cart values in HTML
+      RETURNS: text of dump, ready to display
+      TODO: This no longer works, but it might be cannibalized
+	to improve DumpVals().
+    */
+    public function DumpData() {
+	$out = '<table>';
+	foreach ($this->arData as $idx => $val) {
+	    $sName = self::$arFormIdxs[$idx];
+	    $out .= "\n<tr><td>$sName</td><td>$val</td></tr>";
+	}
+	$out .= "\n</table>";
+	return $out;
+    }
+
+    // -- DEBUGGING -- //
 }
 
 function AddMatches(clsRecs_keyed_abstract $iRows) {

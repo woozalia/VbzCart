@@ -15,6 +15,7 @@ define('KS_ACTION_USER_ACCOUNT',	'usr');
 define('KS_ACTION_USER_GROUP',		'grp');
 define('KS_ACTION_USER_PERMISSION',	'perm');
 define('KS_ACTION_USER_SESSION',	'sess');
+define('KS_ACTION_USER_CLIENT',	'cli');
 
 // CLASS NAMES
 
@@ -24,8 +25,10 @@ define('KS_CLASS_ADMIN_USER_GROUPS',		'VCM_UserGroups');
 define('KS_CLASS_ADMIN_USER_GROUP',		'VC_UserGroup');
 define('KS_CLASS_ADMIN_USER_PERMISSIONS',	'VCM_UserPerms');
 define('KS_CLASS_ADMIN_USER_PERMISSION',	'VC_UserPerm');
-define('KS_CLASS_ADMIN_USER_SESSIONS',		'VCT_AdminSessions');
 define('KS_CLASS_ADMIN_UACCT_X_UGROUP',	'clsUAcct_x_UGroup_admin');
+
+define('KS_CLASS_ADMIN_USER_SESSIONS',		'VCT_AdminSessions');
+define('KS_CLASS_ADMIN_USER_CLIENTS',		'VCT_UserClients');
 
 // FEATURES
 
@@ -49,6 +52,12 @@ $om = new clsMenuFolder(NULL, '*users','User Permissions','User Access Managemen
   $omi = new clsMenuLink($om,KS_ACTION_USER_PERMISSION,'Perms','Security Permissions','security permissions assignable to groups');
     $omi->Controller(KS_CLASS_ADMIN_USER_PERMISSIONS);
     $omi->NeedPermission(KS_PERM_SEC_PERM_VIEW);
+  $omi = new clsMenuLink($om,KS_ACTION_USER_SESSION,'Sess','User Sessions','user session records');
+    $omi->Controller(KS_CLASS_ADMIN_USER_SESSIONS);
+    $omi->NeedPermission(KS_PERM_SEC_GROUP_VIEW);
+  $omi = new clsMenuLink($om,KS_ACTION_USER_CLIENT,'Clients','User Clients','user web client records');
+    $omi->Controller(KS_CLASS_ADMIN_USER_CLIENTS);
+    $omi->NeedPermission(KS_PERM_SEC_GROUP_VIEW);
 
 // MODULE SPEC ARRAY
 
@@ -56,14 +65,16 @@ $arDropin = array(
   'name'	=> 'vbz.users',
   'descr'	=> 'user/group security management',
   'version'	=> '0.0',
-  'date'	=> '2013-12-27',
+  'date'	=> '2014-09-18',
   'URL'		=> NULL,	// nothing yet
   'classes'	=> array(	// list of files and the classes they contain
     'uacct.php'			=> array(KS_CLASS_ADMIN_USER_ACCOUNTS),
     'ugroup.php'		=> array(KS_CLASS_ADMIN_USER_GROUPS,KS_CLASS_ADMIN_USER_GROUP),
     'uperm.php'			=> array(KS_CLASS_ADMIN_USER_PERMISSIONS,KS_CLASS_ADMIN_USER_PERMISSION),
-    'usess.php'			=> array(KS_CLASS_ADMIN_USER_SESSIONS),
     'uacct-x-ugroup.php'	=> array(KS_CLASS_ADMIN_UACCT_X_UGROUP),
+
+    'usess.php'			=> array(KS_CLASS_ADMIN_USER_SESSIONS),
+    'uclient.php'		=> array(KS_CLASS_ADMIN_USER_CLIENTS),
      ),
   'menu'	=> $om,
   'requires'	=> array('vbz.syslog'),	// other drop-ins used by this drop-in

@@ -81,6 +81,9 @@ class clsVbzApp extends cAppStandard {
 	    return parent::EventsClass();
 	}
     }
+    protected function SessionsClass() {
+	return 'cVbzSessions';
+    }
 
     // -- FRAMEWORK CLASSES -- //
 

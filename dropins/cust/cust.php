@@ -149,7 +149,8 @@ class VCR_Cust extends clsCust {
     public function AdminLink_name() {
 	//$strText = $this->KeyValue().': '.$this->NameStr().' - '.$this->AddrLine();
 	$sText = $this->NameString();
-	return $this->AdminLink($sText);
+	$out = $this->AdminLink($sText);
+	return $out;
     }
     /*----
       HISTORY:
@@ -172,7 +173,7 @@ class VCR_Cust extends clsCust {
     }
     protected function AdminLink_Addr() {
 	if ($this->HasAddr()) {
-	    return $this->AddrObj()->AdminLink_name();
+	    return $this->AddressRecord()->AdminLink_name();
 	} else {
 	    return 'n/a';
 	}
@@ -257,7 +258,7 @@ class VCR_Cust extends clsCust {
     // ++ FIELD CALCULATIONS ++ //
 
     protected function AddrStr() {
-	$rc = $this->AddrObj();
+	$rc = $this->AddressRecord();
 	$ht = $rc->AsString(' / ');
 	return $ht;
     }
@@ -274,7 +275,7 @@ class VCR_Cust extends clsCust {
 	}
     }
     public function AddrLine() {
-	$obj = $this->AddrObj();
+	$obj = $this->AddressRecord();
 	if (is_object($obj)) {
 	    $txt = $obj->AsSingleLine();
 	    return empty($txt)?KS_DESCR_IS_BLANK:$txt;
@@ -304,7 +305,7 @@ class VCR_Cust extends clsCust {
     // -- FIELD CALCULATIONS -- //
     // ++ DATA RECORDS ACCESS ++ //
 
-    public function AddrObj() {
+    public function AddressRecord() {
 	$id = $this->Value('ID_Addr');
 	if (is_null($id)) {
 	    return NULL;
@@ -661,6 +662,9 @@ __END__;
 	    $out .= $oPage->SectionHeader('Orders',NULL,'section-header-sub');
 	    $out .= $this->AdminOrders();
 
+	    $out .= $oPage->SectionHeader('Carts',NULL,'section-header-sub');
+	    $out .= $this->AdminCarts();
+
 	    // MAILING ADDRESSES
 	    $out .= $this->AdminAddrs();
 
@@ -800,6 +804,22 @@ __END__;
 	} else {
 	    $out = "\nNo orders for this customer!";
 	}
+	return $out;
+    }
+    private function AdminCarts() {
+	$rs = $this->CartRecords();
+	$arF = array(
+	  'ID'		=> 'ID',
+	  'ID_Sess'	=> 'Session',
+	  'ID_Order'	=> 'Order',
+	  'ShipZone'	=> 'Zone',
+	  'WhenCreated'	=> 'Created',
+	  'WhenViewed'	=> 'Viewed',
+	  'WhenUpdated'	=> 'Updated',
+	  'WhenOrdered'	=> 'Ordered',
+	  'WhenVoided'	=> 'Voided',
+	  );
+	$out = $rs->AdminRows($arF);
 	return $out;
     }
     /*-----
@@ -1052,7 +1072,7 @@ __END__;
 	    $doAdd = $oPage->PathArg('new-card');
 	}
 
-	$objRows = $this->Cards();
+	$objRows = $this->CardRecords();
 	$out = "\n<table><tr><th>ID</th><th>A?</th><th>abbr</th><th>Number/Exp</th><th>Address</th><th>Notes</th></tr>";
 	while ($objRows->NextRow()) {
 	    $ftAct = ($objRows->isActive)?'&radic;':'x';

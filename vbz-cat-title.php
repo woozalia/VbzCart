@@ -88,8 +88,8 @@ class clsVbzTitles extends clsVbzTable {
 	    $arStats['opt-list'] = $sOpts;
 	    $arStats['stock-qty'] = $qtyStock;
 	    $arStats['types'] = $sItTyps;
-	    $sPrcMin = clsMoney::BasicFormat($prcMin);
-	    $sPrcMax = clsMoney::BasicFormat($prcMax);
+	    $sPrcMin = clsMoney::Format_withSymbol($prcMin);
+	    $sPrcMax = clsMoney::Format_withSymbol($prcMax);
 	    if ($sPrcMin == $sPrcMax) {
 		$sPrc = $sPrcMin;
 	    } else {

@@ -10,6 +10,10 @@
     cart-data.php uses all of them (I think)
       especially in clsCartVars and VbzAdminCartDatum
     admin.cart.php uses a lot but not all
+  NOTE: Each KI_CART_* entry should also have an entry
+    in VCR_CartField_admin::$arTypeNames (in dropins/cart/fields.php
+    so that the admin dropin can display human-friendly field names.
+    There's got to be a better way to do this, however...
 */
 
 /* ============================================
@@ -18,6 +22,9 @@
     and are also used to retrieve the user-entered values
     from the submitted data.
 */
+
+// format for order lines
+
 
 define('KSF_SHIP_IS_CARD'	,'ship-is-billing');	// TRUE = shipping address same as billing/card
 define('KSF_SHIP_MESSAGE'	,'ship-message');
@@ -93,7 +100,7 @@ define('KSF_CART_PTYP_CARD_HERE'	,_KSF_CART_PFX_PAY.'card-here');
 // == recipient
 
 define('KI_CART_SHIP_ZONE'	,100);
-define('KI_CART_RECIP_ID'	,151);	// added 2013-11-07
+//define('KI_CART_RECIP_ID'	,151);	// added 2013-11-07, disabled 2014-09-14 - Dup of KI_CART_RECIP_CHOICE
 define('KI_CART_RECIP_INTYPE'	,152);	// added 2014-07-29 (INTYPE = input type)
 define('KI_CART_RECIP_CHOICE'	,153);	// added 2014-08-21 (drop-down choice)
 define('KI_CART_RECIP_NAME'	,101);
@@ -111,14 +118,14 @@ define('KI_CART_RECIP_PHONE'	,112);
 
 // == buyer
 
-define('KI_CART_BUYER_ID'	,251);	// added 2013-11-07
-define('KI_CART_BUYER_INTYPE'	,252);	// added 2014-07-29
-define('KI_CART_BUYER_CHOICE'	,253);	// added 2014-08-22
+//define('KI_CART_BUYER_ID'	,251);	// added 2013-11-07, disabled 2014-09-14 - Dup of KI_CART_PAY_CARD_CHOICE
 define('KI_CART_BUYER_EMAIL'	,211);
 define('KI_CART_BUYER_PHONE'	,212);
 
 // == payment card
 
+define('KI_CART_PAY_CARD_INTYPE'	,261);	// added 2014-07-29; name/number changed 2014-08-24
+define('KI_CART_PAY_CARD_CHOICE'	,262);	// added 2014-08-22; name/number changed 2014-08-24
 define('KI_CART_PAY_CARD_NAME'		,204);	// 2013-11-07: for now, this is assumed to be the buyer's name. Later, we should differentiate.
 define('KI_CART_PAY_CARD_NUM'		,202);
 define('KI_CART_PAY_CARD_EXP'		,203);
@@ -139,4 +146,3 @@ define('KI_CART_CALC_PER_ITEM_TOTAL'	,302);	// B. per-item shipping total
 define('KI_CART_CALC_PER_PKG_TOTAL'	,303);	// C. max per-package shipping total
 define('KI_CART_CALC_SHIP_TOTAL'	,304);	// D. shipping total (B+C)
 define('KI_CART_CALC_FINAL_TOTAL'	,305);	// E. final total (A+D)
-
