@@ -27,8 +27,11 @@ class clsDept extends clsDataSet {
 // object cache
     private $objSupp;
 
-    // VALUE ACCESS
+    // ++ DATA FIELD ACCESS ++ //
 
+    public function SupplierID() {
+	return $this->Value('ID_Supplier');
+    }
     public function NameStr() {
 	return $this->Value('Name');
     }
@@ -42,12 +45,16 @@ class clsDept extends clsDataSet {
     public function CatKey() {
 	return $this->Value('CatKey');
     }
+    
+    // -- DATA FIELD ACCESS -- //
+    // ++ DATA FIELD CALCULATIONS ++ //
+
     public function TitleStr() {
 	$out = $this->NameStr().' department of '.$this->SuppObj()->NameStr();
 	return;
     }
     public function URL_Rel() {
-	$strURL = $this->Supplier()->URL();
+	$strURL = $this->Supplier()->URL_rel();
 	$strKey = $this->PageKey();
 	if ($strKey) {
 	    $strURL .= strtolower($strKey).'/';
@@ -59,7 +66,7 @@ class clsDept extends clsDataSet {
     }
     public function LinkName() {
 	$strURL = $this->URL_Rel();
-	return '<a href="'.$strURL.'">'.$this->Name.'</a>';
+	return '<a href="'.$strURL.'">'.$this->NameStr().'</a>';
     }
     /*-----
       RETURNS: The string which, when prepended to a Title's CatKey, would form the Title's catalog number
@@ -67,22 +74,23 @@ class clsDept extends clsDataSet {
 	2013-11-18 Added sSep parameter so we could generate URLs too
     */
     public function CatPfx($sSep='-') {
-	$strFull = strtoupper($this->Supplier()->CatKey);
+	$strFull = strtoupper($this->Supplier()->CatKey());
 	if ($this->AffectsCatNum()) {
-	    $strFull .= $sSep.strtoupper($this->CatKey);
+	    $strFull .= $sSep.strtoupper($this->CatKey());
 	}
 	return $strFull.$sSep;
     }
 
-    // OBJECT ACCESS
+    // -- DATA FIELD CALCULATIONS -- //
+    // ++ DATA RECORDS ACCESS ++ //
 
     public function SuppObj() {
 	if (is_object($this->objSupp)) {
 	    return $this->objSupp;
 	} else {
-	    $idSupp = $this->ID_Supplier;
+	    $idSupp = $this->SupplierID();
 	    if ($idSupp) {
-		$this->objSupp = $this->objDB->Suppliers()->GetItem($idSupp);
+		$this->objSupp = $this->Engine()->Suppliers()->GetItem($idSupp);
 		return $this->objSupp;
 	    } else {
 		return NULL;
@@ -94,7 +102,8 @@ class clsDept extends clsDataSet {
 	return $this->SuppObj();
     }
 
-    // DATA ACCESS
+    // -- DATA RECORDS ACCESS -- //
+    // ++ FOREIGN DATA ACCESS ++ //
 
     /*----
       PURPOSE: loads data needed to display catalog views for this department
@@ -307,6 +316,6 @@ __END__;
       RETURNS: TRUE if this department affects the catalog number (i.e. if CatKey is non-blank)
     */
     public function AffectsCatNum() {
-	return ($this->CatKey != '');
+	return ($this->CatKey() != '');
     }
 }

@@ -100,12 +100,12 @@ class clsSupplier extends clsDataSet {
       RETURNS: relative URL for this Supplier's catalog page
     */
     public function URL_rel() {
-	return KWP_CAT_REL.strtolower($this->Value('CatKey')).'/';
+	return KWP_CAT_REL.strtolower($this->CatKey()).'/';
     }
 
     public function ShopLink($iText=NULL) {
 	if (is_null($iText)) {
-	    $strText = $this->Name;
+	    $strText = $this->NameStr();
 	} else {
 	    $strText = $iText;
 	}
@@ -113,9 +113,9 @@ class clsSupplier extends clsDataSet {
 	return $out;
     }
     public function Link() { return $this->ShopLink(); }
-    // DEPRECATED = use URL_rel() instead
     public function URL() {
-	return KWP_CAT_REL.strtolower($this->CatKey).'/';
+	throw new exception('URL() deprecated; call URL_rel() instead.');
+	//return KWP_CAT_REL.strtolower($this->CatKey()).'/';
     }
 
     // -- FIELD ACCESS -- //

@@ -225,6 +225,28 @@ class VC_Order extends clsOrder {
     }
 
     // -- HELPERS FOR BOILERPLATE FX -- //
+    // ++ OBJECT STATUS ++ //
+    
+    private $doEdit;
+    protected function DoEdit($fOn=NULL) {
+	if (!is_null($fOn)) {
+	    $this->doEdit = $fOn;
+	}
+	return $this->doEdit;
+    }
+    /*
+      TODO: This is only ever set to FALSE -- which may be broken coding.
+	Either fix or eliminate.
+    */
+    private $areTotalsOk;
+    protected function AreTotalsOk($fYes=NULL) {
+	if (!is_null($fYes)) {
+	    $this->areTotalsOk = $fYes;
+	}
+	return $this->areTotalsOk;
+    }
+    
+    // -- OBJECT STATUS -- //
     // ++ FIELD ACCESS ++ //
 
     protected function PullID() {
@@ -245,7 +267,7 @@ class VC_Order extends clsOrder {
     }
     //--
     public function Pulled($iPull=NULL) {
-	return !is_null($this->ID_Pull);
+	return !is_null($this->PullID());
     }
     public function PulledText() {
 	if ($this->Pulled()) {
@@ -447,7 +469,7 @@ class VC_Order extends clsOrder {
     protected function BuyerString() {
 	$out = $this->Value('BuyerName');
 	if (is_null($out)) {
-	    if ($this->HasBuyerID()) {
+	    if ($this->HasBuyer()) {
 		$rc = $this->BuyerRecord();
 		$out = '<i>'.$rc->NameString().'</i>';
 	    } else {
@@ -459,7 +481,7 @@ class VC_Order extends clsOrder {
     protected function RecipString() {
 	$out = $this->Value('RecipName');
 	if (is_null($out)) {
-	    if ($this->HasRecipID()) {
+	    if ($this->HasRecip()) {
 		$rc = $this->RecipRecord();
 		$out = '<i>'.$rc->NameString().'</i>';
 	    } else {
@@ -516,7 +538,7 @@ class VC_Order extends clsOrder {
     private $oTotals;
     protected function TotalsObject() {
 	if (empty($this->oTotals)) {
-	    $doEdit = $this->doEdit;
+	    $doEdit = $this->DoEdit();
 	    // calculate line totals
 	    $rs = $this->LinesData();	// get order lines
 	    if ($rs->hasRows()) {
@@ -591,7 +613,7 @@ class VC_Order extends clsOrder {
     */
     function QtysOrdered() {
 	$t = $this->LineTable();
-	$rs = $t->GetData('ID_Order='.$this->ID);
+	$rs = $t->GetData('ID_Order='.$this->KeyValue());
 	$arQtys = $rs->QtyArray();
 	return $arQtys;
     }
@@ -1060,7 +1082,7 @@ __END__;
 	    //clsHTTP::Redirect($urlReturn);
 	}
 	if (!$doSave) {
-	    $this->doEdit = $doEdit;
+	    $this->DoEdit($doEdit);
 	    if ($doReceipt) {
 		// display order receipt
 		$out .= $this->RenderReceipt();
@@ -1079,7 +1101,7 @@ __END__;
       ACTION: Displays the normal admin page
     */
     protected function AdminPage_basic() {
-	$doEdit = $this->doEdit;
+	$doEdit = $this->DoEdit();
 	$oPage = $this->Engine()->App()->Page();
 	$out = NULL;
 
@@ -1139,7 +1161,7 @@ __END__;
 	    $htNameRecip = 'ID:'.$this->Recip_Obj_AdminLink().' / Name:'.$this->RecipName();
 	    $htAddrShip = $this->RecipAddr();
 
-	    $this->areTotalsOk = NULL;
+	    $this->AreTotalsOk(FALSE);
 
 	    $htCard = $this->CCardLink();
 
@@ -1236,7 +1258,7 @@ __END__;
 	$dtClosed	= $row['WhenClosed'];
 
 	$wtNum = $strNum;
-	$strTotal = clsMoney::BasicFormat($mnyTotal);
+	$strTotal = clsMoney::Format_withSymbol($mnyTotal);
 	$strWhenCreated = clsDate::NzDate($dtCreate);
 	$strWhenClosed = clsDate::NzDate($dtClosed);
 
@@ -2063,7 +2085,7 @@ echo $actImp->Exec(FALSE); die();
 	    };
 */
 
-	    if ($this->areTotalsOk) {
+	    if ($this->AreTotalsOk()) {
 		$ftBalBtns .= '<font color=gray>Totals are correct</font>';
 		$arBalTrx = array(
 		  'sale'	=> $prcCalcSale,

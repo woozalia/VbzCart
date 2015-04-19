@@ -4,6 +4,8 @@
     These need to match whatever is defined in the KS_TABLE_USER_PERMISSION table.
   HISTORY:
     2014-01-05 created
+    2015-04-18 moved from dropins/users/const.php to data/site-admin.php
+      This needs to be more elegant somehow.
 */
 
 // uncomment this when setting up user permissions for the first time

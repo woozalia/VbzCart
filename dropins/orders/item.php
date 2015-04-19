@@ -125,33 +125,11 @@ class VCA_OrderItem extends clsOrderLine {
     private $rcOrd;
     protected function InitVars() {
 	$this->rcOrd = NULL;
-	$this->doNewItem = FALSE;
+	$this->doNewEntry = FALSE;
 	parent::InitVars();
     }
 
     // -- INITIALIZATION -- //
-    // ++ BOILERPLATE ++ //
-/*
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
-	}
-	return $this->logger;
-    }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
-    }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-    public function EventListing() {
-	return $this->Log()->EventListing();
-    }
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-    }
-*/
-    // -- BOILERPLATE -- //
     // ++ OPTIONS ++ //
 
     public function Want_ShowNewEntry($bShow=NULL) {

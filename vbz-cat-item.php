@@ -21,6 +21,7 @@ class clsItems extends clsVbzTable {
     }
 
     // -- SETUP -- //
+    // ++ LOOKUP/SEARCH ++ //
 
     /*----
       ACTION: Finds the Item with the given CatNum, and returns a clsItem object
@@ -44,6 +45,9 @@ class clsItems extends clsVbzTable {
 	    return NULL;
 	}
     }
+    // -- LOOKUP/SEARCH -- //
+    // ++ CALCULATIONS ++ //
+    
     /*----
       ACTION: Figure various statistics for the recordset returned by the given filter
       RETURNS: recordset containing statistics
@@ -68,6 +72,9 @@ class clsItems extends clsVbzTable {
 	return $rs;
     }
 
+    // -- CALCULATIONS -- //
+    // ++ WEB UI ++ //
+    
     /*----
       RETURNS: Table header for list of available items on catalog Title pages
       HISTORY:
@@ -82,6 +89,8 @@ class clsItems extends clsVbzTable {
 	  .'<th align=center class=orderQty>Order<br>Qty.</th>'
 	  .'</tr>';
     }
+    
+    // -- WEB UI -- //
 }
 /* ===============
  CLASS: clsItem
@@ -141,7 +150,6 @@ class clsItem extends clsDataSet {
     // DEPRECATED - use TitleObj()
     public function Title() {
 	throw new exception('Title() is deprecated; use TitleRecord().');
-	//return $this->TitleObj();
     }
     public function TitleObj() {
 	throw new exception('TitleObj() is deprecated; use TitleRecord().');
@@ -197,18 +205,6 @@ class clsItem extends clsDataSet {
 	throw new exception('ShipCostObj() is deprecated; use ShipCostRecord().');
     }
     public function ShipCostRecord() {
-/*
-	$doLoad = FALSE;
-	if (empty($this->objShCost)) {
-	    $doLoad = TRUE;
-	} elseif ($this->objShCost->ID != $this->ID_ShipCost) {
-	    $doLoad = TRUE;
-	}
-	if ($doLoad) {
-	    $this->objShCost = $this->objDB->ShipCosts()->GetItem($this->ID_ShipCost);
-	}
-	return $this->objShCost;
-*/
 	if (is_null($this->rcShCost)) {
 	    $this->rcShCost = $this->ShipCostTable($this->ShipCostID());
 	}

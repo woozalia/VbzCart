@@ -107,29 +107,23 @@ class clsTopics extends clsVbzTable {
 	// update title stats for each topic
 
 	// build reference array for tree structure
-	$objRows = $this->GetData();
-	while ($objRows->NextRow()) {
-	    $id = $objRows->ID;
-	    $idParent = $objRows->ID_Parent;
+	$rs = $this->GetData();
+	while ($rs->NextRow()) {
+	    $id = $rs->KeyValue();
+	    $idParent = $rs->ParentID();
 	    if (empty($idParent)) {
 		//$idParent = -1;	// parent is fake root node
 		$idParent = 0;	// parent is fake root node
 	    }
-	    //$objCopy = $objRows->RowCopy();
-	    //$arLayer[$idParent][$id] = $objCopy;
-	    $arLayer[$idParent][$id] = $objRows->Values();
+	    $arLayer[$idParent][$id] = $rs->Values();
 	}
 
 	$objTree = $this->TreeCtrl();
 	$objRoot = $objTree->RootNode();
-	//$objRoot->OneRoot(TRUE);
 	$objFakeRoot = $objRoot->Add(0,'Topics');
-	//$objRoot->TextShow('Topics');
-	//$objRoot->Add(-1,'Topics');
-	//$this->AddLayer($arLayer,$objRoot,-1);	// build the node tree
 	$ar = $this->LoadTitleStats();
 	$this->AddLayer($arLayer,$objFakeRoot,0,$ar);	// build the node tree
-	$out = $objTree->RenderPageHdr();	// this belongs in a different place eventually
+	$out = $objTree->RenderPageHdr();		// this belongs in a different place eventually
 	$out .= $objRoot->RenderTree();
 
 	return $out;
@@ -211,7 +205,7 @@ class clsTopic extends clsVbzRecs {
     // ++ STATUS ACCESS ++ //
 
     public function HasParent() {
-	return !is_null($this->Value('ID_Parent'));
+	return !is_null($this->ParentID());
     }
     /*----
       RETURNS: Folder name to use for this topic
@@ -234,6 +228,9 @@ class clsTopic extends clsVbzRecs {
     // -- STATUS ACCESS -- //
     // ++ FIELD ACCESS ++ //
 
+    public function ParentID() {
+	return $this->Value('ID_Parent');
+    }
     /*----
       RETURNS: Full name for this topic. If NameFull is not set, defaults to Name.
     */

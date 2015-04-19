@@ -18,12 +18,36 @@
 abstract class clsVbzPage extends clsPageLogin {
     private $oSkin;
 
+    // ++ SETUP ++ //
+    
     public function __construct() {
 	parent::__construct();
 	$this->oSkin = NULL;
     }
 
-    // ++SECTION: new methods
+    // -- SETUP -- //
+    // ++ UTILITIES ++ //
+    
+    /*----
+      RETURNS: The rest of the URI after KFP_PAGE_BASE
+      REQUIRES: KFP_PAGE_BASE must be set to the base URL for the expected request (e.g. '/cat/')
+      REASON: $SERVER[PATH_INFO] is often unavailable; $SERVER[REQUEST_URI] is more reliable,
+	  but needs a little processing.
+	This function can be gradually foolproofed as more cases are encountered.
+	See getPathInfo in https://doc.wikimedia.org/mediawiki-core/master/php/WebRequest_8php_source.html
+    */
+    static protected function GetPathInfo() {
+	$uriReq = $_SERVER['REQUEST_URI'];
+	$idxBase = strpos($uriReq,KFP_PAGE_BASE);
+	if ($idxBase === FALSE) {
+	    throw new exception("Configuration needed: URI [$uriReq] does not include KFP_PAGE_BASE [".KFP_PAGE_BASE.'].');
+	}
+	$urlPath = substr($uriReq,$idxBase+strlen(KFP_PAGE_BASE));
+	return $urlPath;
+    }
+    
+    // -- UTILITIES -- //
+    // ++ NEW METHODS ++ //
 
     abstract protected function NewSkin();
 

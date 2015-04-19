@@ -247,24 +247,25 @@ class clsTitle_StoreUI extends clsVbzTitle {
 	}
     }
     protected function ShopPage_Images() {
-	$objImgs = $this->ImageRecords_forRow_small();
+	$rsImgs = $this->ImageRecords_forRow_small();
 	$out = NULL;
-	while ($objImgs->NextRow()) {
-	    $strImgTag = $objImgs->Value('AttrDispl');
-	    $urlRel = $objImgs->Value('Spec');
-	    $idImg = $objImgs->KeyValue();
-	    $strImg = '<img src="'.$objImgs->WebSpec().'"';
-	    if ($strImgTag) {
-		$strImg .= ' title="'.$strImgTag.'"';
+	while ($rsImgs->NextRow()) {
+	    $sImgTitle = $rsImgs->Value('AttrDispl');
+	    
+	    $htImgTag = '<img src="'.$rsImgs->WebSpec().'"';
+	    if ($sImgTitle) {
+		$htImgTag .= ' title="'.$sImgTitle.'"';
 	    }
-	    $strImg .= '>';
-	    $objImgBig = $objImgs->ImgForSize(KS_IMG_SIZE_LARGE);
-	    if (is_object($objImgBig)) {
-		if ($objImgBig->FirstRow()) {
-		    $strImg = $objImgBig->Href().$strImg.'</a>';
+	    $htImgTag .= '>';
+	    
+	    $rcImgBig = $rsImgs->ImgForSize(KS_IMG_SIZE_LARGE);
+	    $htImg = NULL;
+	    if (is_object($rcImgBig)) {
+		if ($rcImgBig->FirstRow()) {
+		    $htImg = $rcImgBig->RenderPageLink($htImgTag,TRUE);
 		}
 	    }
-	    $out .= $strImg;
+	    $out .= $htImg;
 	}
 	return $out;
     }
@@ -298,9 +299,10 @@ class clsTitle_StoreUI extends clsVbzTitle {
 
 	    $idItTyp_old = NULL;
 	    $strGrp_old = NULL;
+/* 2015-04-16 these seem not to be used anymore
 	    $this->cntInStk = 0;
 	    $this->cntOutStk = 0;
-
+*/
 
 	    // build nested array
 	    while ($rs->NextRow()) {

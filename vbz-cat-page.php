@@ -14,23 +14,24 @@ class clsCatPages extends clsVbzTable {
 	  $this->KeyName('AB');
 	  $this->ClassSng('clsCatPage');
     }
+    /*----
+      RETURNS: Catalog Page record, if found
+	Recordset will be empty if not found.
+    */
     public function GetItem_byKey($iKey) {
-	CallEnter($this,__LINE__,__CLASS__.'.GetItem_byKey('.$iKey.')');
 	$strKey = trim($iKey,'/');
 	$strKey = str_replace('-','/',$strKey);
-	$sqlCatKey = $this->objDB->SafeParam($strKey);
-// This function is named wrong, and needs to be rewritten anyway
-//	$this->Touch('clsCatPages.GetItem_byKey('.$iKey.')');
-	$objItem = $this->GetData('Path="'.$sqlCatKey.'"');
-    //    $objRec = $this->objDB->Query($sql);
-	assert('is_object($objItem)');
-	if ($objItem->NextRow()) {
-	    DumpValue('objItem NumRows',$objItem->hasRows());
-	    CallExit('clsCatPages.GetItem_byKey('.$iKey.') -> Page '.$objItem->AB);
+	$sqlCatKey = $this->Engine()->SafeParam($strKey);
+	$rcCPage = $this->GetData('Path="'.$sqlCatKey.'"');
+	$rcCPage->NextRow();	// load first/only row
+/* obsolete debugging
+	if ($rcCPage->NextRow()) {
+	    DumpValue('rcCPage NumRows',$rcCPage->hasRows());
+	    CallExit('clsCatPages.GetItem_byKey('.$iKey.') -> Page '.$rcCPage->KeyValue());
 	} else {
 	    CallExit('clsCatPages.GetItem_byKey('.$iKey.') -> no data');
-	}
-	return $objItem;
+	} */
+	return $rcCPage;
     }
 }
 // just for paral;ellism, at this point
@@ -42,6 +43,9 @@ class clsCatPage extends clsDataSet {
 	$this->oItem = NULL;
 	parent::InitVars();
     }
+    
+    // ++ DATA RECORD ACCESS ++ //
+    
     /*----
       RETURNS: an object of the appropriate type, as determined by what the current page information record indicates
       ASSUMES: if there is an object, it's the correct one
@@ -50,7 +54,7 @@ class clsCatPage extends clsDataSet {
 	if (is_null($this->oItem)) {
 	    $id = $this->Row['ID_Row'];
 	    $objData = $this->Engine();
-	    switch ($this->Type) {
+	    switch ($this->TypeKey()) {
 	      case 'S':
 		$rs = $objData->Suppliers();
 		break;
@@ -75,6 +79,16 @@ class clsCatPage extends clsDataSet {
 	}
 	return $this->oItem;
     }
+    
+    // -- DATA RECORD ACCESS -- //
+    // ++ DATA FIELD ACCESS ++ //
+    
+    public function TypeKey() {
+	return $this->Value('Type');
+    }
+    public function RowID() {
+	return $this->Value('ID_Row');
+    }
     public function TitleStr() {
 	$oItem = $this->ItemObj();
 	if (is_null($oItem)) {
@@ -83,4 +97,6 @@ class clsCatPage extends clsDataSet {
 	    return $oItem->TitleStr();
 	}
     }
+    
+    // -- DATA FIELD ACCESS -- //
 }

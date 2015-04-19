@@ -87,6 +87,47 @@ __END__;
     // -- CLASS NAMES -- //
     // ++ SHOPPING WEB UI ++ //
 
+    /*----
+      RETURNS: HTML for link to the page corresponding to the current image
+      INPUT:
+	$htContent = what should go between the <a> and </a> tags.
+	  $htContent will be displayed raw, so it may contain HTML.
+	$doAbsolute = TRUE: prepend the Title's URL; FALSE: just return a link relative to the Title's URL.
+    */
+    public function RenderPageLink($htContent,$doAbsolute=FALSE) {
+	$sFldrRel = $this->Attrib_forFolder();
+	if ($sFldrRel != '') {
+	    $sFldrRel .= '-';
+	}
+	$sFldrRel .= $this->Abbrev_forSize();
+
+	if ($doAbsolute) {
+	    $sFldr = $this->TitleObj()->URL().'/'.$sFldrRel;
+	} else {
+	    $sFldr = $sFldrRel;
+	}
+	return "<a href='$sFldr'>$htContent</a>";
+    }
+    /*----
+      TODO: rename or deprecate this -- the name is misleading; it's actually the href
+	to the *title*...
+    */
+    public function Href($iAbs=false) {
+	throw new exception('Href() is deprecated; use RenderPageLink() instead.');
+    
+	$strFldrRel = $this->Attrib_forFolder();
+	if ($strFldrRel) {
+	    $strFldrRel .= '-';
+	}
+	$strFldrRel .= $this->Abbrev_forSize();
+
+	if ($iAbs) {
+	    $strFldr = $this->TitleObj()->URL().'/'.$strFldrRel;
+	} else {
+	    $strFldr = $strFldrRel;
+	}
+	return '<a href="'.$strFldr.'/">';
+    }
     /*-----
       ACTION: outputs a standalone page for larger image sizes - does not use skin
 	(Was originally in clsImage, where skin was inaccessible.)
@@ -102,19 +143,19 @@ __END__;
 	$rsImgs = $this->Data_forSameAttr();
 	$sSizes = NULL;
 	while ($rsImgs->NextRow()) {
-	    $strImgType = $rsImgs->Value('Ab_Size');
-	    if (!empty($strImgType)) {
-		if (($strImgType != 'th') && ($strImgType != 'sm')) {
-		    $strDesc = self::$arSzNames[$strImgType];
+	    $sImgType = $rsImgs->Value('Ab_Size');
+	    if (!empty($sImgType)) {
+		if (($sImgType != 'th') && ($sImgType != 'sm')) {
+		    $sDesc = self::$arSzNames[$sImgType];
 		    if ($rsImgs->KeyValue() == $idImg) {
-			$strImgTag = '<b>'.$strDesc.'</b>';
+			$htImgTag = '<b>'.$sDesc.'</b>';
 		    } else {
-			$strImgTag = $rsImgs->Href(TRUE).$strDesc.'</a>';
+			$htImgTag = $rsImgs->RenderPageLink($sDesc,TRUE);
 		    }
 		    if (!empty($sSizes)) {
 			$sSizes .= ' .. ';
 		    }
-		    $sSizes .= $strImgTag;
+		    $sSizes .= $htImgTag;
 		}
 	    }
 	}
@@ -130,8 +171,8 @@ __END__;
 	$isFirst = TRUE;
 	$rsImgs = $this->Data_forSameSize();
 	while ($rsImgs->NextRow()) {
-	    $sImgFldr = $rsImgs->Value('AttrFldr');
-	    $sImgDescr = $rsImgs->Value('AttrDispl');
+	    $sImgFldr = $rsImgs->Attrib_forFolder();
+	    $sImgDescr = $rsImgs->Attrib_forDisplay();
 	    if ($isFirst) {
 		$isFirst = FALSE;
 	    } else {
@@ -144,7 +185,7 @@ __END__;
 	    if ($rsImgs->KeyValue() == $idImg) {
 		$sAttrs .= '<b>'.$sImgDescr.'</b>';
 	    } else {
-		$sAttrs .= $rsImgs->Href(TRUE).$sImgDescr.'</a>';
+		$sAttrs .= $rsImgs->RenderPageLink($sImgDescr,TRUE);
 	    }
 	}
 
@@ -181,6 +222,7 @@ __END__;
     */
     public function RenderInline_rows(array $arAttr=NULL) {
 	$out = NULL;
+	$this->RewindRows();
 	while ($this->NextRow()) {
 	    $out .= "\n".$this->RenderInline_row($arAttr);
 	}

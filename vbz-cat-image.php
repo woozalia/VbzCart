@@ -68,17 +68,44 @@ class clsVbzFolders extends clsVbzTable {
     }
 }
 class clsVbzFolder extends clsDataSet {
+  
+    // ++ DATA FIELD ACCESS ++ //
+
+    protected function ParentID() {
+	return $this->Value('ID_Parent');
+    }
+    protected function HasParent() {
+	return !is_null($this->ParentID());
+    }
+    protected function PathPart() {
+	return $this->Value('PathPart');
+    }
+    protected function Attrib_forFolder() {
+	return $this->Value('AttrFldr');
+    }
+    
+    // -- DATA FIELD ACCESS -- //
+    // ++ DATA LOOKUP ++ //
+    
+    protected function ParentRecord() {
+	return $this->Table()->GetItem($this->ParentID());
+    }
+    
+    // -- DATA LOOKUP -- //
+    // ++ DATA FIELD CALCULATIONS ++ //
+    
     public function Spec() {
 	$out = '';
-	if (!is_null($this->ID_Parent)) {
+	if ($this->HasParent()) {
 	    $out = $this->ParentRecord()->Spec();
 	}
-	$out .= $this->PathPart;
+	$out .= $this->PathPart();
 	return $out;
     }
-    protected function ParentRecord() {
-	return $this->Table->GetItem($this->ID_Parent);
-    }
+    
+    // -- DATA FIELD CALCULATIONS -- //
+    // ++ WEB UI ++ //
+    
     /*----
       ACTION: Shows a drop-down selection box contining the rows in the current dataset
       FUTURE:
@@ -88,22 +115,27 @@ class clsVbzFolder extends clsDataSet {
 	if ($this->HasRows()) {
 	    $out = '<select name="'.$iName.'">';
 	    while ($this->NextRow()) {
-		if ($this->ID == $iDefault) {
+		$id = $this->KeyValue();
+		if ($id == $iDefault) {
 		    $htSelect = " selected";
 		} else {
 		    $htSelect = '';
 		}
-		$out .= '<option'.$htSelect.' value="'.$this->ID.'">'.$this->Spec().'</option>';
+		$out .= '<option'.$htSelect.' value="'.$id.'">'.$this->Spec().'</option>';
 	    }
 	    $out .= '</select>';
 	} else {
-	    $out = 'No shipments matching filter';
+	    $out = 'No images matching filter';
 	}
 	return $out;
     }
+    
+    // -- WEB UI -- //
+    
     /*----
       RETURNS: The rest of the URL after this folder's PathPart is removed from the beginning
       USED BY: bulk image entry admin routine
+	TODO: Move to admin class
     */
     public function Remainder($iSpec) {
 	$fsFldr = $this->Value('PathPart');
@@ -190,16 +222,25 @@ class clsImage extends clsVbzRecs {
 
     // ++ FIELD ACCESS ++ //
 
+    protected function TitleID() {
+	return $this->Value('ID_Title');
+    }
     protected function FolderID() {
 	return $this->Value('ID_Folder');
     }
     protected function Spec() {
 	return $this->Value('Spec');
     }
-    protected function TitleID() {
-	return $this->Value('ID_Title');
-    }
     public function AttrDescr() {
+	return $this->Value('AttrDispl');
+    }
+    protected function Abbrev_forSize() {
+	return $this->Value('Ab_Size');
+    }
+    protected function Attrib_forFolder() {
+	return $this->Value('AttrFldr');
+    }
+    protected function Attrib_forDisplay() {
 	return $this->Value('AttrDispl');
     }
     /*----
@@ -261,57 +302,39 @@ class clsImage extends clsVbzRecs {
 
     // -- DATA RECORDS ACCESS -- //
     /*-----
-      ACTION: Get the image with the same title and attribute but with the given size
+      ACTION: Get the image with the same title and attribute as the current one, but with the given size
     */
-    public function ImgForSize($iSize) {
-	if ($this->AttrFldr) {
-	    $sqlAttr = '="'.$this->AttrFldr.'"';
+    public function ImgForSize($sSize) {
+	if ($this->Attrib_forFolder()) {
+	    $sqlAttr = '="'.$this->Attrib_forFolder().'"';
 	} else {
 	    $sqlAttr = ' IS NULL';
 	}
-	$sqlFilt = '(ID_Title='.$this->ID_Title.') AND (AttrFldr'.$sqlAttr.') AND (Ab_Size="'.$iSize.'")';
-	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
-	return $objImgOut;
+	$sqlFilt = '(ID_Title='.$this->TitleID().') AND (AttrFldr'.$sqlAttr.') AND (Ab_Size="'.$sSize.'")';
+	$rcImg = $this->Table()->GetData($sqlFilt);
+	return $rcImg;
     }
     public function TitleObj() {
       if (!is_object($this->objTitle)) {
-	  $this->objTitle = $this->objDB->Titles()->GetItem($this->ID_Title);
+	  $this->objTitle = $this->TitleTable()->GetItem($this->TitleID());
       }
       return $this->objTitle;
     }
     public function Data_forSameAttr() {
-	$sqlFilt = 'isActive AND (ID_Title='.$this->ID_Title.')';
-	$sAttr = $this->Value('AttrFldr');
+	$sqlFilt = 'isActive AND (ID_Title='.$this->TitleID().')';
+	$sAttr = $this->Attrib_forFolder();
 	$sqlAttr = is_null($sAttr)?'IS NULL':('= "'.$sAttr.'"');
 	//if ($this->AttrFldr) {
 	  $sqlFilt .= " AND (AttrFldr $sqlAttr)";
 	//}
-	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
+	$objImgOut = $this->Table()->GetData($sqlFilt);
 
 	return $objImgOut;
     }
     public function Data_forSameSize() {
-	$sqlFilt = 'isActive AND (ID_Title='.$this->ID_Title.') AND (Ab_Size="'.$this->Ab_Size.'")';
+	$sqlFilt = 'isActive AND (ID_Title='.$this->TitleID().') AND (Ab_Size="'.$this->Abbrev_forSize().'")';
 //echo 'SQL: '.$sqlFilt;
-	$objImgOut = $this->objDB->Images()->GetData($sqlFilt);
+	$objImgOut = $this->Table()->GetData($sqlFilt);
 	return $objImgOut;
-    }
-    /*----
-      TODO: rename or deprecate this -- the name is misleading; it's actually the href
-	to the *title*...
-    */
-    public function Href($iAbs=false) {
-	$strFldrRel = $this->AttrFldr;
-	if ($strFldrRel) {
-	    $strFldrRel .= '-';
-	}
-	$strFldrRel .= $this->Value('Ab_Size');
-
-	if ($iAbs) {
-	    $strFldr = $this->TitleObj()->URL().'/'.$strFldrRel;
-	} else {
-	    $strFldr = $strFldrRel;
-	}
-	return '<a href="'.$strFldr.'/">';
     }
 }

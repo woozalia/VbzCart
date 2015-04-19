@@ -47,11 +47,7 @@ class clsPageTopic extends clsVbzPage_Browse {
       IMPLEMENTATION: URL data is topic ID
     */
     protected function ParseInput() {
-	if (isset($_SERVER['PATH_INFO'])) {
-	    $strReq = trim($_SERVER['PATH_INFO'],'/');
-	} else {
-	    $strReq = '';
-	}
+	$strReq = self::GetPathInfo();
 	$idTopic = (int)$strReq;
 	$this->strReq = sprintf('%4i',$idTopic);
 	$this->idTopic = $idTopic;

@@ -275,7 +275,7 @@ class clsOrder extends clsVbzRecs {
 
     // -- DATA RECORD ACCESS -- //
     // ++ STATUS ACCESS ++ //
-
+   
     protected function HasCart() {
 	return !is_null($this->CartID());
     }

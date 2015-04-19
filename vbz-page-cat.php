@@ -31,35 +31,30 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
     }
 
     // -- ACCESS METHODS -- //
-    // ++ ABSTRACT IMPLEMENTATIONS ++ //
+    // ++ CEMENTING ++ //
 
     /*-----
       IMPLEMENTATION: Retrieves request from URL and parses it
 	URL data identifies page, keyed to cat_pages data
     */
     protected function ParseInput() {
-	if (isset($_SERVER['PATH_INFO'])) {
-	    $strReq = $_SERVER['PATH_INFO'];
-	} else {
-	    $strReq = '';
-	}
+	$strReq = self::GetPathInfo();
 	$this->strReq = $strReq;
+	/* 2015-04-16 not sure what this was for, so commenting it out for now:
 	if (strrpos($strReq,'/')+1 < strlen($strReq)) {
 	    $strRedir = KWP_CAT_REL.substr($strReq,1).'/';
 	    header('Location: '.$strRedir);
 	    exit;	// retry with new URL
-	}
+	} */
     }
     protected function HandleInput() {
-	//parent::HandleInput();
-	$strReq = $this->strReq;
-	$this->objCatPage = $this->Data()->Pages()->GetItem_byKey($strReq);
-
-	$objPage = $this->objCatPage;
-
+	
 	if ($this->strReq) {
-	    if (is_object($objPage)) {
-		switch ($objPage->Type) {
+	    $strReq = $this->strReq;
+	    $this->objCatPage = $this->Data()->Pages()->GetItem_byKey($strReq);
+	    $rcPage = $this->objCatPage;
+	    if ($rcPage->HasRows()) {
+		switch ($rcPage->TypeKey()) {
 		case 'S':
 		  $this->DoCatSupp();
 		  break;
@@ -93,7 +88,7 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
 	// this may not be needed
     }
 
-    // -- ABSTRACT IMPLEMENTATIONS -- //
+    // -- CEMENTING -- //
     // ++ OBJECT FACTORY ++ //
 
     private function Suppliers($id=NULL) {
@@ -161,7 +156,7 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
     private function DoDeptIndicia($iDept,$isFinal=true) {
 	$this->DoSuppIndicia($iDept->Supplier(),false);
 	if ($isFinal) {
-	    $sVal = $iDept->Name;
+	    $sVal = $iDept->NameStr();
 	} else {
 	    $sVal = $iDept->LinkName();
 	}
@@ -206,10 +201,10 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
     }
     private function DoCatDept() {
 	$objDeptTbl = $this->Data()->Depts();
-	$objDept = $objDeptTbl->GetItem($this->objCatPage->ID_Row);
+	$objDept = $objDeptTbl->GetItem($this->objCatPage->RowID());
 	$objSupp = $objDept->Supplier();
-	$strDeptName = $objDept->Name;
-	$strSuppName = $objSupp->Name;
+	$strDeptName = $objDept->NameStr();
+	$strSuppName = $objSupp->NameStr();
 	$strDeptLink = $objDept->LinkName();
 	$strSuppLink = $objSupp->Link();
 
@@ -236,7 +231,7 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
 	$this->Skin()->PageTitle($strTitleName);
 	$this->Skin()->TitleContext(
 	  'items <a href="'.KWP_CAT_REL.
-	  '">supplied</a> by '.$objSupp->Link().'\'s '.
+	  '">supplied</a> by '.$objSupp->Link()."'s ".
 	  $objDept->LinkName().' department:'
 	  );
 	$objTitle->hideImgs = $this->hideImgs;

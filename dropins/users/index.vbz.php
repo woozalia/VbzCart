@@ -3,11 +3,8 @@
   PURPOSE: VbzCart drop-in descriptor for user access management
   HISTORY:
     2013-12-18 started
+    2015-04-18 removed inclusion of const.php; file has been moved to site config folder.
 */
-
-// CONSTANTS
-
-require('const.php');	// constants to match defined permissions
 
 // ACTIONS
 

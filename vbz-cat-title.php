@@ -200,6 +200,7 @@ class clsVbzTitles extends clsVbzTable {
 }
 class clsVbzTitle extends clsDataSet {
 // object cache
+    private $oStats;
     private $rcDept;
     private $rcSupp;
 
@@ -410,7 +411,7 @@ class clsVbzTitle extends clsDataSet {
 	if (is_null($this->rcSupp)) {
 	    $doLoad = TRUE;
 	} else if (is_object($this->rcSupp)) {
-	    if ($this->Supplier_ID() != $this->rcSupp->ID) {
+	    if ($this->Supplier_ID() != $this->rcSupp->KeyValue()) {
 		$doLoad = TRUE;
 	    }
 	} else {

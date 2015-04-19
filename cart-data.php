@@ -9,7 +9,6 @@
 */
 
 require_once('vbz-const-cart.php');
-require_once('config-admin.php');
 
 define('KS_FORM_INTYPE_EXISTING','old');
 define('KS_FORM_INTYPE_NEWENTRY','new');

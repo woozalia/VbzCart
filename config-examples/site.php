@@ -41,9 +41,10 @@ define('KS_PAGE_SERVER','vbz.net');	// domain or IP of server where pages are ke
 define('KS_USER_SESSION_KEY','vbzcart-session');	// name of cookie for storing session key
 
 // file locations
-define('KFP_LIB_VBZ',KFP_LIB.'/vbzcart');		// VbzCart library files
+define('KFP_LIB_VBZ',KFP_LIB.'/VbzCart');		// VbzCart library files
 define('KFP_VBZ_DROPINS',KFP_LIB_VBZ.'/dropins');	// drop-in module folder
 define('KFN_DROPIN_INDEX','index.vbz.php');		// name for drop-in index
+define('KFP_CONFIG',KFP_DATA.'/config/vbzcart');
 
 // icons
 define('KWP_ICON_ALERT'		,'/tools/img/icons/button-red-X.20px.png');
