@@ -16,13 +16,6 @@
 */
 class VCM_StockPlaces extends clsVbzTable {
 
-    // ++ STATIC ++ //
-
-    static public function SpawnTable(clsVbzData $iEngine,$id=NULL) {
-	return $iEngine->Make(__CLASS__,$id);
-    }
-
-    // -- STATIC -- //
     // ++ SETUP ++ //
 
     protected $idEvent;
@@ -36,7 +29,8 @@ class VCM_StockPlaces extends clsVbzTable {
 	  $this->ActionKey(KS_ACTION_STOCK_PLACE);
     }
 
-    // ++ BOILERPLATE: cache management (table) ++ //
+    // -- SETUP -- //
+    // ++ BOILERPLATE: CACHE TABLES ++ //
 
     /*----
       PURPOSE: intercepts the Update() function to update the cache timestamp
@@ -59,7 +53,7 @@ class VCM_StockPlaces extends clsVbzTable {
 	$objCache->UpdateTime_byTable($this);
     }
 
-    // -- BOILERPLATE -- //
+    // -- BOILERPLATE: CACHE TABLES -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -234,15 +228,6 @@ __END__;
 class VCM_StockPlace extends clsVbzRecs {
     protected $objParent;
 
-    // ++ SETUP ++ //
-
-    /* 2014-05-11 What calls this?
-    public function InitNew() {
-	$this->ID = 0;
-	$this->ID_Parent = NULL;
-    }*/
-
-    // -- SETUP -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -305,14 +290,14 @@ class VCM_StockPlace extends clsVbzRecs {
       ACTION: Returns name plus some parental context
     */
     public function NameLong() {
-	$out = $this->Name;
+	$out = $this->Name();
 	if ($this->HasParent()) {
 	    $out .= ' &larr; '.$this->Table()->GetItem($this->ParentID())->Name();
 	}
 	return $out;
     }
     public function NameLong_text() {
-	$out = $this->Name;
+	$out = $this->Name();
 	if ($this->HasParent()) {
 	    $out .= ' < '.$this->Table()->GetItem($this->ParentID())->Name();
 	}
@@ -334,10 +319,17 @@ class VCM_StockPlace extends clsVbzRecs {
     }
 
     // -- DATA FIELD ACCESS -- //
+    // ++ CLASS NAMES ++ //
+    
+    function BinsClass() {
+	return KS_CLASS_STOCK_BINS;
+    }
+    
+    // -- CLASS NAMES -- //
     // ++ DATA TABLE ACCESS ++ //
 
     public function BinsTable() {
-	return VCM_StockBins::SpawnTable($this->Engine());
+	return $this->Engine()->Make($this->BinsClass());
     }
 
     // -- DATA TABLE ACCESS -- //

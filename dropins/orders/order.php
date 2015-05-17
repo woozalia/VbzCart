@@ -227,6 +227,20 @@ class VC_Order extends clsOrder {
     // -- HELPERS FOR BOILERPLATE FX -- //
     // ++ OBJECT STATUS ++ //
     
+    private $arTblArgs;
+    protected function TableArg($sName,$sVal=NULL) {
+	if (!is_null($sVal)) {
+	    $this->arTblArgs[$sName] = $sVal;
+	}
+	return $this->arTblArgs[$sName];
+    }
+    protected function TableArgs(array $arArgs=NULL) {
+	if (!is_null($arArgs)) {
+	    $this->arTblArgs = $arArgs;
+	}
+	return $this->arTblArgs;
+    }
+    
     private $doEdit;
     protected function DoEdit($fOn=NULL) {
 	if (!is_null($fOn)) {
@@ -557,9 +571,9 @@ class VC_Order extends clsOrder {
 
 		if ($doEdit) {
 		    $objForm = $this->PageForm();
-		    $htAmtMerch	= $objForm->RenderControl('WebTotal_Merch');
-		    $htAmtShip =  $objForm->RenderControl('WebTotal_Ship');
-		    $htAmtTotal = $objForm->RenderControl('WebTotal_Final');
+		    $htAmtMerch	= $objForm->ControlObject('WebTotal_Merch')->Render(TRUE);
+		    $htAmtShip =  $objForm->ControlObject('WebTotal_Ship')->Render(TRUE);
+		    $htAmtTotal = $objForm->ControlObject('WebTotal_Final')->Render(TRUE);
 		} else {
 		    $htAmtMerch = NULL;
 		    $htAmtShip = NULL;
@@ -959,11 +973,28 @@ __END__;
 	$arOut['errs'] = $arErrs;
 	return $arOut;
     }
+    protected function RenderBalanceButtons() {
+	if ($this->HasLines()) {
+	    if ($this->TotalsObject()->FoundMismatch()) {
+		$ftRecalcLink = $this->AdminLink(
+		  'recalculate',
+		  'add up totals for items in order',
+		  array('do'=>'recalc')
+		  );
+		$ftBalBtns = "[$ftRecalcLink]";
+	    } else {
+		$ftBalBtns = '<font color=gray>Totals are correct</font>';
+	    }
+	} else {
+	    $ftBalBtns = $this->Engine()->App()->Page()->Skin()->ErrorMessage('Order has no item lines.');
+	}
+	return $ftBalBtns;
+    }
     /*----
       ACTION: Displays aggregated stats regarding the line items.
       TODO: Figure out why the display of the lines themselves isn't here too.
     */
-    protected function AdminLines() {
+    protected function AdminLines_NOT_USED() {
 	$rs = $this->LinesData();	// get order lines
 	if ($rs->hasRows()) {
 	    $arTotItm = $rs->FigureTotals();
@@ -1145,63 +1176,95 @@ __END__;
 	$arTrxBal = $this->arBalTrx;
 
 	// render form controls
+	$frmEdit = $this->PageForm();
+	if ($this->IsNew()) {
+	    $frmEdit->ClearValues();
+	} else {
+	    $frmEdit->LoadRecord();
+	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frmEdit->RenderControls($doEdit);
+	$arCtrls['ID'] = $this->AdminLink();
+	$arCtrls['Status'] = $txtStatus;
+	$arCtrls['QuoSale'] = clsMoney::Format_withSymbol($this->QuotedSaleAmt());
+	$arCtrls['QuoShip'] = clsMoney::Format_withSymbol($this->QuotedShipAmt());
+	$arCtrls['QuoFinal'] = clsMoney::Format_withSymbol($this->QuotedFinalAmt());
+
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
-	    $objForm = $this->PageForm();
+	    //$oForm = $this->PageForm();
 
-	    $htNameBuyer = $objForm->RenderControl('ID_BuyerCard').' / Name: '.$objForm->RenderControl('BuyerName');
-	    $htNameRecip = $objForm->RenderControl('ID_RecipAddr').' / Name: '.$objForm->RenderControl('RecipName');
-	    $htAddrShip = $objForm->RenderControl('RecipAddr');
+	    //$htNameBuyer = $objForm->RenderControl('ID_BuyerCard').' / Name: '.$objForm->RenderControl('BuyerName');
+	    //$htNameRecip = $objForm->RenderControl('ID_RecipAddr').' / Name: '.$objForm->RenderControl('RecipName');
+	    //$htAddrShip = $objForm->RenderControl('RecipAddr');
+
+	    $htNameBuyer = '[[ID_BuyerCard]] / Name: [[BuyerName]]';
+	    $htNameRecip = '[[ID_RecipAddr]] / Name: [[RecipName]]';
 
 	    $htCard = $this->CCardChoose();
 
 	    $htBalBtnsLine = NULL;
 	} else {
-	    $htNameBuyer = 'ID:'.$this->Buyer_Obj_AdminLink().' / Name:'.$this->BuyerName();
-	    $htNameRecip = 'ID:'.$this->Recip_Obj_AdminLink().' / Name:'.$this->RecipName();
-	    $htAddrShip = $this->RecipAddr();
+	    //$htNameBuyer = 'ID:'.$this->Buyer_Obj_AdminLink().' / Name:'.$this->BuyerName();
+	    //$htNameRecip = 'ID:'.$this->Recip_Obj_AdminLink().' / Name:'.$this->RecipName();
+	    //$htAddrShip = $this->RecipAddr();
+
+	    $htNameBuyerID = $this->Buyer_Obj_AdminLink();
+	    $htNameRecipID = $this->Recip_Obj_AdminLink();
+	    $htNameBuyer = "ID: $htNameBuyerID / Name: [[BuyerName]]";
+	    $htNameRecip = "ID: $htNameRecipID / Name: [[RecipName]]";
 
 	    $this->AreTotalsOk(FALSE);
 
 	    $htCard = $this->CCardLink();
 
-	    $out .= $this->AdminLines();	// calculates $ftBalBtns
+	    //$out .= $this->AdminLines();	// calculates $ftBalBtns
+	    $ftBalBtns = $this->RenderBalanceButtons();
 
 	    // I can't see how $ftBalBtns would ever be NULL
-	    $htBalBtnsLine = "\n<tr><td align=center colspan=2>{$this->ftBalBtns}</td></tr>";
+	    $htBalBtnsLine = "\n<tr><td align=center colspan=2>$ftBalBtns</td></tr>";
 	}
+	$arCtrls['NameBuyer'] = $htNameBuyer;
+	$arCtrls['NameRecip'] = $htNameRecip;
+	$arCtrls['Card'] = $htCard;
+	$arCtrls['BalBtnsLine'] = $htBalBtnsLine;
+	
 	if ($this->HasLines()) {
 	    $oTotals = $this->TotalsObject($doEdit);
 	    $htAmtMerch = $oTotals->RenderItems();
 	} else {
 	    $htAmtMerch = $oPage->Skin()->ErrorMessage('Order has no item lines.');
 	}
+	$arCtrls['AmtMerch'] = $htAmtMerch;
 
-	$htID = $this->AdminLink();
+/*
 	$htWhenStarted = $this->Value('WhenStarted');
 	$htWhenPrepped = $this->Value('WhenPrepped');
 	$htWhenEdited = $this->Value('WhenEdited');
 	$htWhenClosed = $this->Value('WhenClosed');
+	*/
 	if ($this->Pulled()) {
 	    $htPullText = $this->PulledText();
 	    $htPullLine = "\n<tr><td align=right><b>Pulled</b>:</td><td>".$htPullText.'</td></tr>';
 	} else {
 	    $htPullLine = NULL;
 	}
+	$arCtrls['PullInfo'] = $htPullLine;
 
 	if (isset($ftRecalcStat)) {
 	    $htRecalcLine = "\n<tr><td align=left colspan=2>$ftRecalcStat</td></tr>";
 	} else {
 	    $htRecalcLine = NULL;
 	}
-
-	$htQuoSale = clsMoney::Format_withSymbol($this->QuotedSaleAmt());
-	$htQuoShip = clsMoney::Format_withSymbol($this->QuotedShipAmt());
-	$htQuoFinal = clsMoney::Format_withSymbol($this->QuotedFinalAmt());
+	$arCtrls['RecalcLine'] = $htRecalcLine;
 
 	$arCart = $this->CartList();
-	$htCart = $arCart['html'];
+	$arCtrls['Cart'] = $arCart['html'];
 
+	$oTplt->VariableValues($arCtrls);
+	$out = $oTplt->RenderRecursive();
+	
+	/*
 	$out .= <<<__END__
 <table>
   <tr><td align=right><b>ID</b>:</td><td>$htID</td></tr>
@@ -1228,6 +1291,7 @@ __END__;
   </td></tr>
 </table>
 __END__;
+*/
 	if ($doEdit) {
 	    $out .=
 	      '<input type=submit name=btnSave value="Save">'
@@ -1246,6 +1310,39 @@ __END__;
 	$out .= '<hr><small>generated by '.__FILE__.' line '.__LINE__.'</small>';
 	return $out;
     }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    $sTplt = <<<__END__
+<table>
+  <tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr>
+  <tr><td align=right><b>Status</b>:</td><td>[[Status]]</td></tr>
+  <tr><td align=right><b>Cart</b>:</td><td>[[Cart]]</td></tr>
+  <tr><td align=right><b>When Created</b>:</td><td>[[WhenStarted]]</td></tr>
+  [[PullInfo]]
+  <tr><td align=right><b>When Prepared</b>:</td><td>[[WhenPrepped]]</td></tr>
+  <tr><td align=right><b>When Edited</b>:</td><td>[[WhenEdited]]</td></tr>
+  <tr><td align=right><b>When Closed</b>:</td><td>[[WhenClosed]]</td></tr>
+  <tr><td align=right><b>Buyer</b>:</td><td>[[NameBuyer]]</td></tr>
+  <tr><td align=right><b>Recipient</b>:</td><td>[[NameRecip]]</td></tr>
+  <tr><td align=right><b>Ship to</b>:</td><td>[[AddrShip]]</td></tr>
+  <tr><td align=right><b>Payment</b>:</td><td>[[Card]]</td></tr>
+  <tr><td align=right><b>Merch $ quoted</b>:</td><td>[[QuoSale]]</td></tr>
+  <tr><td align=right><b>Ship $ quoted</b>:</td><td>[[QuoShip]]</td></tr>
+  <tr><td align=right><b>Final $ quoted</b>:</td><tr>[[QuoFinal]]</td></tr>
+  <tr><td align=center colspan=2>
+    <table>
+    [[AmtMerch]]
+    [[BalBtnsLine]]
+    [[RecalcLine]]
+    </table>
+  </td></tr>
+</table>
+__END__;
+	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
+	}
+	return $this->tpPage;
+    }    
     protected function ListingRow($sCalcStats,$cssRow) {
 	$row = $this->Values();
 
@@ -1406,9 +1503,32 @@ __END__;
 	2011-03-23 adapted from VbzAdminItem to VbzAdminOrderItem
 	2014-02-23 rewritten to return the object; renamed from BuildEditForm() to PageForm()
     */
+    private $oPageForm;
     protected function PageForm() {
-	if (is_null($this->objForm)) {
+	if (empty($this->oPageForm)) {
 	    // create fields & controls
+	    $oForm = new fcForm_DB($this->Table()->ActionKey(),$this);
+	      $oField = new fcFormField_Num($oForm,'ID_BuyerCard');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>4));
+	      $oField = new fcFormField_Num($oForm,'ID_RecipAddr');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>4));
+	      $oField = new fcFormField($oForm,'BuyerName');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>20));
+	      $oField = new fcFormField($oForm,'RecipName');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>20));
+	      $oField = new fcFormField($oForm,'RecipAddr');
+		$oCtrl = new fcFormControl_HTML_TextArea($oForm,$oField,array('width'=>20));
+	      $oField = new fcFormField_Num($oForm,'WebTotal_Merch');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>6));
+	      $oField = new fcFormField_Num($oForm,'WebTotal_Ship');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>6));
+	      $oField = new fcFormField_Num($oForm,'WebTotal_Final');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>6));
+	      $oField = new fcFormField_Time($oForm,'WhenCounted');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>10));
+	    
+
+	    /* FORMS v1
 	    $objForm = new clsForm_recs($this);
 
 	    $objForm->AddField(new clsFieldNum('ID_BuyerCard'),	new clsCtrlHTML(array('size'=>4)));
@@ -1419,10 +1539,10 @@ __END__;
 	    $objForm->AddField(new clsFieldNum('WebTotal_Merch'),	new clsCtrlHTML(array('size'=>6)));
 	    $objForm->AddField(new clsFieldNum('WebTotal_Ship'),	new clsCtrlHTML(array('size'=>6)));
 	    $objForm->AddField(new clsFieldNum('WebTotal_Final'),	new clsCtrlHTML(array('size'=>6)));
-
-	    $this->objForm = $objForm;
+	    */
+	    $this->oPageForm = $oForm;
 	}
-	return $this->objForm;
+	return $this->oPageForm;
     }
     /*----
       ACTION: Save user changes to the record
@@ -1508,19 +1628,6 @@ __END__;
 	  );
 	$out = $oPage->ActionHeader('Transactions',$arActs);
 
-/*
-	$objPage = new clsWikiFormatter($vgPage);
-	$objSection = new clsWikiSection($objPage,'Transactions',NULL,3);
-	$arLink = array(
-	  'page'	=> $rs->Table->ActionKey(),
-	  'order'	=> $id,
-	  'id'		=> 'new'
-	  );
-	//$objSection->ActionAdd('add','add a new transaction for this order',NULL,'add-trx');
-	$objSection->CommandAdd('add...',$arLink,'add a new transaction for this order');
-	$out = $objSection->Generate();
-*/
-
 	$out .= $rs->AdminTable();
 
 	if ($rs->HasBalance()) {
@@ -1547,14 +1654,14 @@ __END__;
 	$tbl = $this->MessageTable();
 	$rs = $tbl->GetData('ID_Ord='.$this->KeyValue());
 	return $this->Engine()->App()->Skin()->SectionHeader('Messages',NULL,'section-header-sub')
-	  .$rs->AdminTable($this->arTblArgs);
+	  .$rs->AdminTable();
     }
     public function Charge_RenderTable() {
 	// get table showing existing charges
 	$tbl = $this->ChargeTable();
 	$rs = $tbl->GetData('ID_Order='.$this->KeyValue());
 	return $this->Engine()->App()->Skin()->SectionHeader('Charges',NULL,'section-header-sub')
-	  .$rs->AdminTable($this->arTbliArgs);;
+	  .$rs->AdminTable();
     }
     public function Event_RenderTable() {
 	return $this->Engine()->App()->Skin()->SectionHeader('Events',NULL,'section-header-sub')
@@ -1640,7 +1747,7 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $strDescr = nzArray($this->arTblArgs,'descr');
+	    $strDescr = $this->TableArg('descr');
 	    $out .= "\nNo pulls $strDescr.";
 	}
 
@@ -2035,11 +2142,12 @@ echo $actImp->Exec(FALSE); die();
 
 	// do financial calculations first so we can mark up the given totals with status information
 	// -- have to set up table arguments
-	$this->arTblArgs = array(
-	  'add'		=> $oPage->PathArg('add'),
-	  'form'	=> $oPage->PathArg('form'),
-	  'descr'	=> ' for this order',
-	  'omit'	=> 'order'
+	$this->TableArgs(array(
+	    'add'	=> $oPage->PathArg('add'),
+	    'form'	=> $oPage->PathArg('form'),
+	    'descr'	=> ' for this order',
+	    'omit'	=> 'order'
+	    )
 	  );
 	// -- actual financial calculations
 	$rsTrx = $this->TrxRecords();

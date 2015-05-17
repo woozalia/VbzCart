@@ -158,20 +158,19 @@ class VCR_Item extends clsItem {
 	return $strOld;
     }
     public function FullDescr($iSep=' ') {
-	$objTitle = $this->TitleRecord();
-	return $objTitle->Name.$iSep.$this->Value('ItOpt_Descr');
+	$rcTitle = $this->TitleRecord();
+	return $rcTitle->NameText().$iSep.$this->Value('ItOpt_Descr');
     }
     public function FullDescr_HTML($iSep=' ') {
-	$objTitle = $this->TitleRecord();
-	$objItTyp = $this->ItTyp();
-	if ($objItTyp->IsNew()) {
+	$rcTitle = $this->TitleRecord();
+	$rcItTyp = $this->ItTyp();
+	if ($rcItTyp->IsNew()) {
 	    $out = '(no item type)';
 	} else {
 	    $out =
-    //	  $objTitle->SelfLink($objTitle->Name).$iSep.
-	      $objTitle->AdminLink($objTitle->Name).$iSep.
-	      $objItTyp->Row['NameSng'].$iSep.
-	      $this->ItOpt_Descr;
+	      $rcTitle->AdminLink($rcTitle->NameString()).$iSep.
+	      $rcItTyp->Row['NameSng'].$iSep.
+	      $this->ItOpt_Descr();
 	}
 	return $out;
     }

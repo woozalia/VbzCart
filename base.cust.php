@@ -695,7 +695,7 @@ class clsCust extends clsVbzRecs {
 	    $out .= "\n<select name='$sName'>";
 	    while ($rs->NextRow()) {
 		  $id = $rs->KeyValue();
-		  $sRow = $rs->SafeDescr_Long();
+		  $sRow = $rs->SafeString();
 		  $ht = htmlspecialchars($sRow);
 		  $out .= "\n<option value=$id>$ht</option>";
 	    }
@@ -2277,19 +2277,21 @@ class clsCustCard extends clsVbzRecs {
     public function ShortDescr() {
 	return $this->SafeString();
     }
+    /*
     public function SafeDescr_Long() {
 	return $this->Table()->SafeDescr_Long($this->NumberRaw(),$this->ExpDateRaw());
-    }
+    }*/
     public function ShortExp() {
 	return date('n/y',$this->ExpDateRaw());
     }
     public function AsSingleLine() {	// alias
 	return $this->SafeString();
     }
+    /*
+      RETURNS: card text-data as a single parseable string
+    */
     public function SingleString() {
-    // ACTION: Return plain card data as a single parseable string
 	return self::PackCardData($this->CardNum,$this->CardCVV,$this->CardExp);
-	//return ':'.$this->CardNum.':'.$this->CardCVV.':'.$this->CardExp;
     }
     /*----
       RETURNS: card number in a friendly format
@@ -2304,13 +2306,13 @@ class clsCustCard extends clsVbzRecs {
 	return $this->SafeString().' '.$this->OwnerName;
     }
     public function CardTypeChar() {
-	return clsCustCards::CardTypeChar($this->CardNum);
+	return clsCustCards::CardTypeChar($this->CardNumber());
     }
     public function CardTypeName() {
-	return clsCustCards::CardTypeName($this->CardNum);
+	return clsCustCards::CardTypeName($this->CardNumber());
     }
     public function SafeString() {
-	return clsCustCards::SafeDescr_Short($this->CardNum,$this->CardExp);
+	return $this->Value('CardSafe');
     }
     /*
     NOTE: whatever separator is used, make sure it doesn't have any special meaning to regex

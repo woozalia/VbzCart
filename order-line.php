@@ -54,6 +54,9 @@ class clsOrderLine extends clsVbzRecs {
     protected function QtyOrd() {
 	return $this->Value('QtyOrd');
     }
+    protected function SeqNum() {
+	return $this->Value('Seq');
+    }
     /*----
       RETURNS: selling price
 	if order line has no price, falls back to catalog item

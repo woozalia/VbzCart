@@ -6,6 +6,10 @@
     2013-12-15 Adapting for drop-in system
     2014-04-20 Extracted package-line classes to pkg-line.php
 */
+
+define('KS_ACTION_PKG_LINES_EDIT','edit.lines');
+define('KS_ACTION_PKG_LINES_ADD','add.lines');
+
 class clsPackages extends clsVbzTable {
 
     // ++ SETUP ++ //
@@ -24,10 +28,22 @@ class clsPackages extends clsVbzTable {
     /*----
       PURPOSE: execution method called by dropin menu
     */
+
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */
     public function MenuExec(array $arArgs=NULL) {
-	$this->arArgs = $arArgs;
+	$this->ExecArgs($arArgs);
 	$out = $this->RenderSearch();
 	return $out;
+    }
+    private $arExec;
+    // PUBLIC so recordset can call it
+    public function ExecArgs(array $arArgs=NULL) {
+	if (!is_null($arArgs)) {
+	    $this->arExec = $arArgs;
+	}
+	return $this->arExec;
     }
 
     // -- DROP-IN API -- //
@@ -35,9 +51,9 @@ class clsPackages extends clsVbzTable {
 
     // TODO: Rename to OrderRecord()
     public function GetOrder($iID) {
-	$objRows = $this->GetData('ID_Order='.$iID);
-	$objRows->ID_Order = $iID;	// make sure this is set, regardless of whether there is data
-	return $objRows;
+	$rsPkgs = $this->GetData('ID_Order='.$iID);
+	$rsPkgs->OrderID($iID);	// make sure this is set, regardless of whether there is data
+	return $rsPkgs;
     }
     /*----
       RETURNS: empty Package object
@@ -168,6 +184,24 @@ class clsPackage extends clsVbzRecs {
     }
 
     // -- SETUP -- //
+    // ++ OBJECT STATUS ACCESS ++ //
+
+    private $doFetch;
+    protected function DoFetch($fYes=NULL) {
+	if (!is_null($fYes)) {
+	    $this->doFetch = $fYes;
+	}
+	return $this->doFetch;
+    }
+    private $doReplace;
+    protected function DoReplace($fYes=NULL) {
+	if (!is_null($fYes)) {
+	    $this->doReplace = $fYes;
+	}
+	return $this->doReplace;
+    }
+
+    // -- OBJECT STATUS ACCESS -- //
     // ++ BOILERPLATE AUXILIARY ++ //
 
     public function AdminLink_name($iPopup=NULL,array $iarArgs=NULL) {
@@ -380,7 +414,8 @@ class clsPackage extends clsVbzRecs {
     // -- DATA RECORDS ACCESS -- //
     // ++ FIELD ACCESS ++ //
 
-    protected function OrderID($id=NULL) {
+    // PUBLIC so Package Table can call it
+    public function OrderID($id=NULL) {
 	return $this->Value('ID_Order',$id);
     }
     protected function ShipID() {
@@ -389,6 +424,21 @@ class clsPackage extends clsVbzRecs {
 	} else {
 	    return $this->Value('ID_Shipment');
 	}
+    }
+    protected function ShipPounds() {
+	return $this->Value('ShipPounds');
+    }
+    protected function ShipOunces() {
+	return $this->Value('ShipOunces');
+    }
+    protected function ShipNotes() {
+	return $this->Value('ShipNotes');
+    }
+    protected function ShipTracking() {
+	return $this->Value('ShipTracking');
+    }
+    protected function WhenArrived() {
+	return $this->Value('WhenArrived');
     }
     /*----
       FUTURE: need to define this more rigorously. Should it still return TRUE
@@ -501,7 +551,7 @@ class clsPackage extends clsVbzRecs {
 	  'WhenDone'	=> 'NOW()',
 	  'Descr'	=> SQLValue($iDescr),
 	  'Amount'	=> $iAmt);
-	$this->objDB->OrdTrxacts()->Insert($arIns);
+	$this->OrderTrxactTable()->Insert($arIns);
     }
     /*----
       ACTION: Moves the Package's contents to the given Bin
@@ -520,7 +570,7 @@ class clsPackage extends clsVbzRecs {
 	      );
 	    //$this->StartEvent($arEv);
 
-	    $tblStk = $this->Engine()->StkItems();
+	    $tblStk = $this->StockItemTable();
 
 	    $qtyTot = 0;
 	    while ($rc->NextRow()) {
@@ -542,7 +592,7 @@ class clsPackage extends clsVbzRecs {
 	2011-03-30 Adapted from VbzAdminOrderTrxType to clsPackage
     */
     public function DropDown_for_data($iName=NULL,$iDefault=NULL,$iNone=NULL,$iAccessFx='Number') {
-	$strName = is_null($iName)?($this->Table->ActionKey()):$iName;	// control name defaults to action key
+	$strName = is_null($iName)?($this->Table()->ActionKey()):$iName;	// control name defaults to action key
 	if ($this->HasRows()) {
 	    $out = "\n<SELECT NAME=$strName>";
 	    if (!is_null($iNone)) {
@@ -564,8 +614,8 @@ class clsPackage extends clsVbzRecs {
 	current record being the default.
     */
     public function DropDown_ctrl($iName=NULL,$iNone=NULL) {
-	$dsAll = $this->Table->GetData('ID_Order='.$this->Value('ID_Order'),NULL,'Seq');
-	return $dsAll->DropDown_for_data($iName,$this->KeyValue(),$iNone);
+	$rsAll = $this->Table()->GetData('ID_Order='.$this->Value('ID_Order'),NULL,'Seq');
+	return $rsAll->DropDown_for_data($iName,$this->KeyValue(),$iNone);
     }
     /*----
       HISTORY:
@@ -574,7 +624,40 @@ class clsPackage extends clsVbzRecs {
     private $frmPage;
     private function PageForm() {
 	if (empty($this->frmPage)) {
-	    $frmPage = new clsForm_recs($this);
+	    // FORMS v2
+	    $oForm = new fcForm_DB($this->Table()->ActionKey(),$this);
+	      //$oForm->NewValues(array('ID_Pkg'=>$this->PackageID()));
+	      $oField = new fcFormField_Time($oForm,'WhenStarted');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Time($oForm,'WhenFinished');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Time($oForm,'WhenChecked');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Time($oForm,'WhenVoided');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Time($oForm,'WhenArrived');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Num($oForm,'ChgItmSale');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ChgShipItm');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ChgShipPkg');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ShipCost');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'PkgCost');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ShipPounds');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>2));
+	      $oField = new fcFormField_Num($oForm,'ShipOunces');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>3));
+	      $oField = new fcFormField($oForm,'ShipNotes');
+		$oCtrl = new fcFormControl_HTML_TextArea($oForm,$oField,array('rows'=>3,'cols'=>60));
+	      $oField = new fcFormField($oForm,'ShipTracking');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>20));
+
+	    // FORMS v1
+/*	    $frmPage = new clsForm_recs($this);
 	    $frmPage->AddField(new clsFieldTime('WhenStarted'),	new clsCtrlHTML());
 	    $frmPage->AddField(new clsFieldTime('WhenFinished'),	new clsCtrlHTML());
 	    $frmPage->AddField(new clsFieldTime('WhenChecked'),	new clsCtrlHTML());
@@ -589,19 +672,60 @@ class clsPackage extends clsVbzRecs {
 	    $frmPage->AddField(new clsField('ShipNotes'),		new clsCtrlHTML_TextArea(array('rows'=>3,'cols'=>60)));
 	    $frmPage->AddField(new clsField('ShipTracking'),		new clsCtrlHTML(array('size'=>20)));
 	    $frmPage->AddField(new clsFieldTime('WhenArrived'),	new clsCtrlHTML());
-
-	    $this->frmPage = $frmPage;
+*/
+	    $this->frmPage = $oForm;
 	}
 	return $this->frmPage;
+    }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    if ($this->IsNew()) {
+		// no timestamps yet on a new order
+		$sTimes = NULL;
+	    } else {
+		$sTimes = <<<__END__
+  <tr><td align=right><b>When Started</b>:</td>	<td><#WhenStarted#></td></tr>
+  <tr><td align=right><b>When Finished</b>:</td>	<td><#WhenFinished#></td></tr>
+  <tr><td align=right><b>When Checked</b>:</td>	<td><#WhenChecked#><#!CheckIn#></td></tr>
+  <tr><td align=right><b>When Voided</b>:</td>		<td><#WhenVoided#><#!VoidNow#></td></tr>
+__END__;
+	    }
+
+	    $sTplt = <<<__END__
+  <tr><td align=right><b>Order</b>:</td>		<td><#!order#></td></tr>
+$sTimes
+  <tr><td align=right><b>Sale price</b>:</td>		<td><#ChgItmSale#></td></tr>
+  <tr><td align=right><b>Per-item s/h total charged</b>:</td>
+							<td><#ChgShipItm#></td></tr>
+  <tr><td align=right><b>Per-pkg s/h amount charged</b>:</td>
+							<td><#ChgShipPkg#></td></tr>
+  <tr><td align=right><b>Shipment</b>:</td>		<td><#!shipment#></td></tr>
+  <tr><td align=right><b>Actual shipping cost</b>:</td>
+							<td><#ShipCost#></td></tr>
+  <tr><td align=right><b>Actual package cost</b>:</td>	<td><#PkgCost#></td></tr>
+  <tr><td align=right><b>Actual shipping weight</b>:</td>
+							<td><#ShipPounds#> pounds <#ShipOunces#> ounces</td></tr>
+  <tr><td align=right><b>Delivery tracking #</b>:</td>	<td><#ShipTracking#></td></tr>
+  <tr><td align=right><b>When arrived</b>:</td>	<td><#WhenArrived#></td></tr>
+  <tr><td colspan=2><b>Notes</b>:<br><#ShipNotes#></td></tr>
+__END__;
+	    $this->tpPage = new fcTemplate_array('<#','#>',$sTplt);
+	}
+	return $this->tpPage;
     }
     /*-----
       ACTION: Save the user's edits to the package
       HISTORY:
 	2011-02-17 Retired old custom code; now using objForm helper object
+	2015-02-16 modified for change in Save()
     */
     private function AdminSave() {
-	$out = $this->PageForm()->Save();
-	return $out;
+	$oForm = $this->PageForm();
+	if ($oForm->Save()) {
+	    $this->AdminRedirect();
+	}
+	return $oForm->htMsg;
     }
     /*----
       HISTORY:
@@ -628,7 +752,7 @@ class clsPackage extends clsVbzRecs {
 	    $cntLines = 0;	// for logging only
 	    $cntQty = 0;	// for logging only
 	    while ($objLines->NextRow()) {
-		$idRow = $objLines->ID;
+		$idRow = $objLines->KeyValue();
 		$objItem = $objLines->ItemRecord();	// item data
 		// prices in package line data override catalog prices
 		//$dlrSale = $objItem->PriceSell;	// sale price
@@ -638,7 +762,7 @@ class clsPackage extends clsVbzRecs {
 		$dlrSale = $objLines->PriceSell();	// sale price
 		$dlrItmSh = $objLines->ShPerItm();
 		$dlrPkgSh = $objLines->ShPerPkg();
-		$qtyShp = $objLines->QtyShipped;
+		$qtyShp = $objLines->QtyShipped();
 
 		$dlrSaleLine = $dlrSale * $qtyShp;
 		$dlrItmShLine = $dlrItmSh * $qtyShp;
@@ -705,8 +829,8 @@ class clsPackage extends clsVbzRecs {
 	$this->StartEvent($arEvent);
 
 	$arUpd = array('WhenVoid' => 'NOW()');
-	$objTrx = $this->objDB->OrdTrxacts();
-	$objTrx->Update($arUpd,'ID_Package='.$this->ID);
+	$objTrx = $this->OrderTrxactTable();
+	$objTrx->Update($arUpd,'ID_Package='.$this->KeyValue());
 
 	$arUpd = array('WhenFinished' => 'NULL');
 	$this->Update($arUpd);
@@ -722,8 +846,8 @@ class clsPackage extends clsVbzRecs {
 	$oPath = $oPage->PathObj();
 	$doAct = $oPath->GetText('do');
 
-	$this->doFetch = FALSE;
-	$this->doReplace = FALSE;
+	$this->DoFetch(FALSE);
+	$this->DoReplace(FALSE);
 
 	$arPage = array(
 	  'do'		=> FALSE,
@@ -734,8 +858,8 @@ class clsPackage extends clsVbzRecs {
 	    $this->DoVoid();
 	    $this->AdminRedirect($arPage);
 	    break;
-	  case 'pack':		// get (more) items from stock
-	    $this->doFetch = TRUE;	// trigger stock-fetch form
+	  case 'pack':			// get (more) items from stock
+	    $this->DoFetch(TRUE);	// trigger stock-fetch form
 	    break;
 	  case 'charge':	// create transactions for package contents
 	    // TODO
@@ -744,7 +868,7 @@ class clsPackage extends clsVbzRecs {
 	    // TODO
 	    break;
 	  case 'replace':	// put items back in stock
-	    $this->doReplace = TRUE;	// trigger stock-replace form
+	    $this->DoReplace(TRUE);	// trigger stock-replace form
 	    break;
 	}
     }
@@ -783,8 +907,8 @@ class clsPackage extends clsVbzRecs {
 	$doReal = clsHTTP::Request()->GetBool('doReally');	// not a simulation?
 	$doStock = clsHTTP::Request()->GetBool('btnStock');	// stock-action button
 	$doPackg = clsHTTP::Request()->GetBool('btnPackg');	// package-action button
-	$doFetch = $this->doFetch;
-	$doReplace = $this->doReplace;
+	$doFetch = $this->DoFetch();
+	$doReplace = $this->DoReplace();
 
 	$out = NULL;
 
@@ -800,19 +924,15 @@ class clsPackage extends clsVbzRecs {
 	    $out .= $this->AdminPage_doRequest($doReal);
 	}
 
-	//$doForm = $doNew || $doFetch || $doEdit;
 	$doForm = $isNew || $doEdit;	// show record editing controls
 	$doSLookup = $isNew || $doFetch;	// show stock lookup controls
 
 	if ($isNew) {
 	    $doEdit = TRUE;	// override: new package must be edited before it can be created
-	    //$idShip = NULL;
 
 	    $rcOrd = $this->OrderRecord();
 	    $sTitle = 'New package for order #'.$rcOrd->Value('Number');
 	} else {
-	    //$idShip = $this->Value('ID_Shipment');
-	    //$rcShip = $this->ShipObj();
 	    $id = $this->KeyValue();
 
 	    $sTitle = 'Package '.$id.' - #'.$this->Number();
@@ -823,7 +943,7 @@ class clsPackage extends clsVbzRecs {
 	  . $this->AdminPage_stock_fetch($doSLookup)
 	  . $this->AdminPage_stock_replace($doReplace)
 	  // then the main record
-	  . $this->AdminPage_values_header($sTitle,!$isNew)
+	  . $this->AdminPage_values_header($doForm,$sTitle,$isNew)
 	  . $this->AdminPage_values($doForm,$doEdit)
 	  . $this->AdminPage_values_footer($doForm)
 	  // then the package contents
@@ -840,7 +960,8 @@ class clsPackage extends clsVbzRecs {
 	    $arPath = array();	// not sure if anything is needed here
 	    $arActs = array(
 	      // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL,$iDescr=NULL)
-	      new clsActionLink_option($arPath,'edit.lines',NULL,'edit',NULL,'edit the package contents'),
+	      new clsActionLink_option($arPath,KS_ACTION_PKG_LINES_EDIT,NULL,'edit',NULL,'edit the package contents'),
+	      new clsActionLink_option($arPath,KS_ACTION_PKG_LINES_ADD,NULL,'add',NULL,'add package lines'),
 	      new clsAction_section('action'),
 	      new clsActionLink_option($arPath,'pack','do',NULL,NULL,'add items from stock'),
 	      );
@@ -861,12 +982,39 @@ class clsPackage extends clsVbzRecs {
 	    $out = $this->Page()->ActionHeader('Contents',$arActs);
 
 	    $tbl = $this->LineTable();
+	    $idPkg = $this->KeyValue();
+	    $out .= $tbl->AdminList_forPackage($idPkg);
+	    /*
 	    $rs = $tbl->GetData('ID_Pkg='.$this->KeyValue());
+	    $rs->PackageID($idPkg);	// for new rows
 	    $out .= $rs->AdminList();
+	    */
 	}
 
 	return $out;
     }
+    protected function AdminPage_values_header($doForm,$sTitle,$isNew) {
+	if ($isNew) {
+	    $htFormLead = "<input name=order type=hidden value=$idOrd>";
+	    $arActs = array();	// no actions needed
+	} else {
+	    $htFormLead = NULL;
+	    // these options aren't useful for a new record
+	    clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
+	    $arPath = array();	// not sure if anything is needed here
+	    $arActs = array(
+	      // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL,$iDescr=NULL)
+	      new clsActionLink_option($arPath,'edit',NULL,NULL,NULL,'edit the package record'),
+	      new clsActionLink_option($arPath,'print',NULL,NULL,NULL,'print a packing slip'),
+	      );
+	}
+	$out = $this->Page()->ActionHeader($sTitle,$arActs)
+	  ."\n<form method=post name=".__METHOD__.'>'
+	  .$htFormLead
+	  ."\n<table>";
+	return $out;
+    }
+    /* 2015-04-21 old version
     protected function AdminPage_values_header($sTitle,$doActs) {
 	if ($doActs) {
 	    // these options aren't useful for a new record
@@ -883,7 +1031,7 @@ class clsPackage extends clsVbzRecs {
 	$out = $this->Page()->ActionHeader($sTitle,$arActs);
 	$out .= "\n<table>";
 	return $out;
-    }
+    }*/
     protected function AdminPage_values_footer($doForm) {
 	$out = NULL;
 
@@ -903,8 +1051,72 @@ __END__;
     /*----
       ACTION: display the values for the current package record
       RETURNS: rendered display of package record data
+      NOTE: Description copied from old version; is *probably* correct...
     */
     protected function AdminPage_values($doForm,$doEdit) {
+	$isNew = $this->IsNew();
+
+	// Set up rendering objects
+	$frmEdit = $this->PageForm();
+	if ($isNew) {
+	    $frmEdit->ClearValues();
+	} else {
+	    $frmEdit->LoadRecord();
+	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frmEdit->RenderControls($doEdit);
+
+	if ($doForm) {
+	    $idOrd = $this->Value('ID_Order');
+	    $htShip = $this->ShipmentTable()->GetActive('WhenCreated DESC')->DropDown(NULL,$this->ShipID());
+	    $arLink = array(
+	      'edit'	=> FALSE,
+	      'add'	=> FALSE,
+	      'do'	=> FALSE,
+	      'order'	=> FALSE
+	      );
+	} else {
+	    $idShip = $this->ShipID();
+	    $arArgs['id'] = $idShip;
+	    if (is_null($idShip)) {
+		$htShip = '<i>N/A</i>';
+	    } else {
+		$htShip = $rcShip->AdminLink_name();
+	    }
+	}
+
+	if ($doEdit) {
+	    $ctrlVoidNow = $this->Render_DoVoid();
+	    $ctrlCheckIn = $this->Render_DoCheckIn();
+	} else {
+	    $ctrlVoidNow = NULL;
+	    $ctrlCheckIn = NULL;
+	}
+
+	// customize the form data:
+	$arCtrls['!shipment'] = $htShip;
+	$arCtrls['!order'] = $this->OrderRecord()->AdminLink_name();
+	$arCtrls['!VoidNow'] = $ctrlVoidNow;
+	$arCtrls['!CheckIn'] = $ctrlCheckIn;
+
+	$oTplt->VariableValues($arCtrls);
+	$out = $oTplt->Render();
+
+	if ($doForm) {	// form buttons
+	    $htBtnReset = $isNew?NULL:'<input type=reset value="Reset">';
+	    $out .= "\n"
+	      .'<tr><td colspan=2><input type=submit name="btnSaveItems" value="Save">'
+	      .$htBtnReset
+	      .'</td></tr>'
+	      ."\n</form>";
+	}
+	return $out;
+    }
+    /*----
+      ACTION: display the values for the current package record
+      RETURNS: rendered display of package record data
+    */
+    protected function AdminPage_values_OLD($doForm,$doEdit) {
 	$out = NULL;
 
 	if ($doForm) {
@@ -918,7 +1130,7 @@ __END__;
 	      );
 	    //$htPath = $vgPage->SelfURL($arLink);
 	    //$out .= "\n<form method=post action=\"$htPath\">";
-	    $out .= "\n<form method=post>";
+	    $out .= "\n<form method=post name=".__METHOD__.'>';
 	    if ($this->IsNew()) {
 		$out .= "<input name=order type=hidden value=$idOrd>";
 	    }
@@ -975,11 +1187,11 @@ __END__;
 	}
 
 	// display these for new and existing packages:
-	$intShPounds = $this->ShipPounds;
-	$fltShOunces = $this->ShipOunces;
-	$htNotes = htmlspecialchars($this->ShipNotes);
-	$htTrack = htmlspecialchars($this->ShipTracking);
-	$dtWhenArrived = $this->WhenArrived;
+	$intShPounds = $this->ShipPounds();
+	$fltShOunces = $this->ShipOunces();
+	$htNotes = htmlspecialchars($this->ShipNotes());
+	$htTrack = htmlspecialchars($this->ShipTracking());
+	$dtWhenArrived = $this->WhenArrived();
 	if ($doEdit) {
 	    $fPage = $this->PageForm();
 	    $ctrlChgSale	= '$'.$fPage->RenderControl('ChgItmSale');
@@ -1060,10 +1272,10 @@ __END__;
 	    $dlrPerPkg = $rs->ShipPerPackage();
 	    $oTot->Add($qty,$dlrPrice,$dlrPerItm,$dlrPerPkg);
 	}
-	$sTotSale = clsMoney::BasicFormat($oTot->SaleAmt());
-	$sPerItem = clsMoney::BasicFormat($oTot->PerItemAmt());
-	$sPerPkg = clsMoney::BasicFormat($oTot->PerPkgAmt());
-	$sFinalTotal = clsMoney::BasicFormat($oTot->FinalTotal());
+	$sTotSale = clsMoney::Format_withSymbol($oTot->SaleAmt());
+	$sPerItem = clsMoney::Format_withSymbol($oTot->PerItemAmt());
+	$sPerPkg = clsMoney::Format_withSymbol($oTot->PerPkgAmt());
+	$sFinalTotal = clsMoney::Format_withSymbol($oTot->FinalTotal());
 
 	$out = "\n<li>Updating package record...</li>";
 	$arUpd = array(
@@ -1209,9 +1421,9 @@ __END__;
 	    $dlrPrice = $rcOLine->Price();
 	    $dlrPerItm = $rcOLine->ShipPerItem();
 	    $dlrPerPkg = $rcOLine->ShipPerPackage();
-	    $sPrice = clsMoney::BasicFormat($dlrPrice);
-	    $sPerItm = clsMoney::BasicFormat($dlrPerItm);
-	    $sPerPkg = clsMoney::BasicFormat($dlrPerPkg);
+	    $sPrice = clsMoney::Format_withSymbol($dlrPrice);
+	    $sPerItm = clsMoney::Format_withSymbol($dlrPerItm);
+	    $sPerPkg = clsMoney::Format_withSymbol($dlrPerPkg);
 	    $sPkgDescr = "$sPrice + $sPerItm s/h, $sPerPkg min pkg s/h";
 
 	    // create package lines as needed:
@@ -1374,7 +1586,7 @@ __END__;
 
 	$doForm = !is_null($sBtnText);
 	if ($doForm) {
-	    $out = "\n<form method=post>";
+	    $out = "\n<form method=post name=".__METHOD__.'>';
 	} else {
 	    $out = NULL;
 	}
@@ -1398,7 +1610,7 @@ __END__;
 		$rcItem = $this->LCatItemTable($id);
 		$qtyNeed = $arNeed[$id];
 		$ouLine =
-		  '<td>'.$rcItem->AdminLink($rcItem->CatNum).'</b></td>'.
+		  '<td>'.$rcItem->AdminLink($rcItem->CatNum()).'</b></td>'.
 		  '<td>'.$rcItem->StoreLink_HT($rcItem->FullDescr()).'</td>'.
 		  '<td align=right><b>'.$qtyNeed.'</b> needed</td>';
 
@@ -1561,11 +1773,11 @@ __END__;
 	}
 
 	if ($rsLines->HasRows()) {
-	    $out = <<<__END__
-<form method=post>
+	    $out ="\n<form method=post name=".__METHOD__.">\n"
+		. <<<__END__
   <table class=listing>
     <tr><td colspan=2><th colspan=2>quantity</th></tr>
-    <tr><th>ID</th><th>Item</th><th title="shipped">sh</th><th title="return to stock">rtn</th><th>Bin</tr>
+    <tr><th>ID</th><th>Item</th><th title="shipped">sh</th><th title="quantity to return to stock">rtn</th><th>Bin Code</tr>
 __END__;
 	    while ($rsLines->NextRow()) {
 		$id = $rsLines->KeyValue();
@@ -1589,14 +1801,24 @@ __END__;
 
 		if (is_null($htBinFnd)) {
 		    // user has not entered a bin yet, or user entered a bin that was not found
-		    $htBinFnd = is_null($sBin)?'':(" (&lquot;$sBin&rquot; not found)");
+		    if (empty($sBin)) {
+			$htBinFnd = NULL;
+		    } else {
+			$htBinFnd = " (&lquo;$sBin&rquo; not found)";
+		    }
 		    $htEntry = <<<__END__
       <td><input name="itemQty[$id]" size=1 value="$qtyRtn"></td>
-      <td><input name="itemBin[$id]" size=5 value="$sBin">$htBinFnd</td>
+      <td><input name="itemBin[$id]" size=8 value="$sBin">$htBinFnd</td>
 __END__;
 		} else {
+		    if (empty($qtyRtn)) {
+			$htRtn = "<i>$qtyShp<i>";
+			$qtyRtn = $qtyShp;
+		    } else {
+			$htRtn = $qtyRtn;
+		    }
 		    $htEntry = <<<__END__
-      <td align=right><input name="itemQty[$id]" type=hidden value="$qtyRtn">$qtyRtn</td>
+      <td align=right><input name="itemQty[$id]" type=hidden value="$qtyRtn">$htRtn</td>
       <td><input name="itemBinID[$id]" type=hidden value="$idBin">$htBinFnd</td>
 __END__;
 		}
@@ -1632,23 +1854,27 @@ __END__;
     public function AdminTable(array $iArgs) {
 	throw new exception("AdminTable() is deprecated; call AdminRows().");
     }
+    // TODO: This is currently never set (was $this->arArgs); figure out what's going on and normalize.
+    protected function PageArgs() {
+	throw new exception('PageArgs() has been replaced by $this->Table()->ExecArgs().');
+    }
     /*----
       NOTE: $arFields is here to maintaing compatibility with new parent function. This could probably
 	be rewritten to take advantage of that service, but for now it just implements it from scratch.
     */
     public function AdminRows(array $arFields) {
-	$iArgs = $this->arArgs;
+	$arArgs = $this->Table()->ExecArgs();
 
 	//$doAdd = (nz($iArgs['add']) == 'pkg');
-	$strOmit = nz($iArgs['omit']);
+	$strOmit = clsArray::nz($arArgs,'omit');
 	$doShip = ($strOmit != 'ship');
 	$doOrd =  ($strOmit != 'ord');
 
 // This is needed for the "add package" link
-	if (isset($iArgs['order'])) {
-	    $idOrder = $iArgs['order'];
+	if (isset($arArgs['order'])) {
+	    $idOrder = $arArgs['order'];
 	} else {
-	    $idOrder = $this->ID_Order;
+	    $idOrder = $this->OrderID();
 	}
 
 	if ($this->hasRows()) {
@@ -1694,7 +1920,7 @@ __END__;
 		    $cssRowClass = 'voided';
 		}
 
-		$row = $this->Row;
+		$row = $this->Values();
 
 		$id		= $row['ID'];
 		$wtID		= $this->AdminLink();
@@ -1714,7 +1940,7 @@ __END__;
 		if ($doShip) {
 		    $idShip		= $row['ID_Shipment'];
 		    if (is_null($idShip)) {
-			$wtShip = '<i>N/A</i>';
+			$wtShip = '<i>not assigned</i>';
 		    } else {
 			$objShip	= $this->ShipmentTable($idShip);
 			$wtShip		= $objShip->AdminLink($objShip->Abbr);
@@ -1759,7 +1985,7 @@ __END__;
 	    $out .= "\n</table>";
 	    $strAdd = 'Add a new package';
 	} else {
-	    $strDescr = nz($iArgs['descr']);
+	    $strDescr = nz($arArgs['descr']);
 	    $out = "\nNo packages".$strDescr.'. ';
 	    $strAdd = 'Create one';
 	}
@@ -1771,7 +1997,7 @@ __END__;
 	      'page'		=> 'pkg',
 	      KS_PAGE_KEY_ORDER	=> $idOrder,
 	      'id'		=> 'new',
-	      'show'		=>FALSE
+	      'show'		=> FALSE
 	      );
 	    $oPage = $this->Engine()->App()->Page();
 	    $url = $oPage->SelfURL($arLink);

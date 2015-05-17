@@ -38,7 +38,7 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
 	URL data identifies page, keyed to cat_pages data
     */
     protected function ParseInput() {
-	$strReq = self::GetPathInfo();
+	$strReq = static::GetPathInfo();
 	$this->strReq = $strReq;
 	/* 2015-04-16 not sure what this was for, so commenting it out for now:
 	if (strrpos($strReq,'/')+1 < strlen($strReq)) {
@@ -48,7 +48,7 @@ class clsVbzPage_Cat extends clsVbzPage_Browse {
 	} */
     }
     protected function HandleInput() {
-	
+
 	if ($this->strReq) {
 	    $strReq = $this->strReq;
 	    $this->objCatPage = $this->Data()->Pages()->GetItem_byKey($strReq);

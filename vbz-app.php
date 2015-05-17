@@ -86,6 +86,10 @@ class clsVbzApp extends cAppStandard {
     }
 
     // -- FRAMEWORK CLASSES -- //
+    // ++ CALLBACKS ++ //
 
+    public function BaseURL() {
+	return KWP_PAGE_BASE;
+    }
 }
 

@@ -3,6 +3,7 @@
   FILE: dropins/orders/order.php -- customer order administration dropin for VbzCart
   HISTORY:
     2014-02-22 split off OrderItem classes from order.php
+    2015-04-21 manually merged changes accidentally not synced from Rizzo
 */
 class VCA_OrderItems extends clsOrderLines {
 
@@ -11,79 +12,117 @@ class VCA_OrderItems extends clsOrderLines {
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->ClassSng('VCA_OrderItem');	// override parent
-	  $this->ActionKey('order-item');
+	  $this->ActionKey(KS_PAGE_KEY_ORDER_LINE);
     }
 
     // -- SETUP -- //
-    // ++ ADMIN WEB UI ++ //
+    // ++ DROP-IN API ++ //
 
-    /*-----
-      ARGS:
-	$iFull: show all editable fields? (FALSE = only show fields which can't be looked up)
-      TO DO: In case this is ever used more generally, probably *all* fields
-	should be protected by htmlspecialchars()
-      HISTORY:
-	2011-03-23 fixed the order of the last 4 fields -- qty goes *after* prices
+    /*----
+      PURPOSE: execution method called by dropin menu
     */
-    static public function RenderEdit_inline($iFull,array $iarArgs=NULL) {
-	if ($iFull) {
-	    // show the specs for final approval
-	    $ftPart1 =
-		'<td><input name="Descr"	size=30	value="'.htmlspecialchars($iarArgs['Descr']).'"></td>';
-	    $ftPart2 = '<input type=hidden name="ID_Item" value="'.$iarArgs['ID_Item'].'">'
-	      .'<td><input name="Price"		size=5	value="'.$iarArgs['Price'].'"></td>'
-	      .'<td><input name="PerItem"	size=5	value="'.$iarArgs['PerItem'].'"></td>'
-	      .'<td><input name="PerPkg"	size=5	value="'.$iarArgs['PerPkg'].'"></td>';
-	    $btnSave = '<td><input type=submit name="btnSaveItem" value="Save"></td>';
-	} else {
-	    $ftPart1 = '<td><input type=submit name="btnLookup" value="Check..."></td>';
-	    $ftPart2 = '<td colspan=3 align=center><i>to be looked up</i></td>';
-	    $btnSave = '';
-	}
-	$out = "\n<tr>"
-	  .'<td align=center>new</td>'
-	  .'<td><input name="CatNum"	size=10 value="'.htmlspecialchars($iarArgs['CatNum']).'"></td>'
-	  .$ftPart1
-	  .$ftPart2
-	  .'<td><input name="Qty"	size=2 value="'.htmlspecialchars($iarArgs['Qty']).'"></td>'
-	  .$btnSave
-	  .'</tr>';
+    public function MenuExec(array $arArgs=NULL) {
+	$this->arArgs = $arArgs;
+	$out = $this->RenderSearch();
 	return $out;
     }
+
+    // -- DROP-IN API -- //
+    // ++ ADMIN WEB UI ++ //
+
+    protected function RenderSearch() {
+	$oPage = $this->Engine()->App()->Page();
+
+	$sPfx = $this->ActionKey();
+	$htSearchOut = NULL;
+
+	$sSearchName = $sPfx.'-needle';
+	$sInput = $oPage->ReqArgText($sSearchName);
+	$doSearch = (!empty($sInput));
+	if ($doSearch) {
+	    $rs = $this->Search_forText($sInput);
+	    $htSearchOut .= $rs->Listing('No matching order item records.');
+	}
+	$htFind = '"'.htmlspecialchars($sInput).'"';
+
+	// build forms
+
+	$htSearchHdr = $oPage->SectionHeader('Search',NULL,'section-header-sub');
+	$htSearchForm = <<<__END__
+<form method=post>
+  NOT YET IMPLEMENTED - Search for orders containing (description or catalog #):
+  <input name="$sSearchName" size=40 value=$htFind>
+  <input type=submit name=btnSearch value="Go">
+</form>
+__END__;
+
+	$out = $htSearchHdr.$htSearchForm;
+	if (!is_null($htSearchOut)) {
+	    $out .= $oPage->SectionHeader('Search Results',NULL,'section-header-sub')
+	      .$htSearchOut;
+	}
+
+	return $out;
+    }
+    // TODO: why is this here instead of with the related functions in VCA_OrderItem?
     static public function CaptureEdit() {
-	global $wgRequest;
+	$oReq = clsHTTP::Request();
+
 	// always capture these fields
-	$arOut['ID_Item'] = $wgRequest->GetIntOrNull('ID_Item');
-	$arOut['CatNum'] = $wgRequest->GetText('CatNum');
-	$arOut['Qty'] = $wgRequest->GetIntOrNull('Qty');
-	$arOut['Descr'] = $wgRequest->GetText('Descr');
-	$arOut['Price'] = $wgRequest->GetText('Price');
-	$arOut['PerItem'] = $wgRequest->GetText('PerItem');
-	$arOut['PerPkg'] = $wgRequest->GetText('PerPkg');
+	$arOut['ID_Item']	= $oReq->GetInt('ID_Item');
+	$arOut['CatNum']	= $oReq->GetText('CatNum');
+	$arOut['QtyOrd']	= $oReq->GetInt('QtyOrd');
+	$arOut['Descr']		= $oReq->GetText('Descr');
+	$arOut['Price']		= $oReq->GetText('Price');
+	$arOut['PerItem']	= $oReq->GetText('PerItem');
+	$arOut['PerPkg']	= $oReq->GetText('PerPkg');
 	return $arOut;
     }
-    static public function SaveEdit(clsOrder $iOrder, array $iarFields, clsOrderLine $iLine=NULL) {
-	$isOld = isset($iarFields['ID']);
-	if ($isOld) {
-	    $intSeq = (int)$iarFields['Seq'];
-	} else {
-	    $intSeq = $iOrder->NextSeq();
+    /*----
+      HISTORY:
+	2015-03-14 This originally checked the input data (iarFields) for an ID, and determined whether
+	a new Order record was called for based on whether that was set or not. This doesn't make
+	any sense, since the Order being saved to may exist, and in that case we wouldn't want
+	to create a new one. I am therefore changing this logic to check $rcOrder->IsNew() instead.
+      TODO: why is this here instead of with the related functions in VCA_OrderItem?
+	See EditForm(), RenderEdit_inline()
+    */
+    static public function SaveEdit(clsOrder $rcOrder, array $arFields, clsOrderLine $rcLine=NULL) {
+	if (is_null($rcLine)) {
+	    $rcLine = $rcOrder->SpawnLineRecord();
 	}
-	$strCatNum = $iarFields['CatNum'];
-	$intQty = (int)$iarFields['Qty'];
+	$rcLine->Values($arFields);
+	$isNew = $rcLine->IsNew();
+	if ($isNew) {
+	    $intSeq = $rcOrder->NextLineSeq();
+	} else {
+	    $intSeq = $rcLine->Seq();
+	}
+	$strCatNum = $rcLine->CatNum();
+	$intQty = $rcLine->QtyOrd();
 	$arUpd = array(
-	  'ID_Order'	=> $iOrder->ID,
+	  'ID_Order'	=> $rcOrder->KeyValue(),
 	  'Seq'		=> $intSeq,
-	  'ID_Item'	=> (int)$iarFields['ID_Item'],
-	  'CatNum'	=> SQLValue($iarFields['CatNum']),
-	  'Descr'	=> SQLValue($iarFields['Descr']),
+	  'ID_Item'	=> $rcLine->ItemID(),
+	  'CatNum'	=> SQLValue($strCatNum),
+	  'Descr'	=> SQLValue($rcLine->DescrText()),
 	  'QtyOrd'	=> $intQty,
-	  'Price'	=> SQLValue($iarFields['Price']),
-	  'ShipPkg'	=> SQLValue($iarFields['PerPkg']),
-	  'ShipItm'	=> SQLValue($iarFields['PerItem']),
+	  'Price'	=> SQLValue($arFields['Price']),
+	  'ShipPkg'	=> SQLValue($arFields['PerPkg']),
+	  'ShipItm'	=> SQLValue($arFields['PerItem']),
 	  'WhenAdded'	=> 'NOW()',
 	  );
-	if ($isOld) {
+	if ($isNew) {
+	    // LOG THE ATTEMPT
+	    $arEv = array(
+	      'code'	=> 'ADI',
+	      'descr'	=> 'adding cat #'.$strCatNum.' qty '.$intQty,
+	      'where'	=> __METHOD__
+	      );
+	    $rcOrder->StartEvent($arEv);
+	    // CREATE THE RECORD
+	    $rcOrder->LineTable()->Insert($arUpd);
+	} else {
 	    // LOG THE ATTEMPT
 	    $arEv = array(
 	      'code'	=> 'UDI',
@@ -92,26 +131,14 @@ class VCA_OrderItems extends clsOrderLines {
 	      );
 	    $iOrder->StartEvent($arEv);
 	    // UPDATE THE RECORD
-	    if (is_object($iLine)) {
-		$objLine = $iLine;
-	    } else {
-		$idLine = $iarFields['ID'];
-		$objLine = $this->GetItem($idLine);
+	    if (!is_object($rcLine)) {
+		$idLine = $arFields['ID'];
+		$rcLine = $rcOrder->Table()->GetItem($idLine);
 	    }
-	    $objLine->Update($arUpd);
-	} else {
-	    // LOG THE ATTEMPT
-	    $arEv = array(
-	      'code'	=> 'ADI',
-	      'descr'	=> 'adding cat #'.$strCatNum.' qty '.$intQty,
-	      'where'	=> __METHOD__
-	      );
-	    $iOrder->StartEvent($arEv);
-	    // CREATE THE RECORD
-	    $iOrder->LineTable()->Insert($arUpd);
+	    $rcLine->Update($arUpd);
 	}
 	// LOG COMPLETION
-	$iOrder->FinishEvent();
+	$rcOrder->FinishEvent();
     }
 
     // -- ADMIN WEB UI -- //
@@ -163,6 +190,12 @@ class VCA_OrderItem extends clsOrderLine {
     }
     public function ShipPerPackage() {
 	return $this->Value('ShipPkg');
+    }
+    protected function NotesText() {
+	return $this->Value('Notes');
+    }
+    protected function HasNotes() {
+	return ($this->NotesText() != NULL);
     }
 
     // -- FIELD ACCESS -- //
@@ -218,30 +251,66 @@ class VCA_OrderItem extends clsOrderLine {
       HISTORY:
 	2011-03-23 created for AdminPage()
     */
-    protected $objItem;
+    protected $rcItem;
     public function ItemObj() {
+	throw new exception('ItemObj() is deprecated; call ItemRecord().');
+    }
+    public function ItemRecord() {
 	$doLoad = TRUE;
-	$id = $this->Value('ID_Item');
-	if (isset($this->objItem)) {
-	    if ($this->objItem->KeyValue() == $id) {
+	$id = $this->ItemID();
+	if (isset($this->rcItem)) {
+	    if ($this->rcItem->KeyValue() == $id) {
 		$doLoad = FALSE;
 	    }
 	}
 	if ($doLoad) {
-	    $this->objItem = $this->Engine()->Items($id);
+	    $this->rcItem = $this->ItemTable($id);
 	}
-	return $this->objItem;
+	return $this->rcItem;
     }
 
     // -- DATA RECORD ACCESS -- //
+    // ++ DROP-IN API ++ //
+
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    }
+
+    // -- DROP-IN API -- //
     // ++ ADMIN INTERFACE ++ //
 
     /*----
       HISTORY:
 	2011-03-23 adapted from VbzAdminItem to VbzAdminOrderItem
     */
+    private $frmEdit;
     private function EditForm() {
-	if (is_null($this->frmEdit)) {
+	if (empty($this->frmEdit)) {
+	    // FORMS v2
+	    $oForm = new fcForm_DB($this->Table()->ActionKey(),$this);
+	      $oField = new fcFormField_Num($oForm,'Seq');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>3));
+	      $oField = new fcFormField_Num($oForm,'ID_Item');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>8));
+	      $oField = new fcFormField($oForm,'CatNum');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField($oForm,'Descr');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>40));
+	      $oField = new fcFormField_Num($oForm,'QtyOrd');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>3));
+	      $oField = new fcFormField_Num($oForm,'Price');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ShipPkg');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'ShipItm');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($oForm,'Notes');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>40));
+
+	    /* FORMS v1
 	    $frm = new clsForm_recs($this);
 
 	    $frm->AddField(new clsField('Seq'),	new clsCtrlHTML(array('size'=>3)));
@@ -253,10 +322,65 @@ class VCA_OrderItem extends clsOrderLine {
 	    $frm->AddField(new clsFieldNum('ShipPkg'),	new clsCtrlHTML(array('size'=>5)));
 	    $frm->AddField(new clsFieldNum('ShipItm'),	new clsCtrlHTML(array('size'=>5)));
 	    $frm->AddField(new clsField('Notes'),	new clsCtrlHTML(array('size'=>40)));
-
-	    $this->frmEdit = $frm;
+*/
+	    $this->frmEdit = $oForm;
 	}
 	return $this->frmEdit;
+    }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    $sTplt = <<<__END__
+<table>
+  <tr><td align=right><b>ID</b>:</td><td><#ID#></td></tr>
+  <tr><td align=right><b>Order</b>:</td><td><#!ord#></td></tr>
+  <tr><td align=right><b>Seq</b>:</td><td><#Seq#></td></tr>
+  <tr><td align=right><b>Item</b>:</td><td><#ID_Item#></td></tr>
+  <tr><td align=right><b>Cat #</b>:</td><td><#CatNum#></td></tr>
+  <tr><td align=right><b>Description</b>:</td><td><#Descr#></td></tr>
+  <tr><td align=right><b>Qty ordered</b>:</td><td><#QtyOrd#></td></tr>
+  <tr><td align=right><b>Price</b>:</td><td>$ <#Price#></td></tr>
+  <tr><td align=right><b>s/h per pkg</b>:</td><td>$ <#ShipPkg#></td></tr>
+  <tr><td align=right><b>s/h per item</b>:</td><td>$ <#ShipItm#></td></tr>
+  <tr><td align=right><b>Notes</b>:</td><td><#Notes#></td></tr>
+</table>
+__END__;
+	    $this->tpPage = new fcTemplate_array('<#','#>',$sTplt);
+	}
+	return $this->tpPage;
+    }
+    /*-----
+      ARGS:
+	$iFull: show all editable fields? (FALSE = only show fields which can't be looked up)
+      TO DO: In case this is ever used more generally, probably *all* fields
+	should be protected by htmlspecialchars()
+      HISTORY:
+	2011-03-23 fixed the order of the last 4 fields -- qty goes *after* prices
+    */
+    static public function RenderEdit_inline($iFull,array $iarArgs=NULL) {
+	if ($iFull) {
+	    // show the specs for final approval
+	    $ftPart1 =
+		'<td><input name="Descr"	size=30	value="'.htmlspecialchars($iarArgs['Descr']).'"></td>';
+	    $ftPart2 = '<input type=hidden name="ID_Item" value="'.$iarArgs['ID_Item'].'">'
+	      .'<td><input name="Price"		size=5	value="'.$iarArgs['Price'].'"></td>'
+	      .'<td><input name="PerItem"	size=5	value="'.$iarArgs['PerItem'].'"></td>'
+	      .'<td><input name="PerPkg"	size=5	value="'.$iarArgs['PerPkg'].'"></td>';
+	    $btnSave = '<td><input type=submit name="btnSaveItem" value="Save"></td>';
+	} else {
+	    $ftPart1 = '<td><input type=submit name="btnLookup" value="Check..."></td>';
+	    $ftPart2 = '<td colspan=3 align=center><i>to be looked up</i></td>';
+	    $btnSave = '';
+	}
+	$out = "\n<tr>"
+	  .'<td align=center>new</td>'
+	  .'<td><input name="CatNum"	size=10 value="'.htmlspecialchars($iarArgs['CatNum']).'"></td>'
+	  .$ftPart1
+	  .$ftPart2
+	  .'<td><input name="Qty"	size=2 value="'.htmlspecialchars($iarArgs['Qty']).'"></td>'
+	  .$btnSave
+	  .'</tr>';
+	return $out;
     }
     /*----
       ACTION: Save user changes to the record
@@ -264,69 +388,89 @@ class VCA_OrderItem extends clsOrderLine {
 	2010-11-06 copied from VbzStockBin to VbzAdminItem
 	2011-01-26 copied from VbzAdminItem to clsAdminTopic
 	2011-03-23 copied from clsAdminTopic to VbzAdminOrderItem
+	2015-02-16 this probably needs some rewriting (I don't think $vgOut is still a thing)
     */
     public function AdminSave() {
 	global $vgOut;
 
-	$out = $this->objForm->Save();
-	$vgOut->AddText($out);
+	$out = NULL;
+	$oForm = $this->EditForm();
+	if ($oForm->Save()) {
+	    // TODO: $oForm->htMsg should be stuffed into the redirect text-saver, wherever that's gotten to...
+	    $out = $this->AdminRedirect();
+	} else {
+	    $out = $oForm->htMsg;
+	}
+	return $out;
     }
     public function AdminPage() {
+	// save edits before showing events
+	$ftSaveStatus = NULL;
+	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	if ($doSave) {
+	    $ftSaveStatus = $this->AdminSave();
+	    $this->Redirect();
+	}
 	$out = NULL;
 	$oPage = $this->Engine()->App()->Page();
 
-	$doEdit = $oPage->PathArg('edit');
-	$doSave = $clsHTTP::Request()->GetBool('btnSave');
+	$sDo = $oPage->PathArg('do');
+	$doEdit = ($sDo == 'edit');
+	$doForm = $doEdit;
 
-	// save edits before showing events
-	$ftSaveStatus = NULL;
-	if ($doEdit || $doSave) {
-	    if ($doSave) {
-		$ftSaveStatus = $this->AdminSave();
-	    }
+	$rcOrd = $this->OrderRecord();
+
+	$sTitle = 'Order '.$rcOrd->AdminName().' line #'.$this->Value('Seq');
+
+	// set up titlebar menu
+	clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
+	$arActs = array(
+	  new clsActionLink_option(array(),'edit',		'do',NULL,NULL,'edit this order'),
+	  );
+	$oPage->PageHeaderWidgets($arActs);
+	$oPage->TitleString($sTitle);
+
+	$out .= $ftSaveStatus;	// 2015-03-15 this probably doesn't work
+
+//	$ftWho = $this->Value('VbzUser');
+//	$ftWhere = $this->Value('Machine');
+
+	$frmEdit = $this->EditForm();
+	$frmEdit->LoadRecord();
+	$arCtrls = $frmEdit->RenderControls($doEdit);
+	$arCtrls['ID'] = $this->AdminLink();
+	$arCtrls['!ord'] = $rcOrd->AdminLink_name();
+	if ($doEdit) {
+	    $rcItem = $this->ItemRecord();
+	    $arCtrls['ID_Item']	= $rcItem->AdminLink_friendly();
 	}
 
-	$objOrd = $this->OrderObj();
+	if ($doForm) {
+	    $out .= '<form method=post>';
+	}
+	$tplt = $this->PageTemplate();
+	$tplt->VariableValues($arCtrls);
+	$out .= $tplt->Render();
 
-	$strTitle = 'Order '.$objOrd->AdminName().' item #'.$this->Value('Seq');
-
-	$objPage = new clsWikiFormatter($vgPage);
-/*
-	$objSection = new clsWikiSection($objPage,$strTitle);
-	$objSection->ToggleAdd('edit');
-	$out = $objSection->Generate();
-*/
-    	$objSection = new clsWikiSection_std_page($objPage,$strTitle,3);
-	//$objSection->PageKeys(array('page','id'));
-	$objLink = $objSection->AddLink_local(new clsWikiSectionLink_keyed(array(),'edit'));
-	//  $objLink->Popup('receipt for order #'.$strNum);
-	$out = $objSection->Render();
-
-	$wgOut->AddHTML($out); $out = '';
-	$vgOut->AddText($ftSaveStatus);
-
-	$ftID = $this->AdminLink();
-	$ftOrd = $objOrd->AdminLink_name();
-	$ftWho = $this->Value('VbzUser');
-	$ftWhere = $this->Value('Machine');
+	/*
 	if ($doEdit) {
-	    $out .= $objSection->FormOpen();
-	    $objForm = $this->objForm;
+	    $out .= '<form method=post>';
+	    $objForm = $this->EditForm();
 
-	    $ftSeq	= $objForm->Render('Seq');
-	    $ftItem	= $objForm->Render('ID_Item');
-	    $ftCatNum	= $objForm->Render('CatNum');
-	    $ftDescr	= $objForm->Render('Descr');
-	    $ftQty	= $objForm->Render('QtyOrd');
-	    $ftPrice	= $objForm->Render('Price');
-	    $ftShPkg	= $objForm->Render('ShipPkg');
-	    $ftShItm	= $objForm->Render('ShipItm');
-	    $ftNotes	= $objForm->Render('Notes');
+	    $ftSeq	= $objForm->RenderControl('Seq');
+	    $ftItem	= $objForm->RenderControl('ID_Item');
+	    $ftCatNum	= $objForm->RenderControl('CatNum');
+	    $ftDescr	= $objForm->RenderControl('Descr');
+	    $ftQty	= $objForm->RenderControl('QtyOrd');
+	    $ftPrice	= $objForm->RenderControl('Price');
+	    $ftShPkg	= $objForm->RenderControl('ShipPkg');
+	    $ftShItm	= $objForm->RenderControl('ShipItm');
+	    $ftNotes	= $objForm->RenderControl('Notes');
 	} else {
-	    $objItem = $this->ItemObj();
+	    $rcItem = $this->ItemRecord();
 
 	    $ftSeq	= $this->Value('Seq');
-	    $ftItem	= $objItem->AdminLink_friendly();
+	    $ftItem	= $rcItem->AdminLink_friendly();
 	    $ftCatNum	= $this->Value('CatNum');
 	    $ftDescr	= $this->Value('Descr');
 	    $ftQty	= $this->Value('QtyOrd');
@@ -335,35 +479,41 @@ class VCA_OrderItem extends clsOrderLine {
 	    $ftShItm	= $this->Value('ShipItm');
 	    $ftNotes	= $this->Value('Notes');
 	}
-
-	$out .= "\n<table>";
-	$out .= "\n<tr><td align=right><b>ID</b>:</td><td>$ftID</td></tr>";
-	$out .= "\n<tr><td align=right><b>Order</b>:</td><td>$ftOrd</td></tr>";
-	$out .= "\n<tr><td align=right><b>Seq</b>:</td><td>$ftSeq</td></tr>";
-	$out .= "\n<tr><td align=right><b>Item</b>:</td><td>$ftItem</td></tr>";
-	$out .= "\n<tr><td align=right><b>Cat #</b>:</td><td>$ftCatNum</td></tr>";
-	$out .= "\n<tr><td align=right><b>Description</b>:</td><td>$ftDescr</td></tr>";
-	$out .= "\n<tr><td align=right><b>Qty ordered</b>:</td><td>$ftQty</td></tr>";
-	$out .= "\n<tr><td align=right><b>Price</b>:</td><td>$ $ftPrice</td></tr>";
-	$out .= "\n<tr><td align=right><b>s/h per pkg</b>:</td><td>$ $ftShPkg</td></tr>";
-	$out .= "\n<tr><td align=right><b>s/h per item</b>:</td><td>$ $ftShItm</td></tr>";
-	$out .= "\n<tr><td align=right><b>Notes</b>:</td><td>$ftNotes</td></tr>";
-	$out .= "\n<tr><td align=right><b>Admin</b>:</td><td>$ftWho</td></tr>";
-	$out .= "\n<tr><td align=right><b>Where</b>:</td><td>$ftWhere</td></tr>";
-	$out .= "\n</table>";
-
-	if ($doEdit) {
+*/
+	/*
+	$out .= <<<__END__
+<table>
+  <tr><td align=right><b>ID</b>:</td><td>$ftID</td></tr>
+  <tr><td align=right><b>Order</b>:</td><td>$ftOrd</td></tr>
+  <tr><td align=right><b>Seq</b>:</td><td>$ftSeq</td></tr>
+  <tr><td align=right><b>Item</b>:</td><td>$ftItem</td></tr>
+  <tr><td align=right><b>Cat #</b>:</td><td>$ftCatNum</td></tr>
+  <tr><td align=right><b>Description</b>:</td><td>$ftDescr</td></tr>
+  <tr><td align=right><b>Qty ordered</b>:</td><td>$ftQty</td></tr>
+  <tr><td align=right><b>Price</b>:</td><td>$ $ftPrice</td></tr>
+  <tr><td align=right><b>s/h per pkg</b>:</td><td>$ $ftShPkg</td></tr>
+  <tr><td align=right><b>s/h per item</b>:</td><td>$ $ftShItm</td></tr>
+  <tr><td align=right><b>Notes</b>:</td><td>$ftNotes</td></tr>
+  <tr><td align=right><b>Admin</b>:</td><td>$ftWho</td></tr>
+  <tr><td align=right><b>Where</b>:</td><td>$ftWhere</td></tr>
+</table>
+__END__;
+*/
+	if ($doForm) {
 	    $out .= '<input type=submit name="btnSave" value="Save">';
 	    $out .= '<input type=reset value="Reset">';
 	    $out .= '</form>';
 	}
 
 	// events
-	$objSection = new clsWikiSection($objPage,'Events',NULL,3);
-	$out .= $objSection->Generate();
+	$arActs = array(
+	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
+//	  new clsActionLink_option(array(),'add-item',		'do','add',	NULL,'add a new item to the order'),
+	  );
+	$out .= $oPage->ActionHeader('Events',$arActs);
 	$out .= $this->EventListing();
 
-	$wgOut->addHTML($out);	$out = '';
+	return $out;
     }
     /*-----
       INPUT:
@@ -401,7 +551,8 @@ class VCA_OrderItem extends clsOrderLine {
   <tr><td colspan=6></td>$htQtyHdr</tr>
   <tr>
     <th>ID</th>
-    <th>Cat #</th>
+    <th title="line sequence number">#</th>
+    <th title="our catalog number">Cat #</th>
     <th>Description</th>
     <th>price</th>
     <th>per-item</th>
@@ -434,9 +585,15 @@ __END__;
 
 		    $row = $this->Values();
 		    $id = $row['ID'];
+		    $nSeq = $this->SeqNum();
 		    $idItem = $this->Value('ID_Item');
 		    $ftID = $this->AdminLink();
-		    $strCatNum = $row['CatNum'];
+		    $strCatNum = $this->CatNum();
+		    $hasNotes = $this->HasNotes();
+		    if ($hasNotes) {
+			$sNotes = $this->NotesText();
+			$htNotes = htmlspecialchars($sNotes);
+		    }
 		    $rnItem->KeyValue($idItem);
 		    $htCatNum = $rnItem->AdminLink($strCatNum);
 		    $strDescr = $row['Descr'];
@@ -447,36 +604,48 @@ __END__;
 		    $strQtyOrd = $intQtyOrd;
 		    // calculated fields
 		    if ($hasPkgs) {
-			$arSumItem = $this->OrderRecord()->ItemStats_update_line($arPkgSums[$idItem]);
+			if (array_key_exists($idItem,$arPkgSums)) {
+			    $arSumItem = $this->OrderRecord()->ItemStats_update_line($arPkgSums[$idItem]);
 
-			$intQtyShp = (int)$arSumItem['qty-shp-line'];
-			$intQtyRtn = (int)$arSumItem['qty-rtn'];
-			$intQtyKld = (int)$arSumItem['qty-kld'];
-			$intQtyNA  = (int)$arSumItem['qty-na'];
-			$intQtyOpen = $intQtyOrd - $intQtyShp - $intQtyKld - $intQtyNA;
-			$strQtyOpen = ($intQtyOpen == 0)?'-':('<font color=red><b>'.$intQtyOpen.'</b></font>');
-		    }
+			    $intQtyShp = (int)$arSumItem['qty-shp-line'];
+			    $intQtyRtn = (int)$arSumItem['qty-rtn'];
+			    $intQtyKld = (int)$arSumItem['qty-kld'];
+			    $intQtyNA  = (int)$arSumItem['qty-na'];
+			    $intQtyOpen = $intQtyOrd - $intQtyShp - $intQtyKld - $intQtyNA;
+			    $strQtyOpen = ($intQtyOpen == 0)?'-':('<font color=red><b>'.$intQtyOpen.'</b></font>');
 
-		    //$out .= "\n|- style=\"$wtStyle\"";
-		    //$out .= "\n| $ftID || $htCatNum || $strDescr || $strQtyOrd || $strPrice || $strPerItem || $strPerPkg ";
-		    $out .= <<<__END__
-  <tr style="$wtStyle">
-    <td>$ftID</td>
-    <td>$htCatNum</td>
-    <td>$strDescr</td>
-    <td align=right>$strPrice</td>
-    <td align=right>$strPerItem</td>
-    <td align=right>$strPerPkg</td>
-    <td align=center>$strQtyOrd</td>
-__END__;
-		    if ($hasPkgs) {
-			$out .= <<<__END__
+			    $htPkgCells = <<<__END__
 <td align=center>$intQtyShp</td>
 <td align=center>$intQtyRtn</td>
 <td align=center>$intQtyKld</td>
 <td align=center>$intQtyNA</td>
 <td align=center>$strQtyOpen</td>
 __END__;
+			} else {
+			    $htOrd = $this->AdminLink();
+			    $htPkgCells = "<td colspan=5><b>Warning</b>: package data is missing for ID $idItem</td>";
+			    //echo 'ARPKGSUMS:<pre>'.print_r($arPkgSums,TRUE).'</pre>';
+			    //$idOrd = $this->OrderRecord()->KeyValue();
+			    //throw new exception("Internal error in order administration (order ID $idOrd, item ID $idItem)");
+			}
+		    }
+
+		    $out .= <<<__END__
+  <tr style="$wtStyle">
+    <td>$ftID</td>
+    <td align=right>$nSeq</td>
+    <td>$htCatNum</td>
+    <td>$strDescr</td>
+    <td align=right>$strPrice</td>
+    <td align=right>$strPerPkg</td>
+    <td align=right>$strPerItem</td>
+    <td align=center>$strQtyOrd</td>
+__END__;
+		    if ($hasPkgs) {
+			$out .= $htPkgCells;
+		    }
+		    if ($hasNotes) {
+			$out .= "\n  </tr>\n<tr><td><small>note</small></td><td colspan=7><small>$htNotes</small></td>";
 		    }
 		    $out .= "\n  </tr>";
 		}
@@ -495,20 +664,21 @@ __END__;
 		if ($doLookup) {
 		    // look up the item specs
 		    $strCatNum = nz($arFields['CatNum']);
-		    $objItems = $this->ItemTable()->GetData('CatNum="'.$strCatNum.'"');
-		    $doFull = $objItems->HasRows();
+		    $rsItems = $this->ItemTable()->GetData('CatNum="'.$strCatNum.'"');
+		    $doFull = $rsItems->HasRows();
 		    if (!$doFull) {
 			$out .= 'No match found for cat # '.$strCatNum;
 		    }
-		    $objItems->FirstRow();
-		    $arFields['Descr'] = $objItems->DescLong();
-		    $arFields['Price'] = FormatMoney($objItems->PriceSell);
-		    $objShipCode = $objItems->ShCost();
-		    $arFields['ID_Item'] = $objItems->ID;
-		    $arFields['PerItem'] = FormatMoney($objShipCode->PerItem);
-		    $arFields['PerPkg'] = FormatMoney($objShipCode->PerPkg);
+		    $rsItems->FirstRow();
+		    $arFields['Descr'] = $rsItems->DescLong();
+		    $arFields['Price'] = FormatMoney($rsItems->PriceSell());
+		    $rcShipCode = $rsItems->ShipCostRecord();
+		    $arFields['ID_Item'] = $rsItems->KeyValue();
+		    $arFields['PerItem'] = FormatMoney($rcShipCode->PerItem());
+		    $arFields['PerPkg'] = FormatMoney($rcShipCode->PerPkg());
 		} else if ($doSave) {
-		    // gloopwy
+		    // maybe this is working? it saved a record earlier...
+		    //throw new exception('This part still needs to be written. #thanksObama');
 		}
 		$out .= self::RenderEdit_inline($doFull,$arFields);
 		$out .= "\n</form>";

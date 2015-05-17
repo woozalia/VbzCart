@@ -11,6 +11,7 @@ define('KS_CLASS_PACKAGES','clsPackages');
 define('KS_CLASS_PACKAGE_LINES','clsPkgLines');
 define('KS_CLASS_SHIPMENTS','VCT_Shipments');
 
+define('KS_ACTION_PKG_LINE','pkg-line');
 define('KS_ACTION_SHIPMENT','shp');
 
 // MENU ADDITIONS

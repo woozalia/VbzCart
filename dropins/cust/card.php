@@ -79,8 +79,8 @@ class VCT_CustCards extends clsCustCards_dyn {
 	if (empty($idCust)) {
 	    $out = '<i>no customer ID</i>';
 	} else {
-	    $objRows = $this->objDB->CustCards()->GetData('ID_Cust='.$idCust);
-	    $out = $objRows->DropDown('ccard',$idCard);
+	    $rsCards = $this->GetData('ID_Cust='.$idCust);
+	    $out = $rsCards->DropDown('ccard',$idCard);
 	}
 	return $out;
     }
@@ -507,15 +507,16 @@ class VCR_CustCard extends clsCustCard {
     // -- DATA RECORDS -- //
     // ++ WEB UI WIDGETS ++ //
 
-    public function DropDown($iName,$iWhich=NULL) {
-	$out = '<select name="'.$iName.'">';
+    public function DropDown($sName,$idDefault=NULL) {
+	$out = '<select name="'.$sName.'">';
+	$id = $this->KeyValue();
 	while ($this->NextRow()) {
-	    if ($this->ID == $iWhich) {
+	    if ($id == $idDefault) {
 		$htSelect = " selected";
 	    } else {
 		$htSelect = '';
 	    }
-	    $out .= '<option'.$htSelect.' value="'.$this->ID.'">'.$this->SafeString().'</option>';
+	    $out .= '<option'.$htSelect.' value="'.$id.'">'.$this->SafeString().'</option>';
 	}
 	$out .= '</option>';
 	return $out;

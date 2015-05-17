@@ -6,13 +6,6 @@
 */
 class VCM_StockBins extends clsVbzTable {
 
-    // ++ STATIC ++ //
-
-    //DEPRECATED
-    static public function SpawnTable(clsVbzData $iEngine,$id=NULL) {
-	return $iEngine->Make(__CLASS__,$id);
-    }
-    // -- STATIC -- //
     // ++ SETUP ++ //
 
     protected $idEvent;
@@ -343,6 +336,12 @@ class VCM_StockBin extends clsVbzRecs {
     public function IsEnabled() {
 	return ord($this->Value('isEnabled'));
     }
+    protected function IsForSale() {
+	return ord($this->Value('isForSale'));
+    }
+    protected function IsForShip() {
+	return ord($this->Value('isForShip'));
+    }
     /*----
       RETURNS: TRUE IFF bin is in an active Place
 	In other words, returns how the isEnabled flag *should* be set.
@@ -410,6 +409,12 @@ class VCM_StockBin extends clsVbzRecs {
 	} else {
 	    return $rcPlace->AdminLink_name();
 	}
+    }
+    protected function WhenCreated() {
+	return $this->Value('WhenCreated');
+    }
+    protected function WhenCounted() {
+	return $this->Value('WhenCounted');
     }
 
     // -- DATA FIELD ACCESS -- //
@@ -525,6 +530,33 @@ class VCM_StockBin extends clsVbzRecs {
 	    return $rcPlace->DropDown_meDefault($sName,FALSE);
 	}
     }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    if ($this->IsNew()) {
+		$sTimes = '';
+	    } else {
+		$sTimes = <<<__END__
+  <tr><td align=right><b>Created</b>:</td><td>[#WhenCreated#]</td></tr>
+  <tr><td align=right><b>Tainted</b>:</td><td>[#WhenTainted#]</td></tr>
+  <tr><td align=right><b>Counted</b>:</td><td>[#WhenCounted#]</td></tr>
+  <tr><td align=right><b>Voided</b>:</td><td>[#WhenVoided#]</td></tr>
+__END__;
+	    }
+	    $sTplt = <<<__END__
+<table>
+  <tr><td align=right><b>Code</b>:</td><td>[#Code#]</td></tr>
+  <tr><td align=right><b>Where</b>:</td><td>[#Place#]</td></tr>
+  <tr><td align=right><b>Status</b>:</td><td>[#Status#]</td></tr>
+  $sTimes
+  [#DescRow#]
+</table>
+[#NotesRow#]
+__END__;
+	    $this->tpPage = new fcTemplate_array('[#','#]',$sTplt);
+	}
+	return $this->tpPage;
+    }
     /*-----
       ACTION: Display bin details and contents (via this->Contents())
       HISTORY:
@@ -605,40 +637,43 @@ class VCM_StockBin extends clsVbzRecs {
 
 	$out .= $oPage->ActionHeader($sTitle,$arActs);
 
-/*
-	$objPage = new clsWikiFormatter($vgPage);
-	$objSection = new clsWikiSection_std_page($objPage,$strName);
-	$objSection->AddLink_local(new clsWikiSectionLink_keyed(array('edit'=>TRUE),'edit'));
-	$out = $objSection->Render();
-*/
+	// Set up rendering objects
+	$frmEdit = $this->PageForm();
+	if ($isNew) {
+	    $frmEdit->ClearValues();
+	} else {
+	    $frmEdit->LoadRecord();
+	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frmEdit->RenderControls($doEdit);
 
-	$oForm = $this->EditForm();
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
 
-	    $htCode = $oForm->RenderControl('Code');
-//	    if ($isNew) {
-		$htPlace = $this->Place_DropDown('ID_Place');
-//	    } else {
-//		$htPlace = $this->Place_DropDown_All('ID_Place');
-//	    }
-	    $htDescr = 	$oForm->RenderControl('Descr');
-	    $htNotes = 	$oForm->RenderControl('Notes');
+	    //$htCode = $oForm->RenderControl('Code');
+	    $htPlace = $this->Place_DropDown('ID_Place');
+	    //$htDescr = 	$oForm->RenderControl('Descr');
+	    //$htNotes = 	$oForm->RenderControl('Notes');
 	    $oForm->Ctrl('isEnabled')->Field()->ValBool($doEnabled);	// set the enabled flag to save properly
 	    $htStatus =
 	      $oForm->RenderControl('isForSale').'for sale '
 	      .$oForm->RenderControl('isForShip').'for shipping'
 	      .$oForm->RenderControl('isEnabled');
-	    $htWhenVoided =	$oForm->RenderControl('WhenVoided');
-	    $htWhenTainted =	$oForm->RenderControl('WhenTainted');
+	    //$htWhenVoided =	$oForm->RenderControl('WhenVoided');
+	    //$htWhenTainted =	$oForm->RenderControl('WhenTainted');
 	} else {
-	    $htCode = $this->AdminLink_name();
+	    // customize the form data:
+	    $arCtrls['Code'] = $this->AdminLink_name();
+
 	    $htPlace = $this->Place_AdminLink_name();
-	    $htDescr = $this->Value('Descr');
-	    $htNotes = $this->Value('Notes');
-	    $isForSale = $oForm->Ctrl('isForSale')->Field()->ValBool();
-	    $isForShip = $oForm->Ctrl('isForShip')->Field()->ValBool();
-	    $isEnabled = $oForm->Ctrl('isEnabled')->Field()->ValBool();
+	    //$htDescr = $this->Value('Descr');
+	    //$htNotes = $this->Value('Notes');
+	    //$isForSale = $oForm->Ctrl('isForSale')->Field()->ValBool();
+	    //$isForShip = $oForm->Ctrl('isForShip')->Field()->ValBool();
+	    //$isEnabled = $oForm->Ctrl('isEnabled')->Field()->ValBool();
+	    $isForSale = $this->IsForSale();
+	    $isForShip = $this->IsForShip();
+	    $isEnabled = $this->IsEnabled();
 	    $htStatus =
 	      ' '.($isForSale?'<b>':'<s>').'SELL'.($isForSale?'</b>':'</s>').
 	      ' '.($isForShip?'<b>':'<s>').'SHIP'.($isForShip?'</b>':'</s>').
@@ -663,20 +698,30 @@ class VCM_StockBin extends clsVbzRecs {
 		$htWhenVoided = $this->Value('WhenVoided');
 	    }
 	    $htWhenTainted = $this->Value('WhenTainted');
-	    $htNotes = htmlspecialchars($this->Value('Notes'));
+	    //$htNotes = htmlspecialchars($this->Value('Notes'));
 	}
-	// never edited directly:
-	$htWhenCreated = $dtWhenCreated;
-	$htWhenCounted = $this->ValueNz('WhenCounted');
 
 	$htDescRow = $htNotesRow = NULL;
 	if ($doEdit || !is_null($this->Value('Descr'))) {
-	    $htDescRow = "<tr><td align=right><b>Description</b>:</td><td>$htDescr</td></tr>";
+	    //$htDescRow = "<tr><td align=right><b>Description</b>:</td><td>$htDescr</td></tr>";
+	    $htDescRow = "<tr><td align=right><b>Description</b>:</td><td>[#Descr#]</td></tr>";
 	}
 	if ($doEdit || !is_null($this->Value('Notes'))) {
-	    $htNotesRow = "\n<b>Notes</b>:<br>$htNotes";
+	    $htNotesRow = "\n<b>Notes</b>:<br>[#Notes#]";
 	}
 
+	$arCtrls['Place'] = $htPlace;
+	$arCtrls['Status'] = $htStatus;
+	$arCtrls['DescRow'] = $htDescRow;
+	$arCtrls['NotesRow'] = $htNotesRow;
+	$arCtrls['WhenCreated'] = $this->WhenCreated();
+	$arCtrls['WhenCounted'] = $this->WhenCounted();
+
+	// render the template
+	$oTplt->VariableValues($arCtrls);
+	$out .= $oTplt->RenderRecursive();
+
+/*
 	$out .= $txtInv;	// display results of inventory count, if any
 	$out .= <<<__END__
 <table>
@@ -691,6 +736,7 @@ $htDescRow
 </table>
 $htNotesRow
 __END__;
+*/
 	if ($doEdit) {
 	    if ($doAdd) {
 		$out .= '<input type=submit name="btnSave" value="Create">';
@@ -704,31 +750,12 @@ __END__;
 
 	if (!$isNew) {
 	    $sHdr = 'items in '.$sName;
-/*
-	    $objHdr = new clsWikiSection($objFmt,$sHdr,3);
-	    $objHdr->ActionAdd('move','move items from '.$strName.' to another one',NULL,'move.items');
-	    $objHdr->ToggleAdd('count','record inventory count for '.$strName,'inv');
-	    $out = $objHdr->Generate();
-*/
-	$arActs = array(
-	  // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
-	  new clsActionLink_option(array(),'move.items'	,'do','move'	,NULL,"move items from $sName to another bin"),
-	  new clsActionLink_option(array(),'inv'		,'do','count'	,NULL,"record inventory count for $sName"),
-	  );
-	$out .= $oPage->ActionHeader($sHdr,$arActs);
-
-/*
-	    $objSection = new clsWikiSection_std_page($objPage,$sHdr,3);
-	    //$arLink = array('edit'=>TRUE)
-	    $oLink = new clsWikiSectionLink_option(array(),'move.items','do','move');
-	      //(array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
-	      $oLink->Popup('move items from '.$strName.' to another one');
-	      $objSection->AddLink_local($oLink);
-	    $oLink = new clsWikiSectionLink_option(array(),'inv','do','count');
-	      $oLink->Popup('record inventory count for '.$strName);
-	      $objSection->AddLink_local($oLink);
-	    $out = $objSection->Render();
-*/
+	    $arActs = array(
+	      // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
+	      new clsActionLink_option(array(),'move.items'	,'do','move'	,NULL,"move items from $sName to another bin"),
+	      new clsActionLink_option(array(),'inv'		,'do','count'	,NULL,"record inventory count for $sName"),
+	      );
+	    $out .= $oPage->ActionHeader($sHdr,$arActs);
 
 	    $out .= $this->Contents()
 	      . $oPage->SectionHeader('History')
@@ -741,11 +768,35 @@ __END__;
     /*----
       HISTORY:
 	2010-11-01 adapted from clsPackage
+      TODO: WhenCreated and WhenCounted should never be editable.
     */
-    private function EditForm() {
+    private $oForm;
+    private function PageForm() {
 	// create fields & controls
 	if (is_null($this->oForm)) {
-	    $oForm = new clsForm_recs($this);
+	    // FORMS v2
+	    $oForm = new fcForm_DB($this->Table()->ActionKey(),$this);
+	      $oField = new fcFormField_Num($oForm,'ID_Place');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>5));
+	      $oField = new fcFormField($oForm,'Code');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>8));
+	      $oField = new fcFormField($oForm,'Descr');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array('size'=>30));
+	      $oField = new fcFormField_Time($oForm,'WhenVoided');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Time($oForm,'WhenTainted');
+		$oCtrl = new fcFormControl_HTML($oForm,$oField,array());
+	      $oField = new fcFormField_Bit($oForm,'isForSale');
+		$oCtrl = new fcFormControl_HTML_CheckBox($oForm,$oField,array());
+	      $oField = new fcFormField_Bit($oForm,'isForShip');
+		$oCtrl = new fcFormControl_HTML_CheckBox($oForm,$oField,array());
+	      $oField = new fcFormField_Bit($oForm,'isEnabled');
+		$oCtrl = new fcFormControl_HTML_CheckBox($oForm,$oField,array());
+	      $oField = new fcFormField($oForm,'Notes');
+		$oCtrl = new fcFormControl_HTML_TextArea($oForm,$oField,array('rows'=>3,'cols'=>60));
+
+	    // FORMS v1
+/*	    $oForm = new clsForm_recs($this);
 	    $oForm->AddField(new clsFieldNum('ID_Place'),		new clsCtrlHTML());
 	    $oForm->AddField(new clsField('Code'),		new clsCtrlHTML(array('size'=>8)));
 	    $oForm->AddField(new clsField('Descr'),		new clsCtrlHTML(array('size'=>30)));
@@ -755,7 +806,7 @@ __END__;
 	    $oForm->AddField(new clsFieldBool('isForShip'),	new clsCtrlHTML_CheckBox());
 	    $oForm->AddField(new clsFieldBool('isEnabled'),	new clsCtrlHTML_Hidden());
 	    $oForm->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea(array('height'=>3,'width'=>40)));
-
+*/
 	    $this->oForm = $oForm;
 	}
 	return $this->oForm;
@@ -1429,7 +1480,7 @@ __END__;
 	return SelfLink_Page(KS_ACTION_STOCK_BIN,'id',$this->ID,$iText);
     }
 */
-    // USER INTERFACE CONTROLS
+    // ++ WEB UI CONTROLS ++ //
     /*----
       ACTION: return an array for displaying a dropdown list of the rows in the current dataset
       RETURNS: array suitable for passing to DropDown_arr()
@@ -1466,4 +1517,6 @@ __END__;
 	}
 	return $out;
     }
+    
+    // -- WEB UI CONTROLS -- //
 }

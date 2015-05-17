@@ -70,32 +70,6 @@ __END__;
     }
 
     // -- STATIC -- //
-    // ++ BOILERPLATE: self-linkage ++ //
-/*
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-    }
-    public function AdminRedirect(array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminRedirect($this,$iarArgs);
-    }
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $tLog = VCM_Syslog::SpawnTable($this->Engine());
-	    $this->logger = new clsLogger_DataSet($this,$tLog);
-	}
-	return $this->logger;
-    }
-    public function EventListing() {
-	return $this->Log()->EventListing();
-    }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
-    }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-*/
-    // -- BOILERPLATE -- //
     // ++ DROP-IN API ++ //
 
     /*----

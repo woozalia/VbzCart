@@ -378,13 +378,14 @@ class clsCustCard extends clsVbzRecs {
 	return $this->SafeString().' '.$this->OwnerName();
     }
     public function CardTypeChar() {
-	return clsCustCards::CardTypeChar($this->CardNum());
+	return clsCustCards::CardTypeChar($this->CardNumber());
     }
     public function CardTypeName() {
-	return clsCustCards::CardTypeName($this->CardNum());
+	return clsCustCards::CardTypeName($this->CardNumber());
     }
     public function SafeString() {
-	return clsCustCards::SafeDescr_Short($this->CardNum(),$this->CardExp());
+	return $this->Value('CardSafe');
+	return clsCustCards::SafeDescr_Short($this->CardNumber(),$this->CardExpiry());
     }
     protected static function PackCardData($sNum,$sCVV,$sExp) {
 	$sData =

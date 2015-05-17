@@ -40,9 +40,9 @@ class VCT_OrderPulls extends clsTable {
       ACTION: Get all Pull records for an Order
     */
     public function GetOrder($iID) {
-	$objRows = $this->GetData('ID_Ord='.$iID);
-	$objRows->ID_Ord = $iID;	// make sure this is set, regardless of whether there is data
-	return $objRows;
+	$rsPulls = $this->GetData('ID_Ord='.$iID);
+	$rsPulls->OrderID($iID);	// make sure this is set, regardless of whether there is data
+	return $rsPulls;
     }
 
     // -- DATA RECORDS ACCESS -- //
@@ -78,6 +78,9 @@ class VCR_OrderPull extends clsDataSet {
 
     // ++ DATA FIELD ACCESS ++ //
 
+    public function OrderID($id=NULL) {
+	return $this->Value('ID_Ord',$id);
+    }
     public function IsPulled() {
 	return (!is_null($this->Value('WhenPulled')) && is_null($this->Value('WhenFreed')));
     }

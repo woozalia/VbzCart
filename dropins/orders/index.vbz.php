@@ -8,7 +8,8 @@
 // CONSTANTS
 
 define('KS_PAGE_KEY_ORDER',		'ord');
-define('KS_PAGE_KEY_ORDER_MSG',	'omsg');
+define('KS_PAGE_KEY_ORDER_MSG',		'ord-msg');
+define('KS_PAGE_KEY_ORDER_LINE',	'ord-line');
 
 define('KS_CLASS_ORDERS',		'VCM_Orders');
 define('KS_CLASS_ORDER_CHARGES',	'VCT_OrderChgs');

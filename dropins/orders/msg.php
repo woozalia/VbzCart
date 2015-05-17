@@ -189,7 +189,7 @@ __END__;
 		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$isOdd = !$isOdd;
 
-		$row = $this->Row;
+		$row = $this->Values();
 		//$id = $row['ID'];
 		$htID = $this->AdminLink();
 		$idPkg = $row['ID_Pkg'];
