@@ -5,24 +5,36 @@
   HISTORY:
     2013-11-09 created
 */
-class cVbzSessions extends clsUserSessions {
+
+class cVbzSessions extends fctUserSessions {
+/* 2016-10-27 redundant
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->ClassSng('cVbzSession');
     }
-}
-class cVbzSession extends clsUserSession {
-    private $rcCart;
+    */
+    
+    // ++ OVERRIDES ++ //
+    
+    protected function SingularName() {
+	return 'cVbzSession';
+    }
 
+    // -- OVERRIDES -- //
+
+}
+class cVbzSession extends fcrUserSession {
+    use ftSaveableRecord;
+    
     // ++ SETUP ++ //
 
     protected function InitVars() {
 	parent::InitVars();
-	$this->rcCart = NULL;
+	$this->ClearCartRecord();
     }
     public function InitNew() {
 	parent::InitNew();
-	$this->ValuesSet(array('ID_Cart'=>NULL));
+	$this->SetFieldValues(array('ID_Cart'=>NULL));
     }
 
     // -- SETUP -- //
@@ -33,21 +45,22 @@ class cVbzSession extends clsUserSession {
 	first called *before* the dropins are loaded.
     */
     protected function UsersClass() {
-	if (clsDropInManager::ModuleLoaded('vbz.users')) {
+	if (fcDropInManager::IsModuleLoaded('vbz.users')) {
 	    return KS_CLASS_ADMIN_USER_ACCOUNTS;
 	} else {
-	    return 'clsVbzUserTable';
+	    return 'vcUserTable';
 	}
     }
     protected function CartsClass() {
-	return 'clsShopCarts';
+	//return 'vctShopCarts';
+	return 'vctCarts_ShopUI';	// this is a bit of a kluge
     }
 
     // -- CLASS NAMES -- //
     // ++ DATA TABLE ACCESS ++ //
 
     protected function CartTable($id=NULL) {
-	return $this->Engine()->Make($this->CartsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CartsClass(),$id);
     }
 
     // -- DATA TABLE ACCESS -- //
@@ -56,8 +69,11 @@ class cVbzSession extends clsUserSession {
     protected function OrderID() {
 	return $this->Value('ID_Order');
     }
-    protected function CartID($id=NULL) {
-	return $this->Value('ID_Cart',$id);
+    protected function GetCartID() {
+	return $this->GetFieldValue('ID_Cart');
+    }
+    protected function SetCartID($id) {
+	$this->SetFieldValue('ID_Cart',$id);
     }
     protected function WhenCreated() {
 	return $this->Value('WhenCreated');
@@ -70,22 +86,25 @@ class cVbzSession extends clsUserSession {
     }
 
     // -- FIELD ACCESS -- //
-    // ++ FIELD CALCULATIONS ++ //
+    // ++ CART FUNCTIONS ++ //
 
+      //++status++//
+    
     /*----
       RETURNS: TRUE iff a cart is currently attached to this session
     */
     public function HasCart() {
 	if ($this->IsNew()) {
-	    return FALSE;	// not sure if this will work
+	    return FALSE;
 	} else {
-	    return (!is_null($this->CartID()));
+	    return (!is_null($this->GetCartID()));
 	}
     }
+    
+      //--status--//
+      //++records++//
 
-    // -- FIELD CALCULATIONS -- //
-    // ++ RECORD ACCESS ++ //
-
+    private $rcCart;
     /*----
       RETURNS: The current cart record, regardless of status.
 	Only returns NULL if Cart ID is not set.
@@ -94,7 +113,7 @@ class cVbzSession extends clsUserSession {
 	$rcCart = $this->rcCart;
 	if (is_null($rcCart)) {
 	    if (!$this->IsNew()) {
-		$idCart = $this->CartID();
+		$idCart = $this->GetCartID();
 		if (!is_null($idCart)) {
 		    $rcCart = $this->CartTable($idCart);
 		    $this->rcCart = $rcCart;
@@ -142,9 +161,9 @@ class cVbzSession extends clsUserSession {
 	//if (is_null($rcCart) || !$rcCart->HasRows() || $rcCart->IsLocked()) {
 	if (is_null($rcCart) || $rcCart->IsLocked()) {
 	    // if no cart, or cart is locked, get a new one:
-	    $idSess = $this->KeyValue();
-	    $idCart = $this->Engine()->Carts()->Create($idSess);
-	    $this->CartID($idCart);
+	    $idSess = $this->GetKeyValue();
+	    $idCart = $this->CartTable()->Create($idSess);
+	    $this->SetCartID($idCart);
 	    $this->Save();
 	    $rcCart = $this->CartRecord_Current();
 	    $this->rcCart = $rcCart;
@@ -152,9 +171,12 @@ class cVbzSession extends clsUserSession {
 	return $rcCart;
     }
 
-    // -- RECORD ACCESS -- //
-    // ++ ACTIONS ++ //
+      //--records--//
+      //++actions++//
 
+    protected function ClearCartRecord() {
+	$this->rcCart = NULL;
+    }
     /*----
       ACTION: Permanently detach the cart from this session.
     */
@@ -165,5 +187,7 @@ class cVbzSession extends clsUserSession {
 	$this->Update($ar);
     }
 
-    // -- ACTIONS -- //
+       //--actions--//
+    // -- CART FUNCTIONS -- //
+
 }

@@ -4,13 +4,16 @@
     2014-01-20 extracted from cart.php
 */
 
-class VCT_CartLines_admin extends clsShopCartLines {
+class VCT_CartLines_admin extends vctShopCartLines {
+    use ftLinkableTable;
+
     public function __construct($iDB) {
 	parent::__construct($iDB);
 	  $this->ClassSng('VCR_CartLine_admin');
+	  $this->ActionKey(KS_PAGE_KEY_CART_LINE);
     }
-    public function Table_forCart($iCart) {
-	$rs = $this->GetData('ID_Cart='.$iCart,NULL,'Seq');
+    public function Table_forCart($idCart) {
+	$rs = $this->GetData('ID_Cart='.$idCart,NULL,'Seq');
 	if ($rs->HasRows()) {
 	    $out = <<<__END__
 <table class=listing>
@@ -28,13 +31,10 @@ __END__;
 		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$isOdd = !$isOdd;
 
-		$id = $rs->KeyValue();
-		//$wtID = SelfLink_Page('cart','id',$id,$id);
-		$wtID = $rs->AdminLink();
-		//$wtItem = $objRecs->Item()->DescLong();
+		$id = $rs->GetKeyValue();
+		$wtID = $rs->SelfLink();
 		$rcItem = $rs->ItemRecord();
-		//$wtItem = $rcItem->DescLong();
-		$wtItem = $rcItem->AdminLink_name();
+		$wtItem = $rcItem->SelfLink_name();
 
 		$wtAdded = $rs->Value('WhenAdded');
 		$wtEdited = $rs->Value('WhenEdited');
@@ -65,19 +65,20 @@ __END__;
   HISTORY:
     2010-11-15 created
 */
-class VCR_CartLine_admin extends clsShopCartLine {
+class VCR_CartLine_admin extends vcrShopCartLine {
+    use ftLinkableRecord;
 
     // ++ BOILERPLATE ++ //
-
+/*
     public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
+	return clsMenuData_helper_standard::_AdminLink($this,$iText,$iPopup,$iarArgs);
     }
-
+*/
     // -- BOILERPLATE -- //
     // ++ CLASS NAMES ++ //
 
     protected function ItemsClass() {
-	return KS_CLASS_CATALOG_ITEMS;
+	return KS_ADMIN_CLASS_LC_ITEMS;
     }
 
     // -- CLASS NAMES -- //

@@ -4,13 +4,17 @@
     2014-02-13 split card classes off from cust.php
 */
 class VCT_CustCards extends clsCustCards_dyn {
+    use ftLinkableTable;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_CustCard');	// override parent
-	  $this->ActionKey(KS_ACTION_CUST_CARD);
+    // OVERRIDE
+    protected function SingularName() {
+	return 'VCR_CustCard';
+    }
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_CUST_CARD;
     }
 
     // -- SETUP -- //
@@ -45,6 +49,7 @@ class VCT_CustCards extends clsCustCards_dyn {
 
     // TODO: rewrite
     public function ListPage() {
+	throw new exception('Is anyone still calling this?');
     // PURPOSE: interface for encrypting credit card data
 	global $wgOut;
 
@@ -62,7 +67,7 @@ class VCT_CustCards extends clsCustCards_dyn {
 		$strNum	= $row['CardNum'];
 		$strExp = $row['CardExp'];
 		$strCVV = $row['CardCVV'];
-		$strEncr = htmlspecialchars($row['Encrypted']);
+		$strEncr = fcString::EncodeForHTML($row['Encrypted']);
 
 		$out .= "\n|- style=\"$wtStyle\"";
 		$out .= "\n| $id || $strNum || $strExp || $strCVV || $strEncr";
@@ -73,6 +78,7 @@ class VCT_CustCards extends clsCustCards_dyn {
 	}
 	$wgOut->addWikiText($out,TRUE);
     }
+    /* 2016-06-13 obsolete
     public function DropDown_forCust($iCust,$iCard=NULL) {
 	$idCust = $iCust;
 	$idCard = $iCard;
@@ -83,7 +89,7 @@ class VCT_CustCards extends clsCustCards_dyn {
 	    $out = $rsCards->DropDown('ccard',$idCard);
 	}
 	return $out;
-    }
+    }*/
     public function AdminEncrypt() {
     // PURPOSE: interface to encrypt/decrypt sensitive data
 	global $wgOut,$wgRequest;
@@ -102,7 +108,7 @@ class VCT_CustCards extends clsCustCards_dyn {
 
 		    if ($doCheck || $doDecry) {	// do we need the private key?
 			$sKeyPrv = $wgRequest->getVal('cryptKey');	// private key
-			$htKeyPrv = htmlspecialchars($sKeyPrv);
+			$htKeyPrv = fcString::EncodeForHTML($sKeyPrv);
 		    } else {
 			$htKeyPrv = NULL;
 		    }
@@ -356,18 +362,16 @@ class VCT_CustCards extends clsCustCards_dyn {
     // -- ADMIN WEB ACTIONS -- //
 }
 class VCR_CustCard extends clsCustCard {
-    private $frmEdit;
-
-    protected function InitVars() {
-	parent::InitVars();
-	$this->frmEdit = NULL;
-    }
-
+    use ftLinkableRecord;
+    use ftLoggableRecord;
+    use ftShowableRecord;
+    
     // ++ BOILERPLATE HELPERS ++ //
 
-    protected function AdminLink_name() {
+    // PUBLIC so Orders can easily show links to CustCards
+    public function SelfLink_name() {
 	$sText = $this->SafeString();
-	return $this->AdminLink($sText);
+	return $this->SelfLink($sText);
     }
 
     // -- BOILERPLATE HELPERS -- //
@@ -427,23 +431,30 @@ class VCR_CustCard extends clsCustCard {
     // -- DATA FIELD ACCESS -- //
     // ++ DATA FIELD CALCULATIONS ++ //
 
-    protected function Name_AdminLink($sNone='<i>n/a</i>') {
+    protected function Name_SelfLink($sNone='<i>n/a</i>') {
 	$rcName = $this->NameRecord();
 	if (is_null($rcName)) {
 	    return $sNone;
 	} else {
-	    return $rcName->AdminLink_name();
+	    return $rcName->SelfLink_name();
 	}
     }
 
     // -- DATA FIELD CALCULATIONS -- //
+    // ++ DATA CLASS NAMES ++ //
+    
+    protected function AddressesClass() {
+	return KS_CLASS_MAIL_ADDRS;
+    }
+    
+    // -- DATA CLASS NAMES -- //
     // ++ DATA TABLE ACCESS ++ //
 
     protected function CustomerTable($id=NULL) {
 	return $this->Engine()->Make(KS_CLASS_ADMIN_CUSTOMERS,$id);
     }
     protected function AddressTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_MAIL_ADDRS,$id);
+	return $this->Engine()->Make($this->AddressesClass(),$id);
     }
     protected function NameTable($id=NULL) {
 	return $this->Engine()->Make(KS_CLASS_CUST_NAMES,$id);
@@ -455,6 +466,8 @@ class VCR_CustCard extends clsCustCard {
     public function Cust() {
 	throw new exception('Cust() has been renamed CustomerRecord().');
     }
+    /* 2016-08-07 This is redundant; the only thing it adds is caching, which can be done more globally elsewhere.
+    private $rcCust;
     protected function CustomerRecord() {
 	$doLoad = TRUE;
 	if (isset($this->rcCust)) {
@@ -466,7 +479,7 @@ class VCR_CustCard extends clsCustCard {
 	    $this->rcCust = $this->CustomerTable($this->CustomerID());
 	}
 	return $this->rcCust;
-    }
+    } */
     public function Addr() {
 	throw new exception ('Addr() has been renamed AddressRecord().');
     }
@@ -486,10 +499,11 @@ class VCR_CustCard extends clsCustCard {
     public function Name() {
 	throw new exception ('Name() has been renamed NameRecord().');
     }
+    private $rcName;
     protected function NameRecord() {
 	$doLoad = TRUE;
 	if (isset($this->rcName)) {
-	    if ($this->rcName->KeyValue() == $this->NameID()) {
+	    if ($this->rcName->GetKeyValue() == $this->NameID()) {
 		$doLoad = FALSE;
 	    }
 	}
@@ -509,7 +523,7 @@ class VCR_CustCard extends clsCustCard {
 
     public function DropDown($sName,$idDefault=NULL) {
 	$out = '<select name="'.$sName.'">';
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 	while ($this->NextRow()) {
 	    if ($id == $idDefault) {
 		$htSelect = " selected";
@@ -536,7 +550,7 @@ class VCR_CustCard extends clsCustCard {
 
 	$doEdit = $oPage->PathArg('edit');
 	//$htPath = $vgPage->SelfURL(array('edit'=>!$doEdit));
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 
 	// set up header action-links
 	clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
@@ -551,15 +565,15 @@ class VCR_CustCard extends clsCustCard {
 	$rcAddr = $this->AddressRecord();
 	//$rcName = $this->NameRecord();
 
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 
-	$ftTagVal = htmlspecialchars($this->CardName());
-	$ftNumVal = htmlspecialchars($this->CardNumber());
+	$ftTagVal = fcString::EncodeForHTML($this->CardName());
+	$ftNumVal = fcString::EncodeForHTML($this->CardNumber());
 	$ftCardExp = $this->CardExpiration_short();
-	$ftCVVVal = htmlspecialchars($this->CardVerification_string());
-	$ftOwnVal = htmlspecialchars($this->OwnerName_string());
-	$ftAddrVal = htmlspecialchars($this->OwnerAddress_string());
-	$ftNotes = htmlspecialchars($this->Notes());
+	$ftCVVVal = fcString::EncodeForHTML($this->CardVerification_string());
+	$ftOwnVal = fcString::EncodeForHTML($this->OwnerName_string());
+	$ftAddrVal = fcString::EncodeForHTML($this->OwnerAddress_string());
+	$ftNotes = fcString::EncodeForHTML($this->Notes());
 
 	if ($doEdit) {
 	    $out .= '<form method=post>';
@@ -576,22 +590,24 @@ class VCR_CustCard extends clsCustCard {
 	    $ftNotes = '<textarea name="notes" height=3 width=40>'.$ftNotes.'</textarea>';
 	    */
 	    $oForm = $this->EditForm();
-	    $ftTag	= $oForm->RenderControl('Name');
-	    $ftCust	= $oForm->RenderControl('ID_Cust');
-	    $ftAddr	= $oForm->RenderControl('ID_Addr');
-	    $ftName	= $oForm->RenderControl('ID_Name');
-	    $ftNum	= $oForm->RenderControl('CardNum');
-	    $ftExp	= $oForm->RenderControl('CardExp');
-	    $ftCVV	= $oForm->RenderControl('CardCVV');
-	    $ftOwnName	= $oForm->RenderControl('OwnerName');
-	    $ftAddrTxt	= $oForm->RenderControl('Address');
-	    $ftNotes	= $oForm->RenderControl('Notes');
-	    $ftStatus	= $oForm->RenderControl('isActive').'Active';
+	    $oForm->LoadRecord();
+	    $ftTag	= $oForm->ControlObject('Name')->Render($doEdit);
+	    $ftCust	= $oForm->ControlObject('ID_Cust')->Render($doEdit);
+	    $ftAddr	= $oForm->ControlObject('ID_Addr')->Render($doEdit);
+	    $ftName	= $oForm->ControlObject('ID_Name')->Render($doEdit);
+	    $ftNum	= $oForm->ControlObject('CardNum')->Render($doEdit);
+	    $ftExp	= $oForm->ControlObject('CardExp')->Render($doEdit);
+	    $ftCVV	= $oForm->ControlObject('CardCVV')->Render($doEdit);
+	    $ftOwnName	= $oForm->ControlObject('OwnerName')->Render($doEdit);
+	    $ftAddrTxt	= $oForm->ControlObject('Address')->Render($doEdit);
+	    $ftNotes	= $oForm->ControlObject('Notes')->Render($doEdit);
+	    //$ftStatus	= $oForm->RenderControl('isActive').'Active';
+	    $ftStatus	= $oForm->ControlObject('isActive')->Render($doEdit).'Active';
 	} else {
 	    $ftTag = $ftTagVal;
-	    $ftCust = $rcCust->AdminLink_name();
-	    $ftAddr = $rcAddr->AdminLink($rcAddr->AsSingleLine(' / '));
-	    $ftName = $this->Name_AdminLink();
+	    $ftCust = $rcCust->SelfLink_name();
+	    $ftAddr = $rcAddr->SelfLink($rcAddr->AsSingleLine(' / '));
+	    $ftName = $this->Name_SelfLink();
 	    $ftNum = $ftNumVal;
 	    $ftExp = $ftCardExp;
 	    $ftCVV = empty($ftCVVVal)?'':' CVV '.$ftCVVVal;
@@ -633,8 +649,43 @@ __END__;
 	$out = $this->EditForm()->Save();
 	return $out;
     }
+    private $frmEdit;
     private function EditForm() {
-	if (is_null($this->frmEdit)) {
+	if (empty($this->frmEdit)) {
+	    $frm = new fcForm_DB($this);
+	      $oField = new fcFormField_Time($frm,'WhenEnt');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>10));
+	      $oField = new fcFormField_Time($frm,'WhenUpd');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>10));
+	      $oField = new fcFormField_Time($frm,'WhenInvalid');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>10));
+	      $oField = new fcFormField($frm,'Name');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>5));
+	      $oField = new fcFormField_Num($frm,'ID_Cust');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array());
+	      $oField = new fcFormField_Num($frm,'ID_Name');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array());
+	      $oField = new fcFormField_Num($frm,'ID_Addr');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array());
+	      $oField = new fcFormField($frm,'CardNum');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>20));
+	      $oField = new fcFormField_Time($frm,'CardExp');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>5));
+		$oField->Format('m/Y');
+	      $oField = new fcFormField($frm,'CardCVV');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>3));
+	      $oField = new fcFormField($frm,'CardSafe');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>10));
+	      $oField = new fcFormField($frm,'OwnerName');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array('size'=>40));
+	      $oField = new fcFormField($frm,'Address');
+		$oCtrl = new fcFormControl_HTML_TextArea($frm,$oField,array('height'=>3,'width'=>50));
+	      $oField = new fcFormField_Num($frm,'isActive');
+		$oCtrl = new fcFormControl_HTML($frm,$oField,array());
+	      $oField = new fcFormField($frm,'Notes');
+		$oCtrl = new fcFormControl_HTML_TextArea($frm,$oField,array('height'=>3,'width'=>50));
+	
+	/* old format
 	    $frm = new clsForm_recs($this);
 	    $frm->AddField(new clsFieldTime('WhenEnt'),	new clsCtrlHTML());
 	    $frm->AddField(new clsFieldTime('WhenUpd'),	new clsCtrlHTML());
@@ -651,7 +702,7 @@ __END__;
 	    $frm->AddField(new clsField('Address'),		new clsCtrlHTML_TextArea(array('height'=>3,'width'=>50)));
 	    $frm->AddField(new clsFieldBool_Int('isActive'),	new clsCtrlHTML_CheckBox());
 	    $frm->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea(array('height'=>3,'width'=>50)));
-
+	    */
 	    $this->frmEdit = $frm;
 	}
 	return $this->frmEdit;

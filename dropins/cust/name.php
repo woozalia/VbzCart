@@ -2,20 +2,29 @@
 /*
   HISTORY:
     2014-02-13 split name classes off from cust.php
+    2017-01-06 somewhat updated
 */
 class VCT_CustNames extends clsCustNames {
-    /*----
-      HISTORY:
-	2011-04-17 added ActionKey()
-    */
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_CustName');	// override parent
-	  $this->ActionKey('cust.name');
+    use ftLinkableTable;
+    
+    // ++ SETUP ++ //
+
+    // OVERRIDE
+    protected function SingularName() {
+	return 'VCR_CustName';
     }
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_CUST_NAME;
+    }
+
+    // -- SETUP -- //
+    // ++ ADMIN UI ++ //
+
     /*----
       HISTORY:
 	2012-01-05 adapted from VbzAdminTitles_info_Cat to clsAdminCustNames
+	2016-03-06 This is still using MediaWiki objects and will need revision. TODO
     */
     public function SearchPage() {
 	global $wgOut,$wgRequest;
@@ -28,7 +37,7 @@ class VCT_CustNames extends clsCustNames {
 
 	$strField = 'txtSearch.'.$strThis;
 	$strFind = $wgRequest->GetText($strField);
-	$htFind = '"'.htmlspecialchars($strFind).'"';
+	$htFind = '"'.fcString::EncodeForHTML($strFind).'"';
 
 	$vgPage->UseHTML();
 	$out = <<<__END__
@@ -80,204 +89,210 @@ __END__;
 
 	return $out;
     }
+
+    // -- ADMIN UI -- //
 }
 class VCR_CustName extends clsCustName {
+    use ftLinkableRecord;
+    use ftLoggableRecord;
 
-    // == BOILERPLATE
-    /*----
-      HISTORY:
-	2011-09-21 added for customer admin page
-    */
-    /* 2014-07-12 redundant
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-    }
-    public function AdminRedirect(array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminRedirect($this,$iarArgs);
-    }*/
-    /*====
-      BOILERPLATE: event logging
-      HISTORY:
-	2010-10-30 was using old boilerplate event-handling methods; now using helper class boilerplate
-	  Event methods removed from plural class; helper-class methods added to singular class
-    */ /* 2014-04-22 now inherited
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->Engine()->App()->Events());
-	}
-	return $this->logger;
-    }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
-    }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-    public function EventListing() {
-	return $this->Log()->EventListing();
-    } */
-    // --/BOILERPLATE--
-    // == boilerplate auxiliaries
+    // ++ TRAIT HELPERS ++ //
+    
     /*----
       HISTORY:
 	2011-06-03 'name' -> 'cust.name'
 	2011-09-21 renaming from AdminLink() to AdminLink_details() (an earlier note had suggested doing this)
+	2016-06-12 Now using constants for page keys. Still probably not being called.
     */
-    public function AdminLink_details($iCustID=NULL) {
-	global $vgOut;
-
-	$objText = $vgOut;
-	$objName = $this;
-	$idName = $objName->ID;
+    public function SelfLink_details($iCustID=NULL) {
+    // 2015-10-22 this will probably need rewriting
+	$rcName = $this;
+	$idName = $rcName->GetKeyValue();
 	if (is_null($iCustID)) {
-	    $idCust = $objName->ID_Cust;
+	    $idCust = $rcName->ID_Cust;
 	} else {
 	    $idCust = $iCustID;
 	}
 
-	$arCust = array('page'=>'cust','edit'=>FALSE,'id'=>$idCust);
-	$arName = array('page'=>'cust.name','edit'=>FALSE,'id'=>$idName);
+	$arCust = array('page'=>KS_ACTION_CUSTOMER,'edit'=>FALSE,'id'=>$idCust);
+	$arName = array('page'=>KS_ACTION_CUST_NAME,'edit'=>FALSE,'id'=>$idName);
 /*
 	$htCont = $objText->SelfURL(array('page'=>'cust','edit'=>FALSE,'id'=>$idCust),TRUE);
 	$htName = $objPage->SelfURL(array('page'=>'name','edit'=>FALSE,'id'=>$idName),TRUE);
 */
+// here's where it will need it -- $objText came from $vgOut:
 	$out =
 	  '[C '.$objText->SelfLink($arCust,$idCust).']'.
-	  '[N '.$objText->SelfLink($arName,$idName).'] '.$objName->Name;
+	  '[N '.$objText->SelfLink($arName,$idName).'] '.$rcName->Name;
 	return $out;
     }
     /*----
       HISTORY:
 	2011-09-21 written for customer admin page
     */
-    public function AdminLink_name() {
-	return $this->AdminLink($this->Name);
+    public function SelfLink_name() {
+	return $this->SelfLink($this->NameString());
     }
-    // == INFORMATION RETRIEVAL
+    
+    // -- TRAIT HELPERS -- //
+    // ++ CALLBACKS ++ //
+    
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    }
+    public function ListItem_Text() {
+	return $this->NameString();
+    }
+    public function ListItem_Link() {
+	return $this->SelfLink_name();
+    }
+    
+    // -- CALLBACKS -- //
+    // ++ DATA FIELD VALUES ++ //
+    
+    // PUBLIC so Customer objects can access it
+    public function NameString() {
+	return $this->Value('Name');
+    }
+    public function IsActive() {
+	return $this->Value('isActive');
+    }
+    
+    // -- DATA FIELD VALUES -- //
+    // ++ DATA RECORDS ++ //
+    
     public function CustObj() {
+	throw new exception('CustObj() has been renamed CustomerRecord().');
+    }
+    public function CustomerRecord() {
 	$idCust = $this->Value('ID_Cust');
-	$rc = $this->Engine()->Custs($idCust);
+	$rc = $this->CustomerTable($idCust);
 	return $rc;
     }
-    // == USER INTERFACE
+    
+    // -- DATA RECORDS -- //
+    // ++ DATA TABLES ++ //
+    
+    public function CustomerTable($id=NULL) {
+	return $this->Engine()->Make(KS_CLASS_ADMIN_CUSTOMERS,$id);
+    }
+    
+    // -- DATA TABLES -- //
+    // ++ WEB UI ++ //
+    
     /*----
       HISTORY:
 	2012-01-04 finally implementing this
     */
     public function AdminPage() {
-	//return 'To be written - see '.__FILE__.':'.__LINE__;
+	$oPage = $this->Engine()->App()->Page();
+	$frm = $this->Form();
 
-	global $wgOut,$wgRequest;
-	global $vgOut,$vgPage;
+	$doSave = $oPage->ReqArgBool('btnSave');
+	if ($doSave) {
+	    $frm->Save();
+	    $sMsg = $frm->MessagesString();
+	    $this->SelfRedirect(NULL,$sMsg);
+	}
 
-	$doEdit = $vgPage->Arg('edit');
-	$doSave = $wgRequest->getVal('btnSave');
+	$doEdit = $oPage->PathArg('edit');
+
 	$isNew = $this->IsNew();
-	$htPath = $vgPage->SelfURL(array('edit'=>!$doEdit));
-	$id = $this->KeyValue();
-	$strName = $this->Value('Name');
+	$sTitle = $this->ShortDescr();
 
-	$vgPage->UseHTML();
-	$oFmt = new clsWikiFormatter($vgPage);
-
-	$oSect = new clsWikiSection_std_page($oFmt,$strName,2);
-	//$oSect->PageKeys(array('page','id'));
-	$oLink = $oSect->AddLink_local(new clsWikiSectionLink_keyed(array(),'edit'));
-	  $oLink->Popup('edit this customer name');
-	$out = $oSect->Render();
-
-/*
-	//$objSection = new clsWikiAdminSection($strName);
-	$objSection = new clsWikiSection($objPage,"Name ID $id");
-	//$out = $objSection->HeaderHtml_Edit();
-	$objSection->ToggleAdd('edit');
-	//$objSection->ActionAdd('view');
-	$out = $objSection->Generate();
-*/
-
-	$wgOut->AddHTML($out); $out = '';
-
-	if ($doEdit || $doSave) {
-	    $this->BuildEditForm();
-	    if ($doSave) {
-		$this->AdminSave();
-//	    $this->Reload();	// we want to see the new values, not the ones already loaded
-	    }
-	}
-
-	$ftID = $this->AdminLink();
-	$ftSrch = $this->Value('NameSrch');
-
-	if ($doEdit) {
-	    $out .= $oSect->FormOpen();
-	    $objForm = $this->objForm;
-
-	    $ftName	= $objForm->Render('Name');
-	    $ftCust	= $objForm->Render('ID_Cust');
-	    $ftActive	= $objForm->Render('isActive');
+	$arActs = array(
+	  new clsActionLink_option(array(),'edit')
+	  );
+	$oPage->PageHeaderWidgets($arActs);
+	$oPage->TitleString($sTitle);
+		
+	if ($this->IsNew()) {
+	    $frm->ClearValues();
 	} else {
-	    $rcCust = $this->CustObj();
-
-	    $ftName	= $this->Value('Name');
-	    $ftCust	= $rcCust->AdminLink();
-	    $ftActive	= NoYes($this->Value('isActive'));
+	    $frm->LoadRecord();
 	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frm->RenderControls($doEdit);
 
-	$out .= <<<__END__
-<table>
-<!-- <tr><td align=right><b>ID</b>:</td><td>$ftID</td></tr> -->
-<tr><td align=right><b>Customer</b>:</td><td>$ftCust</td></tr>
-<tr><td align=right><b>Name</b>:</td><td>$ftName</td></tr>
-<tr><td align=right><b>Active</b>:</td><td>$ftActive</td></tr>
-<tr><td align=center colspan=2>non-editable data</td></tr>
-<tr><td align=right><b>Searchable</b>:</td><td>$ftSrch</td></tr>
-</table>
-__END__;
+	$arCtrls['ID'] = $this->SelfLink();
+	
+	$out = NULL;
+	if ($doEdit) {
+	    $out .= "\n<form method=post>";
+	} else {
+	    $rcCust = $this->CustomerRecord();
+	    $arCtrls['ID_Cust']	= $rcCust->SelfLink();
+	}
+	$oTplt->VariableValues($arCtrls);
+	$out .= $oTplt->RenderRecursive();
+	
 	if ($doEdit) {
 	    if ($isNew) {
 		$out .= '<input type=submit name="btnSave" value="Create">';
 	    } else {
 		$out .= '<input type=submit name="btnSave" value="Save">';
 	    }
-	    $out .= '<input type=submit name="btnCancel" value="Cancel">';
-	    $out .= '<input type=reset value="Reset">';
 	    $out .= '</form>';
 	}
 
-	$oSect = new clsWikiSection_std_page($oFmt,'Event Log',3);
-	$out .= $oSect->Render();
+//	$oSect = new clsWikiSection_std_page($oFmt,'Event Log',3);
+//	$out .= $oSect->Render();
 	$out .= $this->EventListing();
 
-	$out .= '<hr><small>generated by '.__FILE__.':'.__LINE__.'</small>';
+	$out .= '<hr><span class=footer-stats>generated by '.__FILE__.' line '.__LINE__.'</span>';
 
-	$wgOut->AddHTML($out);
+	return $out;
     }
-    public function AdminSave() {
-	global $vgOut;
-
-	$out = $this->objForm->Save();
-	$vgOut->AddText($out);
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    $sTplt = <<<__END__
+<table>
+<!-- <tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr> -->
+<tr><td align=right><b>Customer</b>:</td><td>[[ID_Cust]]</td></tr>
+<tr><td align=right><b>Name</b>:</td><td>[[Name]]</td></tr>
+<tr><td align=right><b>Active</b>:</td><td>[[isActive]]</td></tr>
+<tr><td colspan=2 class=table-section-header>Calculated:</td></tr>
+<tr><td align=right><b>Searchable</b>:</td><td>[[NameSrch]]</td></tr>
+<tr><td align=right><b>When Created</b>:</td><td>[[WhenEnt]]</td></tr>
+<tr><td align=right><b>When Updated</b>:</td><td>[[WhenUpd]]</td></tr>
+</table>
+__END__;
+	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
+	}
+	return $this->tpPage;
     }
     /*----
       HISTORY:
 	2010-11-17 adapted from clsCtgGroup to clsAdminCustAddr
 	2012-01-04 adapted from clsAdminCustAddr to clsAdminCustName
+	2016-06-12 Updated to current Ferreteria forms.
     */
-    private function BuildEditForm() {
-	global $vgOut;
+    private $frm;
+    private function Form() {
+	if (empty($this->frm)) {
+	    $frm = new fcForm_DB($this);
+	    
+	      $oField = new fcFormField_Text($frm,'Name');
+	      $oField = new fcFormField_Num($frm,'ID_Cust');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>5));
+	      $oField = new fcFormField_BoolInt($frm,'isActive');
+	      // calculated fields
+	      $oField = new fcFormField_Text($frm,'NameSrch');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($frm,'WhenEnt');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($frm,'WhenUpd');
+		$oField->ControlObject()->Editable(FALSE);
 
-	if (is_null($this->objForm)) {
-	    // create fields & controls
-	    $objForm = new clsForm_DataSet($this,$vgOut);
-
-	    $objForm->AddField(new clsField('Name'),		new clsCtrlHTML());
-	    //$objForm->AddField(new clsField('Full'),		new clsCtrlHTML(array('size'=>60)));
-	    $objForm->AddField(new clsField('ID_Cust'),	new clsCtrlHTML(array('size'=>40)));
-	    //$objForm->AddField(new clsFieldBool('isActive'),	new clsCtrlHTML(array('size'=>24)));
-	    //$objForm->AddField(new clsFieldBool_Int('isActive'),	new clsCtrlHTML(array('size'=>24)));
-	    $objForm->AddField(new clsFieldBool('isActive'),	new clsCtrlHTML_CheckBox());
-
-	    $this->objForm = $objForm;
+	    $this->frm = $frm;
 	}
+	return $this->frm;
     }
+    
+    // -- WEB UI -- //
+
 }

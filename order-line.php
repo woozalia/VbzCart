@@ -3,27 +3,42 @@
   HISTORY:
     2014-09-28 split off from orders.php
 */
-class clsOrderLines extends clsVbzTable {
-    const TableName='ord_lines';
+class vctOrderLines extends vcShopTable {
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name(self::TableName);
-	  $this->KeyName('ID');
-	  $this->ClassSng('clsOrderLine');
+    // ++ CEMENTING ++ //
+    
+    protected function TableName() {
+	return 'ord_lines';
     }
+    protected function SingularName() {
+	return 'vcrOrderLine';
+    }
+    
+    // -- CEMENTING -- //
+    // ++ RECORDS ++ //
+    
     public function Find_byOrder_andItem($idOrder,$idItem) {
  	$sqlFilt = "(ID_Order=$idOrder) AND (ID_Item=$idItem)";
-	$rc = $this->GetData($sqlFilt);
+	$rc = $this->SelectRecords($sqlFilt);
 	$rc->NextRow();		// load the row
 	return $rc;
     }
+    /*----
+      PUBLIC so Order record can access it
+      USED BY: Order record (nothing else as of 2016-11-05)
+    */
+    public function FetchRecords_forOrderID($idOrder) {
+    	return $this->SelectRecords('ID_Order='.$idOrder);
+    }
+    
+    // -- RECORDS -- //
+
 }
-class clsOrderLine extends clsVbzRecs {
+class vcrOrderLine extends vcShopRecordset {
 
     // ++ SETUP ++ //
 
-    public function Init_fromCartLine(clsShopCartLine $rcCLine) {
+    public function Init_fromCartLine(vcrShopCartLine $rcCLine) {
 	// some fields get copied over directly
 	$arNames = array(
 	  'Seq'		=> 'Seq',
@@ -49,12 +64,15 @@ class clsOrderLine extends clsVbzRecs {
     }
 
     // -- SETUP -- //
-    // ++ DATA FIELDS ++ //
+    // ++ FIELD VALUES ++ //
 
-    protected function QtyOrd() {
-	return $this->Value('QtyOrd');
+    protected function GetItemID() {
+	return $this->GetFieldValue('ID_Item');
     }
-    protected function SeqNum() {
+    protected function QtyOrd() {
+	return $this->GetFieldValue('QtyOrd');
+    }
+    protected function SequenceNumber() {
 	return $this->Value('Seq');
     }
     /*----
@@ -63,22 +81,56 @@ class clsOrderLine extends clsVbzRecs {
       HISTORY:
 	2011-03-23 created for "charge for package" process
 	2014-08-22 modified to allow writing
+	2015-11-08 Re-simplifying:
+	  * Writing from here seems like a bad idea; if needed, document need.
+	  * Order Lines should always have a price, because it should reflect
+	    the price at the time of ordering (catalog price may change).
     */
-    public function PriceSell($prc=NULL) {
-	$prc = $this->ValueNz('Price',$prc);
-	if (is_null($prc)) {
-	    $prc = $this->ItemRecord()->PriceSell();
-	    $this->Value('Price',$prc);
-	}
-	return $prc;
+    public function PriceSell() {
+	return $this->GetFieldValue('Price');
     }
+    protected function DescrText() {
+	return $this->GetFieldValue('Descr');
+    }
+    // ACTION: Get the stored "s/h per package" value; do no calculations.
+    protected function GetShippingPerPackage() {
+	return $this->GetFieldValue('ShipPkg');
+    }
+    public function SetShippingPerPackage($prc) {
+	$this->SetFieldValue('ShipPkg',$prc);
+    }
+    // ACTION: Get the stored "s/h per unit" value; do no calculations.
+    protected function GetShippingPerUnit() {
+	return $this->GetFieldValue('ShipItm');
+    }
+    protected function SetShippingPerUnit($prc) {
+	$this->SetFieldValue('ShipItm',$prc);
+    }
+    
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+
     /*----
       RETURNS: shipping per-package price
 	if order line has no per-package price, falls back to catalog item
+	and writes it to the local recordset but does not save.
       HISTORY:
 	2011-03-23 created for "charge for package" process
 	2014-08-22 modified to allow writing
+	2016-11-05 split into 3 methods:
+	  GetShippingPerPackage(): read order line's stored value
+	  SetShippingPerPackage(): write order line's stored value
+	  FigureShippingPerPackage(): look up value to use if value is unknown by order line
     */
+    protected function FigureShippingPerPackage() {
+	$prc = $this->GetShippingPerPackage();
+	if (is_null($prc)) {
+	    $prc = $this->ItemRecord()->ShPerPkg();
+	    $this->SetShippingPerPackage($prc);
+	}
+	return $prc;
+    }
+    /* 2016-11-05 old code
     public function ShPerPkg($prc=NULL) {
 	$prc = $this->Value('ShipPkg',$prc);
 	if (is_null($prc)) {
@@ -86,14 +138,27 @@ class clsOrderLine extends clsVbzRecs {
 	    $this->Value('ShipPkg',$prc);
 	}
 	return $prc;
-    }
+    }*/
     /*----
       RETURNS: shipping per-item price -- defaults to catalog item's data
 	unless specified in package line
       HISTORY:
 	2011-03-23 created for "charge for package" process
 	2014-08-22 modified to allow writing
+	2016-11-05 split into 3 methods:
+	  GetShippingPerUnit(): read order line's stored value
+	  SetShippingPerUnit(): write order line's stored value
+	  FigureShippingPerUnit(): look up value to use if value is unknown by order line
     */
+    protected function FigureShippingPerUnit() {
+	$prc = $this->GetShippingPerUnit();
+	if (is_null($prc)) {
+	    $prc = $this->ItemRecord()->ShPerItm();
+	    $this->SetShippingPerUnit($prc);
+	}
+	return $prc;
+    }
+    /* 2016-11-05 old code
     public function ShPerItm($prc=NULL) {
 	$prc = $this->Value('ShipItm',$prc);
 	if (is_null($prc)) {
@@ -101,10 +166,12 @@ class clsOrderLine extends clsVbzRecs {
 	    $this->Value('ShipItm',$prc);
 	}
 	return $prc;
+    }*/
+    protected function SetCatNum($sVal) {
+	return $this->SetFieldValue('CatNum',$sVal);
     }
-    protected function CatNum($sVal=NULL) {
-	$val = $this->Value('CatNum',$sVal);
-	return $val;
+    protected function GetCatNum() {
+	return $this->GetFieldValue('CatNum');
     }
     protected function Descr($sText=NULL) {
 	$val = $this->ValueNz('Descr',$sText);
@@ -114,16 +181,9 @@ class clsOrderLine extends clsVbzRecs {
 	}
 	return $val;
     }
-    protected function DescrText() {
-	return $this->Value('Descr');
-    }
     protected function DescrHTML() {
-	return $this->ItemRecord()->DescLong_ht();
+	return $this->ItemRecord()->Description_forOrder();
     }
-
-    // -- DATA FIELDS -- //
-    // ++ FIELD CALCULATIONS ++ //
-
     protected function PriceSell_forQty() {
 	return $this->PriceSell() * $this->QtyOrd();
     }
@@ -164,9 +224,9 @@ class clsOrderLine extends clsVbzRecs {
 	while ($this->NextRow()) {
 	    $ar = $this->FigureStats();
 
-	    $prcShItmSum = nzArray($arSum,'sh-itm',0);
-	    $prcShPkgMax = nzArray($arSum,'sh-pkg',0);
-	    $prcSaleSum = nzArray($arSum,'cost-sell',0);
+	    $prcShItmSum = clsArray::Nz($arSum,'sh-itm',0);
+	    $prcShPkgMax = clsArray::Nz($arSum,'sh-pkg',0);
+	    $prcSaleSum = clsArray::Nz($arSum,'cost-sell',0);
 
 	    $prcShItmThis = $ar['sh-itm.qty'];
 	    $prcShPkgThis = $ar['sh-pkg'];
@@ -193,7 +253,7 @@ class clsOrderLine extends clsVbzRecs {
     // ++ DATA TABLES ++ //
 
     protected function ItemTable($id=NULL) {
-	return $this->Engine()->Make($this->ItemsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ItemsClass(),$id);
     }
 
     // -- DATA TABLES -- //
@@ -202,6 +262,7 @@ class clsOrderLine extends clsVbzRecs {
     /*----
       HISTORY:
 	2011-03-23 created for AdminPage()
+	2016-11-05 now used in checkout process (order conversion/confirmation)
     */
     private $rcItem, $idItem;
     public function ItemObj() {
@@ -209,7 +270,7 @@ class clsOrderLine extends clsVbzRecs {
     }
     public function ItemRecord() {
 	$doLoad = TRUE;
-	$id = $this->Value('ID_Item');
+	$id = $this->GetItemID();
 	if (isset($this->idItem)) {
 	    if ($this->idItem == $id) {
 		$doLoad = FALSE;
@@ -227,16 +288,17 @@ class clsOrderLine extends clsVbzRecs {
 
     /*----
       PUBLIC because Cart object calls it to display a static cart at checkout
+      TODO: This seems kind of sloppy. Figure out if it is necessary; fix if not.
       RETURNS: populated rendering object for the current line
     */
     public function GetRenderObject_static() {
-	$oLine = new cCartLine_static(
-	  $this->CatNum(),
+	$oLine = new vcCartLine_static(
+	  $this->GetCatNum(),
 	  $this->DescrHTML(),
 	  $this->QtyOrd(),
 	  $this->PriceSell(),
-	  $this->ShPerItm(),
-	  $this->ShPerPkg()
+	  $this->FigureShippingPerUnit(),
+	  $this->FigureShippingPerPackage()
 	  );
 	return $oLine;
     }
@@ -245,13 +307,13 @@ class clsOrderLine extends clsVbzRecs {
       RETURNS: populated rendering object for the current line
     */
     public function GetRenderObject_text() {
-	$oLine = new cCartLine_text(
-	  $this->CatNum(),
+	$oLine = new vcCartLine_text(
+	  $this->GetCatNum(),
 	  $this->DescrText(),
-	  $this->QtyOrd,
+	  $this->QtyOrd(),
 	  $this->PriceSell(),
-	  $this->ShPerItm(),
-	  $this->ShPerPkg()
+	  $this->FigureShippingPerUnit(),
+	  $this->FigureShippingPerPackage()
 	  );
 	return $oLine;
     }
@@ -260,26 +322,28 @@ class clsOrderLine extends clsVbzRecs {
       NAMING: The word "static" is possibly intended to distinguish this from an admin method that allows editing.
 	In the future, users may be able to edit orders after submitting them... but there will be a design review first.
       HISTORY:
-	2011-04-01 adapted from clsShopCartLine::RenderHtml() (now RenderStatic()) to clsOrderLine::RenderStatic()
+	2011-04-01 adapted from clsShopCartLine::RenderHtml() (now vcrShopCart::RenderStatic()) to clsOrderLine::RenderStatic()
     */
     public function RenderStatic(/*clsShipZone $iZone*/) {
 	throw new exception('RenderStatic() is deprecated; call RenderStatic_row() or RenderStatic_rows().');
     }
     public function RenderStatic_rows() {
-	$out = cCartDisplay_full::RenderHeader();
+	throw new exception('Is this actually used?');	// 2015-09-04
+	$out = vcCartDisplay_full::RenderHeader();
 	while($this->NextRow()) {
 	    $out .= $this->RenderStatic_row();
 	}
 	return $out;
     }
     public function RenderStatic_row() {
+	throw new exception('Is this actually used?');	// 2015-09-04
 // calculate display fields:
 	$nQtyOrd = $this->QtyOrd();
 	if ($nQtyOrd > 0) {
 	    //$this->RenderCalc($iZone);
 echo 'GOT TO HERE';
 	    // TODO: convert to use cart-display.php
-	    $oCartLine = new cCartLine_static(
+	    $oCartLine = new vcCartLine_static(
 	      $this->CatNum(),
 	      $this->Descr(),
 	      $nQtyOrd,
@@ -337,7 +401,7 @@ __END__;
     */
     public function RenderText_lines($sFmt) {
 	if ($this->HasRows()) {
-	    $out = cCartLine_text::RenderListHeader_text();
+	    $out = vcCartLine_text::RenderListHeader_text();
 	    while ($this->NextRow()) {
 		$out .= $this->RenderText_line($sFmt);
 	    }
@@ -359,7 +423,7 @@ __END__;
 	} else {
 	    // only show lines with nonzero quantity
 
-	    $oCartLine = new cCartLine_text(
+	    $oCartLine = new vcCartLine_text(
 	      $this->CatNum(),
 	      $this->Descr(),
 	      $this->QtyOrd(),

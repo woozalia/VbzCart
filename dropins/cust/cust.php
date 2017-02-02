@@ -6,31 +6,36 @@
     2014-01-16 adapting as drop-in module
 */
 
-define('KS_DESCR_IS_NULL','<span style="color: grey; font-style: italic;">(none)</span>');
-define('KS_DESCR_IS_BLANK','<span style="color: grey; font-style: italic;">(blank)</span>');
+define('KS_DESCR_IS_NULL','(none)');
+define('KS_DESCR_IS_BLANK','(blank)');
+define('KHT_DESCR_IS_NULL','<span style="color: grey; font-style: italic;">'.KS_DESCR_IS_NULL.'</span>');
+define('KHT_DESCR_IS_BLANK','<span style="color: grey; font-style: italic;">'.KS_DESCR_IS_BLANK.'</span>');
 
-/*
+/*::::
  CUSTOMER DATA
 */
-class VCT_Custs extends clsCusts {
+class vctaCusts extends clsCusts {
+    use ftLinkableTable;
 
-    // ++ INITIALIZATION ++ //
+    // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_Cust');
-	  $this->ActionKey('cust');
+    // OVERRIDE
+    protected function SingularName() {
+	return 'vcraCust';
+    }
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_CUSTOMER;
     }
 
-    // -- INITIALIZATION -- //
+    // -- SETUP -- //
     // ++ DROP-IN API ++ //
 
     /*----
       PURPOSE: execution method called by dropin menu
     */
-    public function MenuExec(array $arArgs=NULL) {
-	$out = $this->RenderSearch();
-	return $out;
+    public function MenuExec() {
+	return $this->RenderSearch();
     }
 
     // -- DROP-IN API -- //
@@ -68,8 +73,8 @@ class VCT_Custs extends clsCusts {
 	$sFilt = $oPage->ReqArgText($sFilterName);
 	$doSearch = (!empty($sFind));
 	$doFilter = (!empty($sFilt));
-	$htFind = '"'.htmlspecialchars($sFind).'"';
-	$htFilt = '"'.htmlspecialchars($sFilt).'"';
+	$htFind = '"'.fcString::EncodeForHTML($sFind).'"';
+	$htFilt = '"'.fcString::EncodeForHTML($sFilt).'"';
 
 	// build forms
 
@@ -91,25 +96,9 @@ __END__;
 </form>
 __END__;
 
-/*
-	$out = <<<__END__
-<table width=100%>
-  <tr><th>$htSearchHdr</th><th>$htFilterHdr</th></tr>
-  <tr><td>$htSearchForm</td><td>$htFilterForm</td></tr>
-</table>
-__END__;
-*/
 	$out = $htSearchHdr.$htSearchForm.$htFilterHdr.$htFilterForm;
 
 	// do the request
-/*
-	$arCols = array(	// field => label
-	  'ID'		=> 'ID',
-	  'ID_Name'	=> 'Name',
-	  'ID_Addr'	=> 'Addr',
-	  'WhenCreated'	=> 'Created',
-	  );
-	  */
 
 	if ($doSearch) {
 	    $rs = $this->Search_forText($sFind);
@@ -130,13 +119,12 @@ __END__;
     }
 
     // -- ADMIN WEB UI -- //
-    // ++ DATA RECORDS LOOKUP ++ //
 
-
-    // -- DATA RECORDS LOOKUP -- //
 }
-class VCR_Cust extends clsCust {
-    protected $objForm;
+class vcraCust extends clsCust {
+    use ftLinkableRecord;
+    use ftShowableRecord;
+    use ftLoggableRecord;
 
     // ++ BOILERPLATE HELPERS ++ //
 
@@ -145,35 +133,38 @@ class VCR_Cust extends clsCust {
 	2011-09-21 created for admin page (to show ID_Repl value)
 	2014-07-12 simplified output so it just shows name
 	  ID and address are displayed in separate columns.
+	2016-06-11 Actually, why do we want the Name value to link to the current record?
+	  TODO: see if there's a legit use for it under this name.
+	  Replacing with NameLink().
     */
-    public function AdminLink_name() {
+    public function SelfLink_name() {
 	//$strText = $this->KeyValue().': '.$this->NameStr().' - '.$this->AddrLine();
 	$sText = $this->NameString();
-	$out = $this->AdminLink($sText);
+	$out = $this->SelfLink($sText);
 	return $out;
     }
     /*----
       HISTORY:
 	2011-09-21 created for cart import page (to show which cust records are redirects)
     */
-    public function AdminLink_status() {
+    public function SelfLink_status() {
 	if ($this->HasRepl()) {
-	    $htOut = '<s>'.$this->AdminLink().'</s> &rarr; '.$this->AdminLink_Repl();
+	    $htOut = '<s>'.$this->SelfLink().'</s> &rarr; '.$this->SelfLink_Repl();
 	} else {
-	    $htOut = $this->AdminLink_name();
+	    $htOut = $this->SelfLink_name();
 	}
 	return $htOut;
     }
-    public function AdminLink_Repl() {
+    public function SelfLink_Repl() {
 	if ($this->HasRepl()) {
-	    return $this->ReplObj()->AdminLink_name();
+	    return $this->ReplObj()->SelfLink_name();
 	} else {
 	    return 'none';
 	}
     }
-    protected function AdminLink_Addr() {
+    protected function SelfLink_Addr() {
 	if ($this->HasAddr()) {
-	    return $this->AddressRecord()->AdminLink_name();
+	    return $this->AddressRecord()->SelfLink_name();
 	} else {
 	    return 'n/a';
 	}
@@ -198,13 +189,13 @@ class VCR_Cust extends clsCust {
     protected function AdminField($sField) {
 	switch($sField) {
 	  case 'ID':
-	    $val = $this->AdminLink();
+	    $val = $this->SelfLink();
 	    break;
 	  case 'ID_Name':
-	    $val = $this->AdminLink_name();
+	    $val = $this->NameLink();
 	    break;
 	  case 'ID_Addr':
-	    $val = $this->AdminLink_addr();
+	    $val = $this->SelfLink_addr();
 	    break;
 	  case 'email':
 	    $val = $this->EmailStr();
@@ -221,14 +212,20 @@ class VCR_Cust extends clsCust {
     // -- METHOD OVERRIDES -- //
     // ++ CLASS NAMES ++ //
 
+    protected function NamesClass() {
+	return KS_CLASS_CUST_NAMES;
+    }
     protected function CardsClass() {
 	return KS_CLASS_CUST_CARDS;
     }
+    protected function CartsClass() {
+	return KS_CLASS_ADMIN_CARTS;
+    }
     protected function OrdersClass() {
-	if (clsDropInManager::ModuleLoaded('vbz.orders')) {
+	if (fcDropInManager::IsModuleLoaded('vbz.orders')) {
 	    return KS_CLASS_ORDERS;
 	} else {
-	    return clsOrders;
+	    return 'vctOrders';
 	}
     }
     protected function MailAddrsClass() {
@@ -239,7 +236,7 @@ class VCR_Cust extends clsCust {
     }
 
     // -- CLASS NAMES -- //
-    // ++ DATA TABLE ACCESS ++ //
+    // ++ DATA TABLES ++ //
 
     protected function CardTable($id=NULL) {
 	return $this->Engine()->Make($this->CardsClass(),$id);
@@ -254,7 +251,32 @@ class VCR_Cust extends clsCust {
 	return $this->Engine()->Make($this->EmailAddrsClass(),$id);
     }
 
-    // -- DATA TABLE ACCESS -- //
+    // -- DATA TABLES -- //
+    // ++ DATA RECORDS ++ //
+    
+    public function AddressRecord() {
+	$id = $this->Value('ID_Addr');
+	if (is_null($id)) {
+	    return NULL;
+	} else {
+	    return $this->MailAddrTable($id);
+	}
+    }
+    public function NameObj() {
+	throw new exception('Call NameRecord() instead of NameObj().');
+	$id = $this->Value('ID_Name');
+	if (is_null($id)) {
+	    return NULL;
+	} else {
+	    return $this->NameTable($id);
+	}
+    }
+    public function ReplObj() {
+	$rc = $this->Table()->GetItem($this->Value('ID_Repl'));
+	return $rc;
+    }
+
+    // -- DATA RECORDS -- //
     // ++ FIELD CALCULATIONS ++ //
 
     protected function AddrStr() {
@@ -266,15 +288,43 @@ class VCR_Cust extends clsCust {
 	throw new exception('NameStr() deprecated; call NameString().');
     }
     public function NameString() {
-	$obj = $this->NameRecord();
-	if (is_object($obj)) {
-	    $txt = $obj->Name;
-	    return empty($txt)?KS_DESCR_IS_BLANK:$txt;
+	$rc = $this->NameRecord();
+	if (is_object($rc)) {
+	    $txt = $rc->NameString();
+	    return empty($txt)?KHT_DESCR_IS_BLANK:$txt;
 	} else {
-	    return KS_DESCR_IS_NULL;
+	    return KHT_DESCR_IS_NULL;
 	}
     }
-    public function AddrLine() {
+    // String to use for page title
+    protected function TitleString() {
+	$id = $this->GetKeyValue();
+	$rc = $this->NameRecord();
+	if (is_object($rc)) {
+	    $txt = $rc->NameString();
+	    $idName = $rc->GetKeyValue();
+	    if (empty($txt)) {
+		$out = "cust ID $id name ID $idName (no name value)";
+	    } else {
+		$out = "cust $sName (id$id)";
+	    }
+	} else {
+	    $out = "cust ID $id (no name set)";
+	}
+	return $out;
+    }
+    // RETURNS: HTML link to name record
+    protected function NameLink() {
+	$idName = $this->NameID();
+	if (empty($idName)) {
+	    return KHT_DESCR_IS_NULL;
+	} else {
+	    $rcName = $this->NameRecord();
+	    return $rcName->SelfLink_name();
+	}
+    }
+    /* 2016-06-26 If needed, move this back to the logic class
+    public function AddrLine_text() {
 	$obj = $this->AddressRecord();
 	if (is_object($obj)) {
 	    $txt = $obj->AsSingleLine();
@@ -282,10 +332,19 @@ class VCR_Cust extends clsCust {
 	} else {
 	    return KS_DESCR_IS_NULL;
 	}
+    } */
+    public function AddrLine() {
+	$obj = $this->AddressRecord();
+	if (is_object($obj)) {
+	    $txt = $obj->AsSingleLine();
+	    return empty($txt)?KHT_DESCR_IS_BLANK:$txt;
+	} else {
+	    return KHT_DESCR_IS_NULL;
+	}
     }
     public function EmailStr() {
 	$tbl = $this->EmailAddrTable();
-	$rs = $tbl->Find_forCust($this->KeyValue());
+	$rs = $tbl->Find_forCust($this->GetKeyValue());
 	$ht = NULL;
 	while ($rs->NextRow()) {
 	    if (!is_null($ht)) {
@@ -303,30 +362,6 @@ class VCR_Cust extends clsCust {
     }
 
     // -- FIELD CALCULATIONS -- //
-    // ++ DATA RECORDS ACCESS ++ //
-
-    public function AddressRecord() {
-	$id = $this->Value('ID_Addr');
-	if (is_null($id)) {
-	    return NULL;
-	} else {
-	    return $this->MailAddrTable($id);
-	}
-    }
-    public function NameObj() {
-	$id = $this->Value('ID_Name');
-	if (is_null($id)) {
-	    return NULL;
-	} else {
-	    return $this->NameTable($id);
-	}
-    }
-    public function ReplObj() {
-	$rc = $this->Table()->GetItem($this->Value('ID_Repl'));
-	return $rc;
-    }
-
-    // -- DATA RECORDS ACCESS -- //
     // ++ ACTIONS ++ //
 
     /*----
@@ -338,9 +373,10 @@ class VCR_Cust extends clsCust {
 	2013-11-06 replacing data-scripting with transactions
     */
     protected function DoMergeInto($idOther) {
+	throw new exception('2016-06-26 This will almost certainly need rewriting.');
 	//$acts = new Script_Script();
 
-	$idThis = $this->KeyValue();
+	$idThis = $this->GetKeyValue();
 	// always merge into the lower-numbered ID.
 
       // 1. ORDERS
@@ -379,7 +415,7 @@ class VCR_Cust extends clsCust {
       // 2. NAMES, EMAILS, PHONES, ADDRS, CARDS
       $arUpd = array('ID_Cust' => $idOther);
 
-      $rs = $this->Names();
+      $rs = $this->NameRecords();
       if ($rs->HasRows()) {
 	  while ($rs->NextRow()) {
 	      $rsc = $rs->RowCopy();
@@ -427,7 +463,8 @@ class VCR_Cust extends clsCust {
 	  'crea'	=> 'When Created',
 	);
 	return $arF;
-    }/*
+    }
+    /*
     protected function AdminRows_start() {
 	$ht = 'You have <b>'.$qRows.'</b> customer profile'.Pluralize($qRows).':'
 	  . "\n<table class=listing>";
@@ -489,7 +526,7 @@ class VCR_Cust extends clsCust {
     protected function MergeForm() {
 	global $wgOut,$wgRequest;
 
-	$idThis = $this->KeyValue();
+	$idThis = $this->GetKeyValue();
 
 	$doPreview = $wgRequest->GetBool('btnMergePreview');
 	$doFinish = $wgRequest->GetBool('btnMergeFinish');
@@ -565,44 +602,81 @@ class VCR_Cust extends clsCust {
 	$oPage = $this->Engine()->App()->Page();
 	//$oSkin = $oPage->Skin();
 
-	if ($this->hasRows()) {
-	    $out = NULL;
+	$out = NULL;
 
-	    $doAct = $oPage->PathArg('do');
-	    $doEdit = $oPage->PathArg('edit');
-	    $doSave = clsHTTP::Request()->GetBool('btnSave');
-	    $doMerge = ($doAct == 'merge');
+	$doAct = $oPage->PathArg('do');
+	//$doEdit = $oPage->PathArg('edit');
+	$doEdit = ($doAct == 'edit');
+	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	$doMerge = ($doAct == 'merge');
 
-	    if ($doMerge) {
-		$this->MergeForm();
-	    }
+	if ($doMerge) {
+	    $this->MergeForm();
+	}
 
-	    if ($doEdit || $doSave) {
-		if ($doSave) {
-		    $ftSaveStatus = $this->AdminSave();
-		}
-	    }
+	$frm = $this->PageForm();
+	
+	if ($doSave) {
+	    // NOTE: This does not handle saving new records. Not sure if it will need to.
+	    $frm->Save();
+	    $sMsg = $frm->MessagesString();
+	    $this->SelfRedirect(NULL,$sMsg);
+	}
 
-	    // calculate page title
-	    if ($this->IsNew()) {
-		$sTitle = 'New Customer';
-	    } else {
-		if (empty($strName)) {
-		    $sTitle = 'Unnamed Customer ID '.$this->KeyValue();
-		} else {
-		    $sTitle = $this->NameStr();
-		}
-	    }
+	// calculate page title
+	if ($this->IsNew()) {
+	    $sTitle = 'New Customer';
+	} else {
+	    $sTitle = $this->TitleString();
+//	    $id = $this->KeyValue();
+//	    if (empty($sName)) {
+//		$sTitle = 'Unnamed Customer ID '.$id;
+//	    } else {
+//		$sTitle = "cust $sName (id$id)";
+//	    }
+	}
 
-	    // set up titlebar menu
-	    clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
-	    $arActs = array(
-	      // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
-	      new clsActionLink_option(array(),'edit',		'do',NULL,NULL,'edit this order'),
-	      new clsActionLink_option(array(),'merge',	'do'),
-	      );
-	    $oPage->PageHeaderWidgets($arActs);
-	    $oPage->TitleString($sTitle);
+	// set up titlebar menu
+	$arActs = array(
+	  // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
+	  new clsActionLink_option(array(),'edit',		'do',NULL,NULL,'edit this order'),
+	  new clsActionLink_option(array(),'merge',	'do'),
+	  );
+	$oPage->PageHeaderWidgets($arActs);
+	$oPage->Skin()->SetPageTitle($sTitle);
+
+	// 2016-06-11 new version starts here
+
+	if ($this->IsNew()) {
+	    $frm->ClearValues();
+	} else {
+	    $frm->LoadRecord();
+	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frm->RenderControls($doEdit);
+	$arCtrls['ID'] = $this->SelfLink();
+
+	if ($doEdit) {
+	    $out .= "\n<form method=post>";
+
+	} else {
+	    $arCtrls['ID_Name'] = $this->NameLink();
+	    $arCtrls['ID_Addr'] = $this->SelfLink_addr();
+	    $arCtrls['ID_Repl'] = $this->SelfLink_Repl();
+	}
+	
+	$oTplt->VariableValues($arCtrls);
+	$out .= $oTplt->RenderRecursive();
+
+	if ($doEdit) {
+	    $out .= '<input type=submit name="btnSave" value="Save">';
+	    $out .= '</form>';
+	}
+	$out .= $this->AdminPage_dependents($doAct);
+
+	    // 2016-06-11 new version ends here
+	    
+	    /* 2016-06-11 old version
 
 	    $strAddr = $this->AddrLine();
 
@@ -621,9 +695,9 @@ class VCR_Cust extends clsCust {
 		$ftRepl = $frmPage->RenderControl('ID_Repl');
 		$ftNotes = $frmPage->RenderControl('Notes');
 	    } else {
-		$ftName = $this->NameObj()->AdminLink_name();
-		$ftAddr = $this->AdminLink_addr();
-		$ftRepl = $this->AdminLink_Repl();
+		$ftName = $this->NameLink();
+		$ftAddr = $this->SelfLink_addr();
+		$ftRepl = $this->SelfLink_Repl();
 		$ftNotes = $this->Value('Notes');
 	    }
 	    $strWhenCre = $this->Value('WhenCreated');
@@ -646,83 +720,18 @@ __END__;
 		$out .= '</form>';
 	    }
 
-	    $rs = $this->Aliases_rs();
-	    if ($rs->HasRows()) {
-		$out .= '<b>Aliases</b>:';
-		while ($rs->NextRow()) {
-		    $out .= ' '.$rs->AdminLink();
-		}
-	    } else {
-		$out .= '<small><i>This customer has no aliases.</i></small>';
-	    }
+	    //$id = $this->KeyValue();
+	    //$sfx = ' for customer ID='.$id;
 
-	    $id = $this->KeyValue();
-	    $sfx = ' for customer ID='.$id;
-
-	    $out .= $oPage->SectionHeader('Orders',NULL,'section-header-sub');
-	    $out .= $this->AdminOrders();
-
-	    $out .= $oPage->SectionHeader('Carts',NULL,'section-header-sub');
-	    $out .= $this->AdminCarts();
-
-	    // MAILING ADDRESSES
-	    $out .= $this->AdminAddrs();
-
-	    $out .= '<table width=100%><tr>';
-	    $out .= '<td valign=top bgcolor=#ccccff>';
-
-	      // EMAIL ADDRESSES
-	      $arActs = array(
-		// 		array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
-		new clsActionLink_option(array(),'new-email',	'do','new',NULL,'create a new email address record'),
-		);
-	      $out .= $oPage->SectionHeader('Email Addresses',$arActs,'section-header-sub');
-	      $out .= $this->AdminEmails();
-
-	    $out .= '</td>';
-	    $out .= '<td valign=top bgcolor=#ffffcc>';
-
-	      // PHONE NUMBERS
-	      $arActs = array(
-		// 		array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
-		new clsActionLink_option(array(),'new-phone',	'do','new',NULL,'create a new phone number record'),
-		);
-	      $out .= $oPage->SectionHeader('Phones',$arActs,'section-header-sub');
-	      $out .= $this->AdminPhones();
-
-	    $out .= '</td>';
-	    $out .= '<td valign=top bgcolor=#ccffcc>';
-
-	      // CUSTOMER NAME RECORDS
-	      $arActs = array(
-		// 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
-		new clsActionLink_option(array(),'new-name',	'do','new',NULL,'create a new name record'),
-		);
-	      $out .= $oPage->SectionHeader('Names',$arActs,'section-header-sub');
-	      $out .= $this->AdminNames();
-
-	    $out .= '</td>';
-	    $out .= '</tr></table>';
-
-	    // CUSTOMER PAYMENT CARDS
-	    $arActs = array(
-	      // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
-	      new clsActionLink_option(array(),'new-card',	'do','new',NULL,'create a new card record'),
-	      );
-	    $out .= $oPage->SectionHeader('Cards',$arActs,'section-header-sub');
-	    $out .= $this->AdminCards();
-
-	    // SYSTEM EVENTS
-	    $out .= $oPage->SectionHeader('Events',NULL,'section-header-sub');
-//	    $oSect = new clsWikiSection_std_page($oFmt,'Events',2);
-	    //$out .= $oSect->Render();
-	    $out .= $this->EventListing();
+	    $out .= $this->AdminPage_dependents();
 	} else {
 	    $id = $this->KeyValue();
 	    $out = "No data found for ID=$id.";
 	    throw new exception('This should not happen.');
 	}
-	$out .= '<hr><small>generated by '.__FILE__.' line '.__LINE__.'</small>';
+	*/
+	
+	$out .= '<hr><span class=footer-stats>generated by '.__FILE__.' line '.__LINE__.'</span>';
 	return $out;
     }
     /*----
@@ -730,28 +739,141 @@ __END__;
 	2010-11-06 adapted from VbzStockBin for VbzAdminTitle
 	2011-09-21 adapred from VbzAdminTitle for VbzAdminCust
     */
+    private $frmPage;
     private function PageForm() {
-	if (is_null($this->frmPage)) {
-	    $objForm = new clsForm_recs($this);
+	if (empty($this->frmPage)) {
+	    $frm = new fcForm_DB($this);
 
+	    $oField = new fcFormField_Num($frm,'ID_Name');
+	      $oCtrl = new fcFormControl_HTML_DropDown($oField,array());
+		$oCtrl->Records($this->NameRecords());
+		$oCtrl->AddChoice(NULL,'-- none --');
+	    $oField = new fcFormField_Num($frm,'ID_Addr');
+	      $oCtrl = new fcFormControl_HTML_DropDown($oField,array());
+		$oCtrl->Records($this->AddrRecords(FALSE));	// only list active addresses
+		$oCtrl->AddChoice(NULL,'-- none --');
+		// TODO: Detect if current selection is inactive, and add it to the list if so
+	    $oField = new fcFormField_Num($frm,'ID_Repl');
+		// manual ID entry, at least for now
+	    $oField = new fcFormField_Time($frm,'WhenCreated');
+	    $oField = new fcFormField_Time($frm,'WhenChanged');
+	    $oField = new fcFormField_Time($frm,'WhenUpdated');
+	    $oField = new fcFormField_Text($frm,'Notes');
+	      $oCtrl = new fcFormControl_HTML_TextArea($oField,array('rows'=>3,'cols'=>60));
+	    
+	    /* old version
 	    // create fields & controls
 	    $objForm->AddField(new clsFieldNum('ID_Name'),	new clsCtrlHTML(array('size'=>4)));
 	    $objForm->AddField(new clsFieldNum('ID_Addr'),	new clsCtrlHTML(array('size'=>4)));
 	    $objForm->AddField(new clsFieldNum('ID_Repl'),	new clsCtrlHTML(array('size'=>4)));
 	    $objForm->AddField(new clsField('Notes'),		new clsCtrlHTML_TextArea());
+	    */
 
-	    $this->frmPage = $objForm;
-	    //$this->objCtrls = $objCtrls;
+	    $this->frmPage = $frm;
 	}
 	return $this->frmPage;
     }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    $sTplt = <<<__END__
+<table class=listing>
+<tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr>
+<tr><td align=right><b>Replaced by</b>:</td><td>[[ID_Repl]]</td></tr>
+<tr><td align=right><b>Name</b>:</td><td>[[ID_Name]]</td></tr>
+<tr><td align=right><b>Address</b>:</td><td>[[ID_Addr]]</td></tr>
+<tr><td align=right><b>Created</b>:</td><td>[[WhenCreated]]</td></tr>
+<tr><td align=right><b>Changed</b>:</td><td>[[WhenChanged]]</td></tr>
+<tr><td align=right><b>Updated</b>:</td><td>[[WhenUpdated]]</td></tr>
+<tr><td align=right valign=top><b>Notes</b>:</td><td>[[Notes]]</td></tr>
+</table>
+__END__;
+	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
+	}
+	return $this->tpPage;
+	
+    }
     /*----
-      ACTION: Save user changes to the record
-      HISTORY:
-	2010-11-06 copied from VbzStockBin to VbzAdminItem
+      ACTION: render the dependent-records part of the page
+	2016-06-11 This is only called from one place; I'm just splitting it off for readability.
     */
-    public function AdminSave() {
-	$out = $this->PageForm()->Save();
+    protected function AdminPage_dependents($sDo) {
+	$sWhere = __FILE__.' line '.__LINE__;
+	$out = "\n<!-- vv $sWhere vv -->\n";
+	
+	$oPage = $this->Engine()->App()->Page();
+
+	$rs = $this->AliasRecords();
+	if ($rs->HasRows()) {
+	    $out .= '<b>Aliases</b>:';
+	    while ($rs->NextRow()) {
+		$out .= ' '.$rs->SelfLink();
+	    }
+	} else {
+	    $out .= '<small><i>This customer has no aliases.</i></small>';
+	}
+	
+	$out .= $oPage->SectionHeader('Orders',NULL,'section-header-sub');
+	$out .= $this->AdminOrders();
+
+	$out .= $oPage->SectionHeader('Carts',NULL,'section-header-sub');
+	$out .= $this->AdminCarts();
+
+	// MAILING ADDRESSES
+	$out .= $this->AdminAddrs($sDo);
+
+	$out .= '<table width=100%><tr>';
+	$out .= '<td valign=top bgcolor=#ccccff>';
+
+	  // EMAIL ADDRESSES
+	  $arActs = array(
+	    // 		array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
+	    new clsActionLink_option(array(),'new-email',	'do','new',NULL,'create a new email address record'),
+	    );
+	  $out .= $oPage->SectionHeader('Email Addresses',$arActs,'section-header-sub');
+	  $out .= $this->AdminEmails();
+
+	$out .= '</td>';
+	$out .= '<td valign=top bgcolor=#ffffcc>';
+
+	  // PHONE NUMBERS
+	  $arActs = array(
+	    // 		array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
+	    new clsActionLink_option(array(),'new-phone',	'do','new',NULL,'create a new phone number record'),
+	    );
+	  $out .= $oPage->SectionHeader('Phones',$arActs,'section-header-sub');
+	  $out .= $this->AdminPhones();
+
+	$out .= '</td>';
+	$out .= '<td valign=top bgcolor=#ccffcc>';
+
+	  // CUSTOMER NAME RECORDS
+	  $arActs = array(
+	    // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
+	    new clsActionLink_option(array(),'new-name',	'do','new',NULL,'create a new name record'),
+	    );
+	  $out .= $oPage->SectionHeader('Names',$arActs,'section-header-sub');
+	  $out .= $this->AdminNames();
+
+	$out .= '</td>';
+	$out .= '</tr></table>';
+
+	// CUSTOMER PAYMENT CARDS
+	$arActs = array(
+	  // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
+	  new clsActionLink_option(array(),'new-card',	'do','new',NULL,'create a new card record'),
+	  );
+	$out .= $oPage->SectionHeader('Cards',$arActs,'section-header-sub');
+	$out .= $this->AdminCards();
+
+	// SYSTEM EVENTS
+	$out .= $oPage->SectionHeader('Events',NULL,'section-header-sub');
+//	    $oSect = new clsWikiSection_std_page($oFmt,'Events',2);
+	//$out .= $oSect->Render();
+	$out .= $this->EventListing();
+	
+	$out .= "\n<!-- vv $sWhere vv -->\n";
+	
 	return $out;
     }
     /*-----
@@ -780,7 +902,7 @@ __END__;
 		$isOdd = !$isOdd;
 
 		$rcOrd->Values($row);
-		$ftNum = $rcOrd->AdminLink_name();
+		$ftNum = $rcOrd->SelfLink_name();
 		$strRoles = $row['roles'];
 /*
 		$strRoles = '';
@@ -814,7 +936,6 @@ __END__;
 	  'ID_Order'	=> 'Order',
 	  'ShipZone'	=> 'Zone',
 	  'WhenCreated'	=> 'Created',
-	  'WhenViewed'	=> 'Viewed',
 	  'WhenUpdated'	=> 'Updated',
 	  'WhenOrdered'	=> 'Ordered',
 	  'WhenVoided'	=> 'Voided',
@@ -825,26 +946,38 @@ __END__;
     /*-----
       TO DO: add "new" functionality (link exists, but no code -- copy from AdminEmails()
     */
-    private function AdminAddrs() {
+    private function AdminAddrs($sDo) {
 	$oPage = $this->Engine()->App()->Page();
+	
+	//$doNew = ($sDo == 'new-addr');
+	$doVoided = ($oPage->PathArg('show-addr') == 'void');
+	
+	$sAddrKey = $this->MailAddrTable()->ActionKey();
 	$arActs = array(
 	  // 		array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
-	  new clsActionLink_option(array(),'new-addr',	'do','new',NULL,'create a new mailing address record'),
+	  //new clsActionLink_option(array(),'new-addr',	'do','new',NULL,'create a new mailing address record'),
+	  new clsActionLink_option(
+	    array(
+	      'page'=>$sAddrKey,
+	      'cust'=>$this->GetKeyValue(),
+	      ),
+	    'new',
+	    'id',
+	    NULL,
+	    NULL,
+	    'create a new mailing address record'
+	    ),
 	  new clsAction_section('show'),
 	  new clsActionLink_option(array(),'void',	'show-addr','voided',NULL,'show voided records'),
 	  );
 	$out = $oPage->SectionHeader('Mailing Addresses',$arActs,'section-header-sub');
-	$doVoided = ($oPage->PathArg('show-addr') == 'void');
 
 	$rs = $this->AddrRecords($doVoided);
-	$out .= "\n<table><tr><th>ID</th><th>active</th><th>expires</th><th>abbr</th><th>Full</th></tr>";
+	$out .= "\n<table class=listing><tr><th>ID</th><th>active</th><th>expires</th><th>abbr</th><th>Full</th></tr>";
+	$isOdd = FALSE;
 	while ($rs->NextRow()) {
-	    $htRowCSS = is_null($rs->WhenVoid)?'':' style=" text-decoration: line-through; color: #666666;"';
-	    $ftAct = (empty($rs->WhenAct))?'-':(date('Y-m-d',$rs->WhenAct));
-	    $ftExp = (empty($rs->WhenExp))?'-':(date('Y-m-d',$rs->WhenExp));
-	    $ftAbbr = htmlspecialchars($rs->Name);
-	    $ftFull = $rs->AsSingleLine();
-	    $out .= "\n<tr$htRowCSS><td>".$rs->AdminLink()."</td><td>$ftAct</td><td>$ftExp</td><td>$ftAbbr</td><td>$ftFull</td></tr>";
+	    $isOdd = !$isOdd;
+	    $out .= $rs->AdminRow_forCust($isOdd);
 	}
 	$out .= "\n</table>";
 	return $out;
@@ -862,7 +995,7 @@ __END__;
 	      'isActive' => SQLValue($isAct)
 	      );
 	    $this->StartEvent(__METHOD__,'+EM','Adding email address '.$txtEmail);
-	    $idNew = $tbl->Make_fromData($this->KeyValue(),$txtEmail,$arData);
+	    $idNew = $tbl->Make_fromData($this->GetKeyValue(),$txtEmail,$arData);
 	    $this->FinishEvent();
 
 	    $this->AdminRedirect();
@@ -877,9 +1010,9 @@ __END__;
 	$out = "\n<table style=\"background: #ddddff;\"><tr><th>ID</th><th>A?</th><th>abbr</th><th>Email</th></tr>";
 	while ($objRows->NextRow()) {
 	    $ftAct = ($objRows->isActive)?'&radic;':'x';
-	    $ftAbbr = htmlspecialchars($objRows->Name);
+	    $ftAbbr = fcString::EncodeForHTML($objRows->Name);
 	    $ftEmail = $objRows->AsHTML();
-	    $out .= "\n<tr><td>".$objRows->AdminLink()."</td><td>$ftAct</td><td>$ftAbbr</td><td>$ftEmail</td></tr>";
+	    $out .= "\n<tr><td>".$objRows->SelfLink()."</td><td>$ftAct</td><td>$ftAbbr</td><td>$ftEmail</td></tr>";
 	}
 	if ($doAdd) {
 	    $out .= '<form method=post action="'.$this->AdminURL().'">';
@@ -909,7 +1042,7 @@ __END__;
 	    $txtAbbr = clsHTTP::Request()->getText('abbr');
 	    $isAct = clsHTTP::Request()->getBool('active');
 	    $arData = array(
-	      'ID_Cust'		=> $this->KeyValue(),
+	      'ID_Cust'		=> $this->GetKeyValue(),
 	      'Phone'		=> SQLValue($txtPhone),
 	      'Name'		=> SQLValue($txtAbbr),
 	      'isActive'	=> SQLValue($isAct),
@@ -917,7 +1050,7 @@ __END__;
 	      );
 
 	    $this->StartEvent(__METHOD__,'+PH','Adding phone number '.$txtPhone);
-	    $idNew = $objTbl->Make_fromData($this->KeyValue(),$txtPhone,$arData);
+	    $idNew = $objTbl->Make_fromData($this->GetKeyValue(),$txtPhone,$arData);
 	    //$idNew = $objTbl->Make($arData);	// Make() is protected -- but would this work?
 	    $this->FinishEvent();
 
@@ -928,9 +1061,9 @@ __END__;
 	    $doAdd = $oPage->PathArg('new-phone');
 	}
 
-	$objRows = $this->Phones();
+	$rs = $this->PhoneNumberRecords();
 
-	$doTbl = $objRows->HasRows() || $doAdd;
+	$doTbl = $rs->HasRows() || $doAdd;
 	if ($doTbl) {
 	    $out = <<<__END__
 <table class=listing style="background: #ffffdd;">
@@ -942,12 +1075,12 @@ __END__;
     <th>Description</th>
   </tr>
 __END__;
-	    while ($objRows->NextRow()) {
-		$ftAct = ($objRows->isActive)?'&radic;':'x';
-		$ftAbbr = htmlspecialchars($objRows->Name);
-		$ftFull = htmlspecialchars($objRows->Phone);
-		$ftDescr = htmlspecialchars($objRows->Descr);
-		$htID = $objRows->AdminLink();
+	    while ($rs->NextRow()) {
+		$ftAct = ($rs->isActive())?'&radic;':'x';
+		$ftAbbr = fcString::EncodeForHTML($rs->NameString());
+		$ftFull = fcString::EncodeForHTML($rs->PhoneString());
+		$ftDescr = fcString::EncodeForHTML($rs->Description());
+		$htID = $rs->SelfLink();
 		$out .= <<<__END__
   <tr>
     <td>$htID</td>
@@ -959,7 +1092,7 @@ __END__;
 __END__;
 	    }
 	    if ($doAdd) {
-		$out .= '<form method=post action="'.$this->AdminURL().'">';
+		$out .= '<form method=post>';
 		$ftAct = '<input type=checkbox name=active checked>';
 		$ftAbbr = '<input name=abbr size=4>';
 		$ftFull = '<input name=full size=15>';
@@ -995,7 +1128,7 @@ __END__;
 	    $txtSrch = $objTbl->Searchable();	// this might not work
 	    $isAct = clsHTTP::Request()->getBool('active');
 	    $arData = array(
-	      'ID_Cust'		=> $this->KeyValue(),
+	      'ID_Cust'		=> $this->GetKeyValue(),
 	      'Name'		=> SQLValue($txtFull),
 	      'NameSrch'	=> SQLValue($txtSrch),
 	      'isActive'	=> SQLValue($isAct),
@@ -1014,16 +1147,16 @@ __END__;
 	    $doAdd = $oPage->PathArg('new-phone');
 	}
 
-	$objRows = $this->Names();
+	$rs = $this->NameRecords();
 	$out = "\n<table style=\"background: #ddffdd;\"><tr><th>ID</th><th>A?</th><th>Name</th><th>Search</th></tr>";
-	while ($objRows->NextRow()) {
-	    $ftAct = ($objRows->isActive)?'&radic;':'x';
-	    $ftFull = htmlspecialchars($objRows->Name);
-	    $ftSrch = htmlspecialchars($objRows->NameSrch);
-	    $out .= "\n<tr><td>".$objRows->AdminLink()."</td><td>$ftAct</td><td>$ftFull</td><td>$ftSrch</td></tr>";
+	while ($rs->NextRow()) {
+	    $ftAct = ($rs->isActive())?'&radic;':'x';
+	    $ftFull = fcString::EncodeForHTML($rs->NameString());
+	    $ftSrch = fcString::EncodeForHTML($rs->NameSearchable());
+	    $out .= "\n<tr><td>".$rs->SelfLink()."</td><td>$ftAct</td><td>$ftFull</td><td>$ftSrch</td></tr>";
 	}
 	if ($doAdd) {
-	    $out .= '<form method=post action="'.$this->AdminURL().'">';
+	    $out .= '<form method=post>';
 	    $ftAct = '<input type=checkbox name=active checked>';
 	    $ftFull = '<input name=full size=15>';
 	    $out .= "\n<tr><td>new</td><td>$ftAct</td><td>$ftFull</td>"
@@ -1072,15 +1205,29 @@ __END__;
 	    $doAdd = $oPage->PathArg('new-card');
 	}
 
-	$objRows = $this->CardRecords();
-	$out = "\n<table><tr><th>ID</th><th>A?</th><th>abbr</th><th>Number/Exp</th><th>Address</th><th>Notes</th></tr>";
-	while ($objRows->NextRow()) {
-	    $ftAct = ($objRows->isActive)?'&radic;':'x';
-	    $ftAbbr = htmlspecialchars($objRows->Name);
-	    $ftFull = htmlspecialchars(clsCustCards::SafeDescr_Short($objRows->CardNum,$objRows->CardExp));
-	    $ftNotes = htmlspecialchars($objRows->Notes);
+	$rs = $this->CardRecords();
+	$out = <<<__END__
+<table>
+  <tr>
+    <th>ID</th>
+    <th>A?</th>
+    <th>abbr</th>
+    <th>Number/Exp</th>
+    <th>Address</th>
+    <th>Notes</th>
+  </tr>
+__END__;
+	while ($rs->NextRow()) {
+	    $ftAct = ($rs->isActive)?'&radic;':'x';
+	    $ftAbbr = fcString::EncodeForHTML($rs->NameString());
+	    $ftFull = fcString::EncodeForHTML(
+	      clsCustCards::SafeDescr_Short(
+		$rs->CardNumber(),$rs->CardExpiry()
+		)
+	      );
+	    $ftNotes = fcString::EncodeForHTML($rs->NotesText());
 	    $out .= "\n<tr>"
-	      ."<td>".$objRows->AdminLink()."</td>"
+	      ."<td>".$rs->SelfLink()."</td>"
 	      ."<td>$ftAct</td>"
 	      ."<td>$ftAbbr</td>"
 	      ."<td>$ftFull</td>"

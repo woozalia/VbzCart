@@ -6,16 +6,17 @@
     2011-12-24 DataScripting brought closer to sanity; mostly working.
     2014-01-15 adapting as a drop-in module
 */
-class VC_Carts extends clsShopCarts {
+class VC_Carts extends vctCarts_ShopUI {
+    use ftLinkableTable;
 
-    // ++ INITIALIZATION ++ //
+    // ++ SETUP ++ //
 
     public function __construct($iDB) {
 	parent::__construct($iDB);
-	  $this->ClassSng('VbzAdminCart');
+	  $this->ClassSng('vcraCart');
     }
 
-    // -- INITIALIZATION -- //
+    // -- SETUP -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -33,7 +34,7 @@ class VC_Carts extends clsShopCarts {
     public function AdminPage() {
 	$oPage = $this->Engine()->App()->Page();
 
-	$this->Name('qryCarts_info');
+	//$this->Name('qryCarts_info');
 	$rs = $this->GetData(NULL,NULL,'ID DESC');
 	$out = $rs->AdminLines();
 	return $out;
@@ -41,23 +42,22 @@ class VC_Carts extends clsShopCarts {
 
     // -- ADMIN UI -- //
 }
-class VbzAdminCart extends clsShopCart {
+class vcraCart extends vcrCart_ShopUI {
+    use ftLinkableRecord;
+    use ftShowableRecord;
+
     private $rcCust;
     private $htOut;
 
-    // ++ INITIALIZATION ++ //
+    // ++ SETUP ++ //
+    
     protected function InitVars() {
 	parent::InitVars();
 	$this->rcCust = NULL;
 	$this->htOut = NULL;
     }
-    // ++ BOILERPLATE ++ //
-
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-    }
-
-    // -- BOILERPLATE -- //
+    
+    // -- SETUP -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -74,7 +74,7 @@ class VbzAdminCart extends clsShopCart {
 	return KS_CLASS_ORDERS;
     }
     protected function SessionsClass() {
-	if (clsDropInManager::FeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
 	    return KS_CLASS_ADMIN_USER_SESSIONS;
 	} else {
 	    return 'cVbzSession';
@@ -93,36 +93,26 @@ class VbzAdminCart extends clsShopCart {
 	return KS_CLASS_ADMIN_CART_FIELDS;
     }
     protected function EventsClass() {
-	return KS_CLASS_ADMIN_CART_EVENTS;
+	return $this->AppObject()->EventsClass();
     }
 
     // -- CLASS NAMES -- //
-    // ++ DATA TABLES ACCESS ++ //
-
-    protected function OrderTable($id=NULL) {
-	return $this->Engine()->Make($this->OrdersClass(),$id);
-    }
-//    protected function SessionTable($id=NULL) {
-//	return $this->Engine()->Make($this->SessionsClass(),$id);
-//    }
-    protected function CustomerTable($id=NULL) {
-	return $this->Engine()->Make($this->CustomersClass(),$id);
+    // ++ TABLES ++ //
+    
+/* Defined parentally:
+    protected function OrderTable($id=NULL)
+    protected function CustomerTable($id=NULL)
+*/
+    protected function SessionTable($id=NULL) {
+	return $this->Engine()->Make($this->SessionsClass(),$id);
     }
     protected function EventTable($id=NULL) {
 	return $this->Engine()->Make($this->EventsClass(),$id);
     }
 
-    // -- DATA TABLES ACCESS -- //
-    // ++ DATA RECORDS ACCESS ++ //
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
 
-    public function SessObj() {
-	throw new exception('SessObj() is deprecated; call SessionRecord().');
-    }
-//    public function SessionRecord() {
-//	$idSess = $this->SessionID();
-//	$rcSess = $this->SessionTable($idSess);
-//	return $rcSess;
-//    }
     /*----
       INPUT:
 	$doLoad:
@@ -138,19 +128,66 @@ class VbzAdminCart extends clsShopCart {
 	} else {
 	    $doLoad = TRUE;
 	    if (is_object($this->rcCust)) {
-		if ($this->rcCust->KeyValue() == $idCust) {
+		if ($this->rcCust->GetKeyValue() == $idCust) {
 		    $doLoad = FALSE;
 		}
 	    }
 	    if ($doLoad) {
 		$this->rcCust = $this->CustomerTable()->SpawnItem();
-		$this->rcCust->KeyValue($idCust);
+		$this->rcCust->GetKeyValue($idCust);
 	    }
 	}
 	return $this->rcCust;
     }
+    /*----
+      RETURNS: Record for the Session ID stored in this record, as opposed to the record for the currently active Session.
+    */
+    protected function StoredSessionRecord() {
+	$id = $this->SessionID();
+	if (is_null($id)) {
+	    return NULL;
+	} else {
+	    return $this->SessionTable($id);
+	}
+    }
 
-    // -- DATA RECORDS ACCESS -- //
+    // -- RECORDS -- //
+    // ++ FIELD VALUES ++ //
+    
+    protected function WhenCreated() {
+	return $this->Value('WhenCreated');
+    }
+    protected function WhenExported() {
+	return $this->Value('WhenPorted');
+    }
+    protected function WhenUpdated() {
+	return $this->Value('WhenUpdated');
+    }
+    protected function FieldData() {
+	return $this->Value('FieldData');
+    }
+    protected function FieldDataLength() {
+	return strlen($this->FieldData());	// does strlen() work on blobs?
+    }
+    
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+    
+    protected function StoredSessionLink() {
+	$id = $this->SessionID();
+	if (is_null($id)) {
+	    return '<i>NULL</i>';
+	} else {
+	    $rc = $this->SessionTable($id);
+	    if ($rc->IsNew()) {
+		return '<i><span title="no record">'.$id.'</span></i>';
+	    } else {
+		return $rc->SelfLink();
+	    }
+	}
+    }
+    
+    // -- FIELD CALCULATIONS -- //
     // ++ ADMIN UI COMPONENTS ++ //
 
     /*----
@@ -161,7 +198,7 @@ class VbzAdminCart extends clsShopCart {
     protected function AdminEcho($sText) {
 	$this->htOut .= $sText;
     }
-    public function ToOrder(clsOrder $oOrd) {
+    public function ToOrder(vcrOrder $oOrd) {
 	parent::ToOrder($oOrd);
 	return $this->htOut;
     }
@@ -169,47 +206,52 @@ class VbzAdminCart extends clsShopCart {
       PURPOSE: Display the cart's items as a table
     */
     public function RenderItemRows() {
-	//$objItems = new VbzAdminCartLines($this->objDB);
 	$tbl = $this->LineTable();
-	return $tbl->Table_forCart($this->KeyValue());
+	return $tbl->Table_forCart($this->GetKeyValue());
     }
     /*---
       PURPOSE: Display the cart's data lines as a table
     */
     public function RenderFieldsRows() {
+	return NULL;
+	/* 2016-06-12 worked when data was in a separate table
 	$tbl = $this->FieldTable();
 	return $tbl->Table_forCart($this->KeyValue());
+	*/
     }
     /*---
       PURPOSE: Display the cart's events as a table
     */
     public function RenderEventRows() {
-	$objTbl = $this->EventTable();
-	$objRows = $objTbl->GetData('ID_Cart='.$this->ID);
-	return $objRows->AdminTable();
+	$tbl = $this->EventTable();
+	$rs = $tbl->SelectRecords('ID_Cart='.$this->GetKeyValue());
+	return $rs->AdminTable();
     }
     /*----
       ACTION: Render links for importing cart into an order
+      HISTORY:
+	2016-08-09 This is now only invoked if there are Carts pointing to this Order that are not pointed back at by the Order.
+	  This shouldn't happen, and I think the code we now have doesn't do this anymore (did it ever?).
+      TODO: Check to confirm that this really isn't needed, even for legacy Orders, and remove. (Also remove checking for
+	duplicates in the Order admin function.)
     */
     public function Links_forSetup($idOrder) {
 	$oPage = $this->Engine()->App()->Page();
-	$urlBase = $oPage->SelfURL();
 	$sAct = $this->Table()->ActionKey();
-	$id = $this->KeyValue();
-	$htID = $this->AdminLink();
+	$id = $this->GetKeyValue();
+	$htID = $this->SelfLink();
 
 	// _PageLink_URL($sPage,[$id],[$iarArgs])
 	// BuildLink($urlBase,$sText,[$sDescr])
 	$arLink = array(KS_PAGE_KEY_ORDER=>$idOrder);
 
-	$arLink['do'] = 'use';
-	$urlAct	= clsMenuData_helper::_PageLink_URL($sAct,$id,$arLink);
-	$htUse	= clsHTML::BuildLink($urlBase.$urlAct,'use','use this cart');
-/*
-	$arLink['do'] = 'view';
-	$urlAct	= clsMenuData_helper::_PageLink_URL($sAct,$id,$arLink);
-	$htView	= clsHTML::BuildLink($urlBase.$urlAct,'view','view this cart');
-*/
+	$htUse = $this->SelfLink(
+	  'use',
+	  'use this cart',
+	  array(
+	    'do'	=> 'use.ord',
+	    'ord'	=> $idOrder)
+	    );
 
 //	$htUse = $vgPage->SelfLink($arLink,'use');
 //	$htView = $this->AdminLink('view');
@@ -228,8 +270,7 @@ class VbzAdminCart extends clsShopCart {
 	    $val = $this->AdminLink();
 	    break;
 	  case 'ID_Sess':
-	    $rc = $this->SessionRecord();
-	    $val = $rc->AdminLink();
+	    $val = $this->StoredSessionLink();
 	    break;
 	  case 'ID_Order':
 	    $rc = $this->OrderRecord();
@@ -279,45 +320,44 @@ __END__;
 	return $out;
     }
     protected function AdminLine($cssStyle) {
-	$id = $this->KeyValue();
-	$wtID = $this->AdminLink();
+	$id = $this->GetKeyValue();
+	$wtID = $this->SelfLink();
 
 	$htWhenCre = $this->Value('WhenCreated');
-	$htWhenOrd = $this->Value('WhenOrdered');
+	$htWhenPort = $this->WhenExported();
 	$htWhenUpd = $this->Value('WhenUpdated');
 	$htWhenVoid = $this->Value('WhenVoided');
-	$htDataCount = $this->Value('DataCount');
-	$htItemCount = $this->Value('ItemCount');
+	$htDataBytes = $this->FieldDataLength();
+	$htItemCount = $this->LineCount();
 
 	// TODO: This should probably be cached
-	$objSess = $this->SessionRecord();
-	if (clsDropInManager::FeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
-	    $wtSess = $objSess->AdminLink();
+	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+	    $wtSess = $this->StoredSessionLink();
 	} else {
-	    $wtSess = $objSess->KeyValue();
+	    $wtSess = $this->SessionID();
 	}
 
-	if (is_null($this->OrderID())) {
+	if (is_null($this->GetOrderID())) {
 	    $htOrd = '<i>n/a</i>';
 	} else {
 	    $rcOrd = $this->OrderRecord();
-	    $htOrd = $rcOrd->AdminLink();
+	    $htOrd = $rcOrd->SelfLink();
 	}
 
 	$rcCust = $this->CustomerRecord(FALSE);
-	$wtCust = $rcCust->AdminLink();
+	$wtCust = $rcCust->SelfLink();
 
 	$out = <<<__END__
   <tr style="$cssStyle">
     <td>$wtID</td>
     <td>$htWhenCre</td>
-    <td>$htWhenOrd</td>
+    <td>$htWhenPort</td>
     <td>$htWhenUpd</td>
     <td>$htWhenVoid</td>
     <td>$wtSess</td>
     <td>$htOrd</td>
     <td>$wtCust</td>
-    <td>$htDataCount</td>
+    <td>$htDataBytes</td>
     <td>$htItemCount</td>
   </tr>
 __END__;
@@ -325,7 +365,7 @@ __END__;
     }
     public function AdminPage() {
 	$oPage = $this->Engine()->App()->Page();
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 
 	if ($id == 0) {
 	    throw new exception('Object has no ID');
@@ -339,16 +379,20 @@ __END__;
 	  case 'text':
 	    $out = '<pre>'.$this->RenderOrder_Text().'</pre>';
 	    break;
-	  case 'use':
+	  case 'use.ord':
 	    $idOrd = $oPage->PathArg('ord');
-	    $oOrd = $this->OrderTable($idOrd);
-	    $out = 'Importing Cart '.$this->AdminLink().' to Order #'.$oOrd->AdminLink_name().' (ID '.$idOrd.')';
-	    $out .= $this->ToOrder($oOrd);
+	    $rcOrd = $this->OrderTable($idOrd);
+	    $out = 'Exporting Cart '
+	      .$this->SelfLink()
+	      .' to Order #'
+	      .$rcOrd->SelfLink_name()
+	      ." (ID $idOrd)<br>";
+	    $out .= $this->ToOrder($rcOrd);
 	    break;
 	  case 'find-ord':
 	    // find the order which was created from this cart (2014-01-27 is this even needed anymore?)
 	    $out .= 'Looking up order...';
-	    $sql = 'ID_Cart='.$this->KeyValue();
+	    $sql = 'ID_Cart='.$this->GetKeyValue();
 	    $rs = $this->OrderTable()->GetData($sql);
 	    if ($rs->HasRows()) {
 		$rc = $rs->RowCount();
@@ -379,72 +423,86 @@ __END__;
 	    $this->Update($arUpd);
 	    $this->Reload();
 	    break;
+	  case 'store.fields':
+	    $arFields = $this->FieldTable()->Array_forCart($this->GetKeyValue());
+	    //$out .= fcArray::Render($arFields);
+	    //$out .= 'Serialized:'.serialize($arFields);
+	    $sFields = serialize($arFields);
+	    $arUpd = array(
+	      'FieldData'	=> $this->Engine()->SanitizeAndQuote($sFields)
+	      );
+	    $this->Update($arUpd);
+	    $sMsgs = $this->Engine()->getError();
+	    $this->SelfRedirect(NULL,$sMsgs);
+	    break;
 	  default:
 	    $doShow = TRUE;
 	}
 	if ($doShow) {
 	    $out = $oPage->SectionHeader('Cart');
-
-	    $arURL = array(
-		'page'	=> 'cart',
-		'id'	=> $id,
-		'do'	=> 'text'
-		);
-	    $url = $oPage->SelfURL($arURL);
-	    $htText = clsHTML::BuildLink($url,'as text','show the cart as plain text');
+	    $arLink = array('do'=>'text');
+	    $htText = '['.$this->SelfLink('as text','show the cart as plain text',$arLink).']';
 
 	    if ($this->IsVoided()) {
 		$htVoid = NULL;
 	    } else {
-		$arURL = array(
-		    'page'	=> 'cart',
-		    'id'	=> $id,
-		    'do'	=> 'void'
-		    );
-		$url = $oPage->SelfURL($arURL);
-		$htVoid = ' ['.clsHTML::BuildLink($url,'void','void the cart now').']';
+		$arLink = array('do'=>'void');
+		$htVoid = ' ['.$this->SelfLink('void','void the cart now',$arLink).']';
 	    }
+	    
+	    $arLink = array('do'=>'store.fields');
+	    $htFields = ' ['.$this->SelfLink('store','serialize and store',$arLink).']';
 
-	    $rcSess = $this->SessionRecord();
-	    $htSess = $rcSess->AdminLink();
-
-	    $htCust = $this->CustomerRecord(FALSE)->AdminLink();
+	    $htSess = $this->StoredSessionLink();
+	    $htCust = $this->CustomerRecord(FALSE)->SelfLink();
 
 	    if (is_null($this->Value('ID_Order'))) {
 		$url = $oPage->SelfURL(array('do'=>'find-ord'));
 		$htOrd = clsHTML::BuildLink($url,'find order!');
 	    } else {
 		$rcOrder = $this->OrderRecord();
-		$htOrd = $rcOrder->AdminLink_name();
+		$htOrd = $rcOrder->SelfLink_name();
 	    }
 
-	    $sWhenCreated = $this->Value('WhenCreated');
-	    $sWhenOrdered = $this->Value('WhenOrdered');
-	    $sWhenUpdated = $this->Value('WhenUpdated');
-	    $sWhenViewed = $this->Value('WhenViewed');
-	    $sWhenVoided = $this->Value('WhenVoided').$htVoid;
+	    $sWhenCreated = $this->WhenCreated();
+	    $sWhenOrdered = $this->WhenExported();
+	    $sWhenUpdated = $this->WhenUpdated();
+	    $sWhenVoided = $this->WhenVoided().$htVoid;
 	    $out .= <<<__END__
-<ul>
-<li><b>ID</b>: $id [$htText]</li>
-<li><b>When Created</b>: $sWhenCreated</li>
-<li><b>When Ordered</b>: $sWhenOrdered</li>
-<li><b>When Updated</b>: $sWhenUpdated</li>
-<li><b>When Viewed</b>: $sWhenViewed</li>
-<li><b>When Voided</b>: $sWhenVoided</li>
-<li><b>Session</b>: $htSess</li>
-<li><b>Order</b>: $htOrd</li>
-<li><b>Customer</b>: $htCust</li>
-</ul>
+
+<table class=listing>
+  <tr><td align=right><b>ID</b>:</td>		<td>$id $htText</td></tr>
+  <tr><td align=right><b>When Created</b>:</td>	<td>$sWhenCreated</td></tr>
+  <tr><td align=right><b>When Ordered</b>:</td>	<td>$sWhenOrdered</td></tr>
+  <tr><td align=right><b>When Updated</b>:</td>	<td>$sWhenUpdated</td></tr>
+  <tr><td align=right><b>When Voided</b>:</td>	<td>$sWhenVoided</td></tr>
+  <tr><td align=right><b>Session</b>:</td>	<td>$htSess</td></tr>
+  <tr><td align=right><b>Order</b>:</td>	<td>$htOrd</td></tr>
+  <tr><td align=right><b>Customer</b>:</td>	<td>$htCust</td></tr>
+  <tr><td align=right><b>Field Data</b>:</td>	<td>$htFields</td></tr>
+</table>
 __END__;
+	    $sFields = $this->Value('FieldData');
+	    if (is_null($sFields)) {
+		$htFields = NULL;
+	    } else {
+		$arFields = unserialize($sFields);
+		$htFields = $oPage->SectionHeader('Fields')
+		  .fcArray::Render($arFields)
+		  ;
+	    }
+
 	    $out .=
 	      $oPage->SectionHeader('Items')
 	      .$this->RenderItemRows()
-	      .$oPage->SectionHeader('Fields')
-	      .$this->RenderFieldsRows()
-	      .$oPage->SectionHeader('Events - system')
+	      //.$oPage->SectionHeader('Fields')
+	      //.$this->RenderFieldsRows()
+	      .$htFields
+	      .$oPage->SectionHeader('Cart Events')
+	      .$this->RenderEventRows()
+	      //.$oPage->SectionHeader('Events - system')
 	      .$this->EventListing()
-	      .$oPage->SectionHeader('Events - cart')
-	      .$this->RenderEventRows();
+	      ;
 	} // END if($doShow)
 	return $out;
     }

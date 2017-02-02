@@ -47,6 +47,7 @@ function DataDate($iDate) {
     }
     return $out;
 }
+// DEPRECATED: use clsDate::NzDate() or clsTime::ShowStamp_HideTime()
 function TimeStamp_HideTime($iStamp) {
 
     if (is_string($iStamp)) {

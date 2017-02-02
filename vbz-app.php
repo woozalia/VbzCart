@@ -3,93 +3,61 @@
   FILE: pages.php
   PURPOSE: VbzCart application framework classes
   HISTORY:
-    2013-11-13 Extracted clsVbzApp from vbz-page.php
-*/
-/*%%%%
-  CLASS: clsApp
-  PURPOSE: base class -- container for the application
-*/
-/*
-abstract class clsApp {
-    abstract public function Go();
-    abstract public function Session();
-    abstract public function Skin();
-    abstract public function Page(clsPage $iObj=NULL);
-    abstract public function Data(clsDatabase $iObj=NULL);
-    abstract public function User();
-}
+    2013-11-13 Extracted clsVbzApp (now vcApp) from vbz-page.php
+    2016-10-01 Revising to use db.v2
 */
 
-/*%%%%
-  CLASS: clsVbzApp
+/*::::
+  CLASS: vcApp
   IMPLEMENTATION: uses VBZ database object, but lets caller choose what type of Page to display
+  ABSTRACT: n/i - GetPageClass(), GetKioskClass()
 */
-class clsVbzApp extends cAppStandard {
+abstract class vcApp extends fcAppStandard {
     private $oPage;
     private $oData;
 
-    // ++ INITIALIZATION ++ //
+    // ++ SETUP ++ //
 
-    public function __construct() {
-	parent::__construct();
-	//$this->UserClass('clsVbzUserRec');	// override user class
-	$oData = new clsVbzData_Shop(KS_DB_VBZCART);
-	$oDoc = new clsRTDoc_HTML();
-	$this->Data($oData);
-//	$iPage->Doc($oDoc);
-//	$iPage->App($this);
-	$oData->App($this);
-    }
     public function Go() {
-	$this->Skin()->SetStartTime();	// get the starting time, for benchmarking
+	$this->SetStartTime();	// get the starting time, for benchmarking
 	parent::Go();
     }
 
-    // -- INITIALIZATION -- //
-    // ++ FRAMEWORK OBJECTS ++ //
-
-    public function Data(clsDatabase $iObj=NULL) {
-	if (!is_null($iObj)) {
-	    $this->oData = $iObj;
+    // -- SETUP -- //
+    // ++ CEMENT ++ //
+    
+    private $db;
+    public function GetDatabase() {
+	if (empty($this->db)) {
+	    $dbf = new vcDBOFactory(KS_DB_VBZCART);
+	    $db = $dbf->GetMainDB();
+	    $this->db = $db;
 	}
-	return $this->oData;
+	return $this->db;
     }
-    /*----
-      NOTE: For now, we defer to the Page object to get a skin,
-	because different page types use different skin classes.
-	This is probably something that should be changed.
-    */
-    public function Skin() {
-	if (is_null($this->Page())) {
-	    echo '<pre>';
-	    throw new exception('Trying to access Skin before Page has been constructed.');
-	}
-	return $this->Page()->Skin();
+    
+    // -- CEMENT -- //
+    // ++ CLASS NAMES ++ //
+    
+    protected function SettingsClass() {
+	return 'vctSettings';
     }
-    public function Users($id=NULL) {
-	$o = $this->Data()->Make('clsUserAccts',$id);
-	return $o;
+    
+    // -- CLASS NAMES -- //
+    // ++ TABLES ++ //
+
+    // PUBLIC so Page objects can use it
+    public function CartTable() {
+	return $this->GetDatabase()->MakeTableWrapper($this->CartsClass());
+    }
+    public function SettingsTable() {
+	return $this->GetDatabase()->MakeTableWrapper($this->SettingsClass());
     }
 
-    // ++ FRAMEWORK OBJECTS ++ //
-    // ++ FRAMEWORK CLASSES ++ //
+    // -- TABLES -- //
 
-    public function EventsClass() {
-	if (clsDropInManager::IsReady('vbz.syslog')) {
-	    return KS_CLASS_EVENT_LOG;
-	} else {
-	    return parent::EventsClass();
-	}
-    }
-    protected function SessionsClass() {
-	return 'cVbzSessions';
-    }
-
-    // -- FRAMEWORK CLASSES -- //
-    // ++ CALLBACKS ++ //
-
-    public function BaseURL() {
-	return KWP_PAGE_BASE;
-    }
 }
-
+// NOTE: This originally added EventTable(), but I moved that back into ftFrameworkAccess_standard.
+trait vtFrameworkAccess {
+    use ftFrameworkAccess_standard;
+}

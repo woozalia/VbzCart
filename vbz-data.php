@@ -6,59 +6,42 @@
     2011-01-25 split off from store.php in an attempt to resolve dependency conflicts
     2013-11-15 moved clsVbzData from store.php to here (vbz-data.php)
     2014-04-04 moved clsCacheFile_vbz here from store.php (not sure if this is *exactly* the place for it...(
+    2015-09-06 splitting a couple of classes:
+        clsVbzTable:
+            vcVbzTable_base will define a couple of common methods
+            vcVbzTable_shop won't have link-building stuff built in anymore
+            vcAdminTable (was vcVbzTable_admin) will use traits to add admin functionality
+        clsVbzRecs:
+            vcVbzRecs_shop won't have link-building stuff built in anymore
+            vcVbzRecs_admin will use traits to add admin functionality
+                and will no longer descend from clsDataRecord_Menu
+    2016-10-01 Changes to ferreteria:app-user.php (switching from db.v1 to db.v2) require changes here.
+    2016-10-24 ...aaaand apparently the conversion was not complete; finishing that. More name and structure changes.
+	vcVbzTable_base -> vcBasicTable
+	vcVbzTable_shop -> vcShopTable
+	vcVbzTable_admin -> vcAdminTable (2017-01-04)
 */
 
-class clsCacheFile_vbz extends clsCacheFile {
+class vcCacheFile extends fcCacheFile {
     public function __construct() {
 	parent::__construct(KFP_CACHE);
     }
 }
 
-class clsVbzData extends clsDatabase_UserAuth {
+class vcDBOFactory extends fcDBOFactory {
 
-    // ++ STATIC ++ //
-
-    /*
-      STATUS: DEPRECATED
-	Where possible, convert table fieldnames to be compatible with WhoString2_wt
-    */
-    static public function WhoString_OLD1($iRow) {
-	$htUnknown = '<span style="color: #888888;">?</span>';
-
-	if (isset($iRow['SysUser'])) {
-	    $strSysUser	= $iRow['SysUser'];
-	    $hasSysUser 	= TRUE;
-	} else {
-	    $strSysUser	= NULL;
-	    $hasSysUser	= FALSE;
-	}
-	$strMachine	= $iRow['Machine'];
-	$strVbzUser	= $iRow['VbzUser'];
-
-	$htSysUser	= is_null($strSysUser)?$htUnknown:$strSysUser;
-	$htMachine	= is_null($strMachine)?$htUnknown:$strMachine;
-	$htVbzUser	= is_null($strVbzUser)?$htUnknown:$strVbzUser;
-
-	$htWho = $htVbzUser;
-	if ($hasSysUser) {
-	    $htWho .= '/'.$htSysUser;
-	}
-	$htWho .= '@'.$htMachine;
-
-	return $htWho;
-    }
-
-    // -- STATIC -- //
     // ++ SETUP ++ //
 
-    public function __construct($iSpec) {
-	global $vgoDB;
-
-	parent::__construct($iSpec);
-	$this->Open();
-	$vgoDB = $this;
-
-//	clsLibMgr::AddClass('clsSuppliers_StoreUI','vbz.cat');
+    public function __construct($sSpec) {
+	$oConn = self::GetConn($sSpec,FALSE);
+	$this->SetMainDB($oConn);
+    }
+    private $dbMain;
+    protected function SetMainDB(fcDataConn_CliSrv $oConn) {
+	$this->dbMain = $oConn;
+    }
+    public function GetMainDB() {
+	return $this->dbMain;
     }
 
     // -- SETUP -- //
@@ -68,9 +51,9 @@ class clsVbzData extends clsDatabase_UserAuth {
       PURPOSE: This implements any special values of $id.
 	'new' = create a blank object that can be saved as a new record
       NOTE: This should go with the general app framework; it is not VBZ-specific.
-    */
+    */ /* 2016-10-01 Removing this for now. If it turns out to be useful/necessary, port it back into Ferreteria.
     public function Make($sClass,$id=NULL) {
-	if ($id == 'new') {
+	if ($id == KS_NEW_REC) {
 	    $tbl = parent::Make($sClass);	// get the table object
 	    $rc = $tbl->SpawnItem();		// get a blank object
 	    if (method_exists($rc,'InitFromInput')) {
@@ -83,7 +66,7 @@ class clsVbzData extends clsDatabase_UserAuth {
 	} else {
 	    return parent::Make($sClass,$id);
 	}
-    }
+    } */
 
     // -- METHOD OVERRIDES -- //
     // ++ CACHE MANAGEMENT ++ //
@@ -91,85 +74,17 @@ class clsVbzData extends clsDatabase_UserAuth {
     protected function CacheMgr_empty() {
 	return new clsCacheMgr($this);
     }
+    private $oCacheMgr;
     public function CacheMgr() {
-	if (empty($this->objCacheMgr)) {
-	    $objCache = $this->CacheMgr_empty();
-	    $objCache->SetTables('cache_tables','cache_queries','cache_flow','cache_log');
-	    $this->objCacheMgr = $objCache;
+	if (empty($this->oCacheMgr)) {
+	    $oCM = $this->CacheMgr_empty();
+	    $oCM->SetTables('cache_tables','cache_queries','cache_flow','cache_log');
+	    $this->oCacheMgr = $oCM;
 	}
-	return $this->objCacheMgr;
+	return $this->oCacheMgr;
     }
 
     // -- CACHE MANAGEMENT -- //
-    // ++ DATA TABLE ACCESS ++ //
-
-    // these are DEPRECATED
-
-    public function Pages($id=NULL) {
-	return $this->Make('clsCatPages',$id);
-    }
-    public function Suppliers($id=NULL) {
-	return $this->Make('clsSuppliers_StoreUI',$id);
-    }
-    public function Depts($id=NULL) {
-	return $this->Make('clsDepts',$id);
-    }
-    public function Titles($id=NULL) {
-	return $this->Make('clsTitles_StoreUI',$id);
-    }
-    public function Items($id=NULL) {
-	return $this->Make('clsItems',$id);
-    }
-    public function Items_Stock($id=NULL) {
-	return $this->Make('clsItems_Stock',$id);
-    }
-    public function Items_Cat($id=NULL) {
-	return $this->Make('clsItems_info_Cat',$id);
-    }
-    public function ItTyps($id=NULL) {
-	return $this->Make('clsItTyps',$id);
-    }
-    public function ItOpts($id=NULL) {
-	return $this->Make('clsItOpts',$id);
-    }
-    public function ShipCosts($id=NULL) {
-	return $this->Make('clsShipCosts',$id);
-    }
-    public function Folders($id=NULL) {
-	return $this->Make('clsVbzFolders',$id);
-    }
-    public function Images($id=NULL) {
-	return $this->Make('clsImages_StoreUI',$id);
-    }
-    public function StkItems($id=NULL) {
-	return $this->Make('clsStkItems',$id);
-    }
-    public function Topics($iID=NULL) {
-	return $this->Make('clsTopics_StoreUI',$iID);
-    }
-    public function TitlesTopics() {
-	return $this->Make('clsTitlesTopics');
-    }
-/*
-    public function TitleTopic_Titles() {
-	return $this->Make('clsTitleTopic_Titles');
-    }
-    public function TitleTopic_Topics() {
-	return $this->Make('clsTitleTopic_Topics');
-    }
-*/
-    public function VarsGlobal($id=NULL) {
-	return $this->Make('clsGlobalVars',$id);
-    }
-    public function Syslog($id=NULL) {
-	return $this->Make('clsSysEvents',$id);
-    }
-    // needed for both shopping and admin
-    public function CustEmails() {
-	return $this->Make('clsAdminCustEmails');
-    }
-
-    // -- DATA TABLE ACCESS -- //
     // ++ GLOBAL SETTINGS ++ //
 
     private $fsPubKey;
@@ -194,6 +109,7 @@ class clsVbzData extends clsDatabase_UserAuth {
 
     // SPECIALIZED STUFF
     public function LogEvent($iWhere,$iParams,$iDescr,$iCode,$iIsError,$iIsSevere) {
+	throw new exception('2016-10-31 Is anyone still calling this?');
 	//return $this->Syslog()->LogEvent($iWhere,$iParams,$iDescr,$iCode,$iIsError,$iIsSevere);
 	$rcEv = $this->Syslog()->CreateEvent(
 	  array(
@@ -209,16 +125,12 @@ class clsVbzData extends clsDatabase_UserAuth {
     }
 }
 
-class clsVbzTable extends clsDataTable_Menu {
+/*----
+  PURPOSE: standard table wrapper class for VbzCart -- adds a service useful for caching
+  TODO: maybe that should be in a descendant
+*/
+abstract class vcBasicTable extends fcTable_keyed_single_standard {
 
-    // ++ SETUP ++ //
-
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->KeyName('ID');	// default key field; can be overridden
-    }
-
-    // -- SETUP -- //
     // ++ ACTIONS ++ //
 
     /*----
@@ -229,37 +141,41 @@ class clsVbzTable extends clsDataTable_Menu {
 	  Used in event log.
       HISTORY:
 	2010-11-16 $this->Name(), not $this->Name
-    */
-    protected function Touch($iCaller) {
-	$objCMgr = $this->Engine()->CacheMgr();
-	$objCMgr->UpdateTime_byName($this->Name(),$iCaller);
-    }
-/* 2010-11-12 disable the freakin' cache for now
-    protected function Touch($iCaller) {
-
-This is named wrong anyway; "Touch" should be called when the data has changed,
+      TODO: Rename this. "Touch" should be what you call when the data has changed,
 but this is being called when a routine wants to make sure that it is up-to-date.
 Making sure that it is up-to-date should probably be done only within administrative
 functions anyway, rather than repeatedly in the store. The closest we would ever come
 to automatic updates is if we automatically remove stuff from stock when people order it --
 and then the update should happen (or be triggered, anyway) at ordering time,
 not at catalog-viewing time.
-
-	$objCache = $this->objDB->CacheMgr();
-	$objCache->Update_byName($this->Name(),$iCaller);
+    */
+    protected function Touch($iCaller) {
+	$objCMgr = $this->Engine()->CacheMgr();
+	$objCMgr->UpdateTime_byName($this->Name(),$iCaller);
     }
-*/
 
     // -- ACTIONS -- //
 }
-class clsVbzRecs extends clsDataRecord_Menu {
-
-    // ++ SETUP ++ //
-
-    protected function InitVars() {
-	$this->Value_IdentityKeys(array('page','id'));
-    }
-
-    // -- SETUP -- //
-
+// PURPOSE: standard recordset wrapper class for VbzCart; currently just an alias
+abstract class vcBasicRecordset extends fcRecord_keyed_single_integer {
 }
+
+// SHOPPING data types
+
+abstract class vcShopTable extends vcBasicTable {
+// just an alias for now
+}
+class vcShopRecordset extends vcBasicRecordset {
+// just an alias for now
+}
+
+// ADMIN data types
+
+abstract class vcAdminTable extends vcBasicTable {
+    use ftLinkableTable;
+}
+class vcAdminRecordset extends vcBasicRecordset {
+    use ftLinkableRecord;
+}
+
+

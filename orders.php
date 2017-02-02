@@ -9,9 +9,6 @@
     2012-04-17 extracting from shop.php
     2013-11-23 moved KS_URL_PAGE_ORDER[S] here from site.php
 */
-// DEPRECATED
-define('KS_URL_PAGE_ORDER',	'ord');	// must be consistent with events already logged
-define('KS_URL_PAGE_ORDERS',	'orders');
 
 // ORDER MESSAGE TYPES
 // these reflect the values in the ord_msg_media table (said table is probably redundant)
@@ -25,7 +22,21 @@ define('KSI_ORD_MSG_FAX',	6);	// Faxed message
 define('KSI_ORD_MSG_LABEL',	7);	// Shipping label (for delivery instructions)
 define('KSI_ORD_MSG_INT',	8);	// internal use - stored, not sent
 
-class clsOrders extends clsDataTable_Menu {
+class vctOrders extends vcBasicTable {
+    use vtFrameworkAccess;
+
+    // ++ CEMENTING ++ //
+    
+    protected function TableName() {
+	return 'orders';
+    }
+    protected function SingularName() {
+	return 'vcrOrder';
+    }
+    // NOTE: Probably needed for event logging
+    public function GetActionKey() {
+	return 'ord';
+    }
 
     // ++ STATIC ++ //
 
@@ -39,46 +50,20 @@ class clsOrders extends clsDataTable_Menu {
     const MT_INT	= KSI_ORD_MSG_INT;
 
     // -- STATIC -- //
-    // ++ SETUP ++ //
-
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name('orders');
-	  $this->KeyName('ID');
-	  $this->ClassSng('clsOrder');
-	  $this->ActionKey('ord');	// kluge
-    }
-
-    // -- SETUP -- //
-    // ++ CALCULATIONS ++ //
-
-    /*-----
-     FUNCTION: NextOrdSeq()
-     ACTION: get the next order sequence number
-    */
-    private function NextOrdSeq() {
-	$objVars = $this->Engine()->VarsGlobal();
-	$intOrdLast = $objVars->Val('ord_seq_prev');
-	$intOrdThis = $intOrdLast+1;
-	$objVars->Val('ord_seq_prev',$intOrdThis);
-	return $intOrdThis;
-    }
-
-    // -- CALCULATIONS -- //
     // ++ SEARCHING ++ //
 
     protected function Search_forText($sFind) {
-	$sqlFind = SQLValue($sFind.'%');
+	$sqlFind = $this->GetConnection()->Sanitize_andQuote($sFind.'%');
 	$sqlFilt = "(BuyerName LIKE $sqlFind)"
 	  ." OR (RecipName LIKE $sqlFind)"
 	  ." OR (RecipAddr LIKE $sqlFind)";
-	$rs = $this->GetData($sqlFilt);
+	$rs = $this->SelectRecords($sqlFilt);
 	return $rs;
     }
     protected function Search_forOrdNum($sFind) {
-	$sqlFind = SQLValue(strtoupper($sFind));
+	$sqlFind = $this->GetConnection()->Sanitize_andQuote(strtoupper($sFind));
 	$sqlFilt = "(Number LIKE $sqlFind)";
-	$rs = $this->GetData($sqlFilt);
+	$rs = $this->SelectRecords($sqlFilt);
 	return $rs;
     }
 
@@ -90,13 +75,14 @@ class clsOrders extends clsDataTable_Menu {
      ACTION: create the order record (fill in minimal fields)
     */
     public function Create() {
-	$intSeq = $this->NextOrdSeq();
-	$strSeq = sprintf(KS_ORD_NUM_FMT,$intSeq);
-	$strNum = KC_ORD_NUM_PFX.$strSeq;
+	$nSeq = $this->AppObject()->SettingsTable()->UseNextOrderSequence();
+	$sSeq = sprintf(KS_ORD_NUM_FMT,$nSeq);
+	$sNum = KC_ORD_NUM_PFX.$sSeq;
+	$db = $this->GetConnection();
 	$arIns = array(
-	    'Number'	=> SQLValue($strNum),
-	    'SortPfx'	=> SQLValue(KC_ORD_NUM_SORT),
-	    'WhenStarted'	=> 'NOW()'
+	    'Number'		=> $db->Sanitize_andQuote($sNum),
+	    'SortPfx'		=> KSQL_ORD_NUM_SORT,
+	    'WhenCreated'	=> 'NOW()'
 	    );
 	$id = $this->Insert($arIns);
 	if ($id === FALSE) {
@@ -104,43 +90,13 @@ class clsOrders extends clsDataTable_Menu {
 	}
 	return $id;
     }
-    /*-----
-    | FUNCTION: CopyCart()
-    | ACTION: fill in the order record with data from the cart
-    | DEPRECATED 2013-11-06, unless it turns out to be used
-    |	somewhere *besides* the checkout process.
-    */
-/*
-    public function CopyCart($iOrdID, clsShopCart $iCartObj) {
-	assert('$iOrdID > 0');
-
-// ** ITEMS IN CART (convert from cart lines to order items)
-	//$objTbl = new clsShopCartLines($this->objDB);
-	//$objRows = $objTbl->GetData('ID_Cart='.$this->ID);
-
-	$objOrd = $this->GetItem($iOrdID);
-	$objOrd->CopyCart($iCartObj);
-
-// should this code be in $objOrd->CopyCart?
-	// in session object, set Order ID and clear Cart ID
-	// 2011-03-27 wrong. just set Order ID.
-	$arUpd = array(
-	  'ID_Order'	=> $iOrdID,
-	  //'ID_Cart'	=> 'NULL'
-	  );
-	$iCartObj->Session()->Update($arUpd);
-	// log the event
-	$this->Engine()->LogEvent(
-	  __METHOD__,
-	  '|ord ID='.$iOrdID.'|cart ID='.$iCartObj->KeyValue(),
-	  'Converted cart to order; SQL='.SQLValue($iCartObj->Session()->sqlExec),
-	  'C>O',FALSE,FALSE);
-
-	return $objOrd;	// this is used by the checkout process
-    }
-*/
+    
+    // -- ACTION -- //
 }
-class clsOrder extends clsVbzRecs {
+class vcrOrder extends vcBasicRecordset {
+    use ftLoggableRecord;
+    use vtFrameworkAccess;
+
     private $rcCart;	// shopping cart
     private $rcCard;	// payment card
 
@@ -155,34 +111,35 @@ class clsOrder extends clsVbzRecs {
     // ++ SPECIALIZED EVENT LOGGING ++ //
 
     protected function StartEvent_Simple($iCode,$iDescr,$iWhere) {
+	throw new exception('2016-10-28 This will need updating.');
 	//$this->objDB->OrderLog()->Add($this->ID,$iCode,$iDescr);
 	$arEv = array(
 	  'descr'	=> $iDescr,
 	  'type'	=> $this->Table->ActionKey(),
-	  'id'		=> $this->KeyValue(),
+	  'id'		=> $this->GetKeyValue(),
 	  'where'	=> $iWhere,
 	  'code'	=> $iCode);
-	$this->StartEvent($arEv);
+	return $this->StartEvent($arEv);
     }
-    public function LogMessage($iPackage,$iMethod,$iTxtFrom,$iTxtTo,$iSubject,$iMessage) {
-	$this->Engine()->OrdMsgs()->Add(
-	  $this->ID,
-	  $iPackage,
-	  $iMethod,
-	  $iTxtFrom,
-	  $iTxtTo,
-	  $iSubject,
-	  $iMessage);
+    public function LogMessage($idPackage,$idMedia,$sTxtFrom,$sTxtTo,$sSubject,$sMessage) {
+	$this->MessageTable()->Add(
+	  $this->GetKeyValue(),
+	  $idPackage,
+	  $idMedia,
+	  $sTxtFrom,
+	  $sTxtTo,
+	  $sSubject,
+	  $sMessage);
     }
 
     // -- SPECIALIZED EVENT LOGGING -- //
     // ++ CLASS NAMES ++ //
 
     protected function CartsClass() {
-	return 'clsShopCarts';
+	return 'vctCarts_ShopUI';
     }
     protected function LinesClass() {
-	return 'clsOrderLines';
+	return 'vctOrderLines';
     }
     protected function CustomersClass() {
 	return 'clsCusts';
@@ -191,45 +148,38 @@ class clsOrder extends clsVbzRecs {
 	return 'clsCustCards_dyn';
     }
     protected function MessagesClass() {
-	return 'clsOrderMsgs';
+	return 'vctOrderMsgs';
     }
 
     // -- CLASS NAMES -- //
     // ++ DATA TABLE ACCESS ++ //
 
     protected function CartTable($id=NULL) {
-	return $this->Engine()->Make($this->CartsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CartsClass(),$id);
     }
     /*----
       PUBLIC because Cart calls it during conversion to Order
     */
     public function LineTable($id=NULL) {
-	return $this->Engine()->Make($this->LinesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->LinesClass(),$id);
     }
     protected function CustomerTable($id=NULL) {
-	return $this->Engine()->Make($this->CustomersClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CustomersClass(),$id);
     }
     protected function CardTable($id=NULL) {
-	return $this->Engine()->Make($this->CardsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CardsClass(),$id);
     }
     protected function MessageTable($id=NULL) {
-	return $this->Engine()->Make($this->MessagesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->MessagesClass(),$id);
     }
 
     // -- DATA TABLE ACCESS -- //
     // ++ DATA RECORD ACCESS ++ //
 
-    protected function Cart($iID=NULL) {
-	throw new exception('Function call deprecated; use CartRecord().');
-    }
-    protected function CartRecord($iID=NULL) {
-	if (!is_null($iID)) {
-	    throw new exception('Passing the ID to this function is deprecated. Use CartID().');
-	}
-
+    protected function CartRecord() {
 	if ($this->HasCart()) {
 	    if (is_null($this->rcCart)) {
-		$this->rcCart = $this->CartTable($this->CartID());
+		$this->rcCart = $this->CartTable($this->GetCartID());
 	    }
 	    return $this->rcCart;
 	} else {
@@ -248,17 +198,20 @@ class clsOrder extends clsVbzRecs {
 	throw new exception('Function call deprecated; use LineRecords().');
     }
     public function LineRecords() {
-	$tbl = $this->LineTable();
-	$rs = $tbl->GetData('ID_Order='.$this->KeyValue());
-	return $rs;
+	return $this->LineTable()->FetchRecords_forOrderID($this->GetKeyValue());
     }
-    protected function BuyerRecord() {
-	$id = $this->BuyerID();
+    // PUBLIC because cart-to-order process uses it
+    public function BuyerRecord() {
+	$id = $this->GetBuyerID();
+	if (empty($id)) {
+	    throw new exception('Requested RecipRecord, but Buyer ID is not set.');
+	}
 	$rc = $this->CustomerTable($id);
 	return $rc;
     }
-    protected function RecipRecord() {
-	$id = $this->RecipID();
+    // PUBLIC because cart-to-order process uses it
+    public function RecipRecord() {
+	$id = $this->GetRecipID();
 	if (empty($id)) {
 	    throw new exception('Requested RecipRecord, but Recip ID is not set.');
 	}
@@ -274,84 +227,141 @@ class clsOrder extends clsVbzRecs {
     }
 
     // -- DATA RECORD ACCESS -- //
-    // ++ STATUS ACCESS ++ //
-   
-    protected function HasCart() {
-	return !is_null($this->CartID());
-    }
-    protected function HasCard() {
-	$idCard = $this->CardID();
-	return !empty($idCard);
-    }
+    // ++ FIELDS ++ //
 
-    // -- STATUS ACCESS -- //
-    // ++ DATA FIELD ACCESS (LOCAL) ++ //
-
+      //++local++//
+	//++values++//
+    
     /*----
       PUBLIC because Package objects need to access it for admin UI
     */
     public function Number() {
+	throw new exception('Number() is deprecated; call NumberString() instead.');
+	// TODO: deprecate this; use NumberString() instead.
 	return $this->Value('Number');
     }
-
-    // -- BUYER fields
-    protected function BuyerID() {
-	return $this->Value('ID_Buyer');
-    }
-    protected function HasBuyer() {
-	return (!is_null($this->BuyerID()));
-    }
-    protected function BuyerName() {
-	return $this->Value('BuyerName');
-    }
-    // BuyerAddr is not a local field
-
-    // -- RECIP fields
-    /*----
-      PUBLIC so cart can check it after order conversion.
-	This might be unnecessary later.
-    */
-    public function RecipID() {
-	return $this->Value('ID_Recip');
-    }
-    protected function HasRecip() {
-	return (!is_null($this->RecipID()));
-    }
-    protected function RecipName() {
-	return $this->Value('RecipName');
-    }
-    /*----
-      HISTORY:
-	2014-12-14 moved this back here from VC_Order
-	  Not sure if there is a semantic difference between RecipAddr() and RecipAddr_text().
-    */
-    protected function RecipAddr() {
-	return $this->Value('RecipAddr');
-    }
-    /*----
-      HISTORY:
-	2014-12-14 not sure if there is a semantic difference between RecipAddr() and RecipAddr_text()
-    */
-    protected function RecipAddr_text() {
-	return $this->Value('RecipAddr');
+    public function NumberString() {
+	return $this->GetFieldValue('Number');
     }
     protected function CardID() {
-	return $this->Value('ID_BuyerCard');
+	return $this->GetFieldValue('ID_BuyerCard');
     }
     /*----
       HISTORY:
 	2014-01-16 This might need to be made writable, but I'm leaving it read-only for now.
 	2014-10-05 Cart needs to be able to set this so order object can use it during cart->order conversion.
     */
-    public function CartID($id=NULL) {
-	return $this->Value('ID_Cart',$id);
+    public function SetCartID($id) {
+	return $this->SetFieldValue('ID_Cart',$id);
+    }
+    public function GetCartID($id=NULL) {
+	return $this->GetFieldValue('ID_Cart');
+    }
+    
+	  //++timestamps++//
+    
+    protected function WhenCreated() {
+	return $this->Value('WhenCreated');
+    }
+    // PUBLIC so tricky item-order query class can use it
+    public function WhenPlaced() {
+	return $this->Value('WhenPlaced');
+    }
+    // PUBLIC so Table object can use it when listing Orders
+    public function WhenNeeded() {
+	return $this->Value('WhenNeeded');
+    }
+    protected function WhenClosed() {
+	return $this->Value('WhenClosed');
+    }
+    
+	  //--timestamps--//
+	  //++buyer++//
+
+    protected function SetBuyerID($id) {
+	return $this->SetFieldValue('ID_Buyer',$id);
+    }
+    protected function GetBuyerID() {
+	return $this->GetFieldValue('ID_Buyer');
+    }
+    protected function BuyerName() {
+	return $this->GetFieldValue('BuyerName');
     }
 
-    // -- DATA FIELD ACCESS (LOCAL) -- //
-    // ++ DATA FIELD ACCESS (FOREIGN) ++ //
+	  //--buyer--//
+	  //++recip++//
+	  
+    /*----
+      PUBLIC so cart can set it after order conversion.
+	This might be unnecessary later.
+    */
+    public function SetRecipID($id) {
+	return $this->SetFieldValue('ID_Recip',$id);
+    }
+    protected function GetRecipID() {
+	return $this->GetFieldValue('ID_Recip');
+    }
+    protected function RecipName() {
+	return $this->GetFieldValue('RecipName');
+    }
+    /*----
+      HISTORY:
+	2016-06-13 Added this for revised Order display.
+    */
+    protected function RecipAddrID() {
+	return $this->Value('ID_RecipAddr');
+    }
+    /*----
+      HISTORY:
+	2014-12-14 moved this back here from VC_Order
+	  Not sure if there is a semantic difference between RecipAddr() and RecipAddr_text().
+	2016-06-13 Renamed RecipAddr() to RecipAddrText(); removed RecipAddr_text().
+    */
+    protected function RecipAddrText() {
+	return $this->GetFieldValue('RecipAddr');
+    }
+
+	  //--recip--//
+	//--values--//
+	//++calculations++//
+    
+    /*----
+      PUBLIC so checkout process can access it
+    */
+    public function IsPlaced() {
+	return !is_null($this->WhenPlaced());
+    }
+    protected function HasBuyer() {
+	return (!is_null($this->GetBuyerID()));
+    }
+    protected function HasRecip() {
+	return (!is_null($this->GetRecipID()));
+    }
+    protected function HasCart() {
+	return !is_null($this->GetCartID());
+    }
+    protected function HasCard() {
+	return !is_null($this->CardID());
+    }
+
+    /*----
+      ACTION: Check imported Order data for integrity issues.
+	For now, we're lazy and just make sure that RecipID got set.
+      NOTE:
+	2016-03-07 Making cart data more fault-tolerant for now (mainly while dealing with old data)
+    */
+    public function CheckIntegrity() {
+	if (!$this->HasRecip()) {
+	    echo 'arUpd:'.fcArray::Render($arUpd);
+	    throw new exception('Internal Error: Local Recip ID is null after order conversion. This should not happen.');
+	}
+    }
+
+      //--local--//
+      //++foreign++//
 
     protected function SessionID() {
-	return $this->Engine()->App()->Session()->KeyValue();
+	return $this->SessionRecord()->GetKeyValue();
     }
     /*----
       TODO: We will probably want to add an email address field to the Order table.
@@ -363,15 +373,15 @@ class clsOrder extends clsVbzRecs {
 	    $rcBuyer = $this->BuyerRecord();
 	    return $rcBuyer->EmailsText();
 	} else {
-	    return NULL;
+	    throw new exception("Internal Error: Expected Buyer record, but there isn't one set.");
 	}
     }
-    protected function BuyerPhoneNumber() {
+    protected function BuyerPhoneNumber($sDefault=NULL) {
 	if ($this->HasBuyer()) {
 	    $rcBuyer = $this->BuyerRecord();
 	    return $rcBuyer->PhonesText();
 	} else {
-	    return NULL;
+	    return $sDefault;
 	}
     }
     /*----
@@ -379,7 +389,7 @@ class clsOrder extends clsVbzRecs {
     */
     protected function MessageText() {
 	$tMsgs = $this->MessageTable();
-	$rcMsg = $tMsgs->Record_forOrder($this->KeyValue(),clsOrders::MT_INSTRUC);
+	$rcMsg = $tMsgs->Record_forOrder($this->GetKeyValue(),vctOrders::MT_INSTRUC);
 // 	$rcMsg->NextRow();
 	if ($rcMsg->HasRows()) {
 	    return $rcMsg->MessageText();
@@ -429,9 +439,53 @@ class clsOrder extends clsVbzRecs {
 	return $out;
     }
 
-    // -- DATA FIELD ACCESS (FOREIGN) -- //
+      //--foreign--//
+    // -- FIELDS -- //
     // ++ ACTIONS ++ //
 
+    /*----
+      ACTION: Update the Order record to reflect the fact that it has now officially been received.
+	* set WhenReceived timestamp
+	* TODO: figure out why Cart still shows "[use]" link
+    */
+    public function MarkAsPlaced() {
+	$arUpd = array(
+	  'WhenPlaced'	=> 'NOW()',
+	  );
+	$this->Update($arUpd);
+    }
+    /*----
+      USAGE: during cart->order import process
+      NOTE:
+	2016-06-26 For now: assume that if the Order already has a Buyer ID, then we just want to use that.
+    */
+    public function CreateBuyerID($idUser) {
+	if ($this->HasBuyer()) {
+	    $idContact = $this->GetBuyerID();
+	} else {
+	    // create BUYER Master record
+	    $tCust	= $this->CustomerTable();
+	    $idContact	= $tCust->CreateRecord($idUser);
+	    $this->SetBuyerID($idContact);	// save locally
+	}
+	return $idContact;
+    }
+    /*----
+      USAGE: during cart->order import process
+      NOTE:
+	2016-06-26 For now: assume that if the Order already has a Recip ID, then we just want to use that.
+    */
+    public function CreateRecipID($idUser) {
+	if ($rcOrder->HasRecip()) {
+	    $idContact = $rcOrder->RecipID();
+	} else {
+	    // create RECIP Master record
+	    $tCust	= $this->CustomerTable();
+	    $idContact	= $tCust->CreateRecord($idUser);
+	    $this->RecipID($idContact);	// save locally
+	}
+	return $idContact;
+    }
     /*----
       ACTION: Zero all existing order lines
 	This allows reuse of the line records when the same item
@@ -439,13 +493,14 @@ class clsOrder extends clsVbzRecs {
 	should only happen if there is data corruption).
     */
     public function ZeroLines() {
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 	$this->LineTable()->Update(
 	  array('QtyOrd'=> 0),	// fields
 	  'ID_Order='.$id	// condition
 	  );
 
     }
+    // ACTION: Always create a new message record.
     public function AddMessage(
       $idMedia,
       $sTxtFrom,
@@ -455,7 +510,7 @@ class clsOrder extends clsVbzRecs {
       ) {
 	$tMsgs = $this->MessageTable();
 	$ok = $tMsgs->Add(
-	  $this->KeyValue(),
+	  $this->GetKeyValue(),
 	  NULL,			// no package
 	  $idMedia,
 	  $sTxtFrom,
@@ -464,10 +519,75 @@ class clsOrder extends clsVbzRecs {
 	  $sMessage
 	  );
     }
+    // ACTION: Create a new message record if the given specs don't match one that already exists. 
+    public function CreateOrderInstructions(
+      $sMessage
+      ) {
+	$db = $this->GetConnection();
+	$tMsgs = $this->MessageTable();
+	
+	// check to see if there's already an instruction message for this order:
+	$rs = $tMsgs->SelectRecords('ID_Ord='.$this->GetKeyValue().' AND (ID_Pkg IS NULL) AND (ID_Media='.KSI_ORD_MSG_INSTRUC.')');
+	if ($rs->HasRows()) {
+	    // there is a record -- update it
+	    $arUpd = array(
+	      'WhenEntered'	=> 'NOW()',
+	      'Messsage'	=> $db->Sanitize_andQuote($sMessage),
+	    );
+	    $rs->NextRow();
+	    $rs->Update($arUpd);
+	} else {
+	    // no record found; create a new one
+	    $this->AddMessage(
+	      KSI_ORD_MSG_INSTRUC,
+	      'them',
+	      'us',
+	      'order instructions',
+	      $sMessage
+	      );
+	}
+    }
 
     // -- ACTIONS -- //
     // ++ CHECKOUT UI: WEB ++ //
 
+    /*----
+      ACTION: Render the order data for the Confirmation page in the checkout process.
+      QUESTIONS:
+	* Do we ever want to render this *without* RenderConfirm_footer()?
+	* Do we want to show the full credit card information here?
+    */
+    public function RenderConfirm() {
+	$out = NULL;
+
+	if (($this->IsNew())) {
+	    throw new exception("Internal Error: No Order object at checkout time.");
+	}
+
+	$arVars = $this->FillTemplateArray();
+	$arVars['ship.addr'] = $this->RecipAddrText();
+	$arVars['ship.message']	= $this->MessageText();
+
+	$oStrTplt = new clsStringTemplate_array(NULL,NULL,$arVars);
+	$oStrTplt->MarkedValue(KHT_ORDER_CONFIRM);
+	$out = $oStrTplt->Replace();
+	return $out;
+    }
+    // QUESTION: Can't we just call this from RenderConfirm()?
+    static public function RenderConfirm_footer() {
+	$ksArgPageData = KSQ_ARG_PAGE_DATA;
+	$ksArgPageShow = KSQ_PAGE_CONF;
+	$out = <<<__END__
+  <tr>
+    <td colspan=2 align=center bgcolor=ffffff class=section-title>
+      <input type=hidden name="$ksArgPageData" value="$ksArgPageShow">
+      <input type=submit name="btn-go-prev" value="&lt; Make Changes">
+      <input type=submit name="btn-go-order" value="Place the Order!">
+    </td>
+  </tr>
+__END__;
+	return $out;
+    }
     /*----
       ACTION: Render the receipt in HTML, based on Order data
       HISTORY:
@@ -475,16 +595,14 @@ class clsOrder extends clsVbzRecs {
 	  what we should be seeing at this point. Converting it to use Order data.
     */
     public function RenderReceipt() {
-	$out = NULL;
-
 	if (($this->IsNew())) {
 	    throw new exception("Internal Error: No Order object at checkout time.");
 	}
-
+/*
 	$idOrder = $this->KeyValue();
 	$idCart = $this->Value('ID_Cart');
-	$idSess = $this->SessionID();
-
+	$idSess = $this->SessionID(); */
+/*
 	$arVars = array(
 	  'doc.title'	=> 'Order #<b>'.$this->Number().'</b>',
 	  'timestamp'	=> date(KF_RCPT_TIMESTAMP),
@@ -498,12 +616,44 @@ class clsOrder extends clsVbzRecs {
 	  'pay.spec'	=> $this->PaymentSafeText(),
 	  'url.shop'	=> KWP_HOME_REL,
 	  'email.short'	=> 'orders-'.date('Y').'@'.KS_EMAIL_DOMAIN
-	  );
+	  ); */
+	$arVars = $this->FillTemplateArray();
+	$arVars['ship.addr'] = $this->RecipAddress_text();
+	
+	/* 2016-08-08 old version
 	$oStrTplt = new clsStringTemplate_array(NULL,NULL,$arVars);
-	$oStrTplt->MarkedValue(KHT_RCPT_TPLT);
-
-	$out .= $oStrTplt->Replace();
+	$oStrTplt->MarkedValue(KHT_ORDER_RECEIPT);
+	$out = $oStrTplt->Replace();
+	echo 'TEMPLATE:<br>'.$oStrTplt->Value;
+	*/
+	$oTplt = new fcTemplate_array();
+	$oTplt->MarkedValue(KHT_ORDER_RECEIPT);
+	$oTplt->VariableValues($arVars);
+	$out = $oTplt->Render();
 	return $out;
+    }
+    protected function FillTemplateArray() {
+	$idOrder = $this->GetKeyValue();
+	$idCart = $this->GetCartID();
+	$idSess = $this->SessionID();
+	
+	$arVars = array(
+	  'doc.title'	=> 'Order #<b>'.$this->NumberString().'</b>',
+	  'timestamp'	=> date(KF_RCPT_TIMESTAMP),
+	  'order.id'	=> $idOrder,
+	  'cart.id'	=> $idCart,
+	  'sess.id'	=> $idSess,
+	  'cart.detail'	=> $this->RenderContents(),
+	  'ship.name'	=> $this->RecipName(),
+	  //'ship.addr'	=> $this->RecipAddress_text(),	// different formats
+	  'pay.name'	=> $this->BuyerName(),
+	  'pay.email'	=> $this->BuyerEmailAddress(),
+	  'pay.phone'	=> $this->BuyerPhoneNumber('<i>(none)</i>'),
+	  'pay.spec'	=> $this->PaymentSafeText(),
+	  'url.shop'	=> KWP_HOME_REL,
+	  'email.short'	=> 'orders-'.date('Y').'@'.KS_EMAIL_DOMAIN
+	  );
+	return $arVars;
     }
 
     // -- CHECKOUT UI: WEB -- //
@@ -541,7 +691,8 @@ class clsOrder extends clsVbzRecs {
 
 	$strShipName	= $this->RecipName();
 
-	$sRecipAddr	= $this->RecipAddr_text();
+	$sRecipAddr	= $this->RecipAddrText();
+	$sRecipAddr	= str_replace("\n","\n  ",$sRecipAddr);	// indent lines
 	$sRecipEmail	= $this->RecipEmailAddress();
 	$sRecipPhone	= $this->RecipPhoneNumber();
 
@@ -569,7 +720,7 @@ __END__;
 	if (empty($strCustShipMsg)) {
 	    $out .= "(No special instructions)";
 	} else {
-	    $out .= "--Instructions from you--\n$ftCustShipMsg\n--/instructions--";
+	    $out .= "--Instructions from you--\n$ftCustShipMsg";
 	}
 	$out .= <<<__END__
 
@@ -581,17 +732,20 @@ ORDERED BY:
   Payment: $sPaymentText
 __END__;
 
-
 	return $out;
     }
     /*----
       RETURNS: HTML static (non-form) rendering of Order contents, including Order Lines and totals
+      ASSUMES: Cart Lines have been copied over.
     */
     protected function RenderContents() {
-	$oPainter = new cCartDisplay_full_ckout(NULL);
-
+	$oPainter = new vcCartDisplay_full_ckout(NULL);
 	// render order lines
 	$rsLines = $this->LineRecords();
+	if (!$rsLines->HasRows()) {
+	    $sOrder = $this->Number();
+	    throw new exception("Internal error: Order #$sOrder has no items.");
+	}
 	while($rsLines->NextRow()) {
 	    $oLine = $rsLines->GetRenderObject_static();
 	    $oPainter->AddLine($oLine);
@@ -606,7 +760,7 @@ __END__;
 	//$rsLines = $this->LineRecords();
 	//return $rsLines->RenderText_lines(KS_FMT_TEXT_ORD_LINE);
 
-	$oPainter = new cCartDisplay_full_TEXT(NULL);
+	$oPainter = new vcCartDisplay_full_TEXT(NULL);
 
 	// render order lines
 	$rsLines = $this->LineRecords();
@@ -642,12 +796,12 @@ __END__;
 	$iSubject = $iParams['subject'];
 	$iMessage = $iParams['message'];
 
-	$htEmailAddr_Self = htmlspecialchars($iAddrSelf);
-	$htEmailAddr_Cust = htmlspecialchars($iAddrCust);
+	$htEmailAddr_Self = fcString::EncodeForHTML($iAddrSelf);
+	$htEmailAddr_Cust = fcString::EncodeForHTML($iAddrCust);
 
-	$htEmailBody = htmlspecialchars($iMessage);
+	$htEmailBody = fcString::EncodeForHTML($iMessage);
 	$txtSubj = $iSubject;
-	$htSubj = htmlspecialchars($txtSubj);
+	$htSubj = fcString::EncodeForHTML($txtSubj);
 	$intCustCopy = $iSendToCust?'1':'0';
 	$txtCustCopy = $iSendToCust?'YES':'no';
 	$txtSelfCopy = $iSendToSelf?'YES':'no';
@@ -682,7 +836,7 @@ __END__;
 	      'code'	=> 'OEM',
 	      'where'	=> __METHOD__
 	      );
-	    $this->StartEvent($arEv);
+	    $rcEv = $this->CreateEvent($arEv);
 
 	    if ($iSendToCust) {
 		// if being sent to customer. record the email in the messages table
@@ -711,7 +865,7 @@ __END__;
 		  'error'	=> TRUE,
 		  'severe'	=> TRUE);
 	    }
-	    $this->FinishEvent($arEv);
+	    $rcEv->Finish($arEv);
 	}
 	return $out;
     }
@@ -734,7 +888,8 @@ __END__;
       TODO: Rename this so it is clearer that this is the FROM address.
     */
     public function EmailAddr() {
-	return 'order-'.$this->Number.'@vbz.net';
+	throw new exception('Does anything call this? It should use the template defined in site.php.');
+	return 'order-'.$this->NumberString().'@'.KS_EMAIL_DOMAIN;
     }
     /*----
       RETURNS: array of values needed to plug into email templates
@@ -743,24 +898,35 @@ __END__;
 	order admin class, to display/generate confirmation email
     */
     public function TemplateVars() {
-//	global $ksTextEmail;
-//	$this->Reload(); // 2010-10-28 kluge attempt - see also RenderReceipt()
 
 	$rcCart = $this->CartRecord_orError();
+	
+	/* 2016-08-08 old version
 	$rsCData = $rcCart->FieldRecords();
 	//$rcCust = $this->BuyerRecord();
 	$ofPay = $rsCData->PayFields();
 	$ofBuyer = $rsCData->RecipFields();
-	$sEmailBuyer = $rsCData->BuyerEmailAddress_entered();
+	$sEmailBuyer = $rsCData->BuyerEmailAddress_entered(TRUE);
 
 	$arVars = array(
 	  KS_TVAR_CUST_NAME	=> $ofPay->CardNameValue(),
 	  //KS_TVAR_CUST_EMAIL	=> $rsCData->CustEmail(),
 	  //'orders-email' => $objPay->EmailValue(),
 	  KS_TVAR_CUST_EMAIL	=> $sEmailBuyer,
-	  KS_TVAR_ORDER_NUMBER	=> $this->Number
+	  KS_TVAR_ORDER_NUMBER	=> $this->Number()
+	  ); */
+	
+	// 2016-08-08 new version
+	$oFields = $rcCart->FieldsManager();
+	$oBuyer = $oFields->BuyerObject();
+	
+	$arVars = array(
+	  KS_TVAR_CUST_NAME	=> $oBuyer->GetNameFieldValue(),
+	  KS_TVAR_CUST_EMAIL	=> $oBuyer->GetEmailFieldValue(),
+	  KS_TVAR_ORDER_NUMBER	=> $this->NumberString(),
 	  );
 
+	// FOR DEBUGGING -- comment out later
 	foreach($arVars as $key => $val) {
 	    if (!is_string($val)) {
 		if (is_object($val)) {

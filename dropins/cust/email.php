@@ -42,7 +42,7 @@ class VCR_EmailAddr extends clsCustEmail {
 	}
 
 	$htPath = $this->SelfURL(array('edit'=>!$doEdit));
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 
 	// set up titlebar menu
 	$arActs = array(

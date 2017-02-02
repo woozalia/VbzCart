@@ -2,94 +2,45 @@
 /*
   HISTORY:
     2014-02-13 split address classes off from cust.php
+    2017-01-06 somewhat updated
 */
-class VCT_MailAddrs extends clsCustAddrs {
+class VCT_MailAddrs extends vctCustAddrs {
+    use ftLinkableTable;
 
     // ++ SETUP ++ //
 
-    /*----
-      HISTORY:
-	2011-04-17 added ActionKey()
-    */
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_MailAddr');
-	  $this->ActionKey('addr');
+    // OVERRIDE
+    protected function SingularName() {
+	return 'VCR_MailAddr';
+    }
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_CUST_ADDR;
     }
 
     // -- SETUP -- //
-    // ++ CLASS NAMES ++ //
 
-    protected function MailAddrsClass() {
-	return KS_CLASS_MAIL_ADDRS;
-    }
-
-    // -- CLASS NAMES -- //
 }
 class VCR_MailAddr extends clsCustAddr {
-    protected $objForm;
-
-    //*** BOILERPLATE begin
-    /*====
-      SECTION: event logging
-      HISTORY:
-	2011-09-02 adding boilerplate event logging using helper class
-    */ /* 2014-04-22 these are now inherited
-    protected function Log() {
-	if (!is_object($this->logger)) {
-	    $this->logger = new clsLogger_DataSet($this,$this->objDB->Events());
-	}
-	return $this->logger;
-    }
-    public function StartEvent(array $iArgs) {
-	return $this->Log()->StartEvent($iArgs);
-    }
-    public function FinishEvent(array $iArgs=NULL) {
-	return $this->Log()->FinishEvent($iArgs);
-    }
-    public function EventListing() {
-	return $this->Log()->EventListing();
-    } */
-    /*=====
-      SECTION: admin links
-    */
-    /*----
-      HISTORY:
-	2010-10-11 Replaced existing code with call to static function
-	2011-09-02 Writing AdminPage()
-    */
-//    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-//	return clsAdminData_helper::_AdminLink($this,$iText,$iPopup,$iarArgs);
-//    }
-    /*----
-      ACTION: Redirect to the url of the admin page for this object
-      HISTORY:
-	2010-11-26 copied from VbzAdminCatalog to clsRstkRcd
-	2011-01-02 copied from clsRstkRcd to VbzAdminOrderTrxact
-	2011-03-31 copied from VbzAdminOrderTrxact to VbzAdminCust
-	2012-01-03 copied from VbzAdminCust to clsAdminCustAddr
-    *//*
-    public function AdminRedirect(array $iarArgs=NULL) {
-	return clsAdminData::_AdminRedirect($this,$iarArgs);
-    } */
-    //*** BOILERPLATE end
+    use ftLinkableRecord;
+    use ftLoggableRecord;
 
     // ++ BOILERPLATE HELPERS ++ //
-
+/*
     public function AdminLink($sText=NULL,$sPopup=NULL,array $arArgs=NULL) {
 	$out = parent::AdminLink($sText,$sPopup,$arArgs);
 	if ($this->IsVoid()) {
 	    $out = "<span class='voided'>$out</span>";
 	}
 	return $out;
-    }
-    public function AdminLink_name() {
+    } */
+    public function SelfLink_name() {
 	$strVal = $this->AsSingleLine();
-	return $this->AdminLink($strVal);
+	return $this->SelfLink($strVal);
     }
 
     // -- BOILERPLATE HELPERS -- //
-    // ++ DROP-IN API ++ //
+    // ++ CALLBACKS ++ //
 
     /*----
       PURPOSE: execution method called by dropin menu
@@ -97,20 +48,64 @@ class VCR_MailAddr extends clsCustAddr {
     public function MenuExec(array $arArgs=NULL) {
 	return $this->AdminPage();
     }
+    public function ListItem_Text() {
+	return $this->AsSingleLine();
+    }
+    public function ListItem_Link() {
+	return $this->SelfLink_name();
+    }
 
-    // -- DROP-IN API -- //
+    // -- CALLBACKS -- //
+    // ++ CLASS NAMES ++ //
+    
+    protected function CustomersClass() {
+	return KS_CLASS_ADMIN_CUSTOMERS;
+    }
+
+    // -- CLASS NAMES -- //
+    // ++ DATA FIELD VALUES ++ //
+    
+    protected function WhenActive() {
+	return $this->Value('WhenAct');
+    }
+    protected function WhenExpires() {
+	return $this->Value('WhenExp');
+    }
+    protected function LabelString() {
+	return $this->Value('Label');
+    }
+    
+    // -- DATA FIELD VALUES -- //
+    // ++ DATA FIELD CALCULATIONS ++ //
+    
+    protected function HasCustomer() {
+	return !is_null($this->GetCustID());
+    }
+    
+    // -- DATA FIELD CALCULATIONS -- //
     // ++ WEB ADMIN UI ++ //
 
     public function AdminPage() {
 	//$strAction = $vgPage->Arg('do');
 	//$doAdd = ($strAction == 'add');
 	$oPage = $this->Engine()->App()->Page();
-	$isNew = is_null($this->KeyValue());
-	$doEdit = $oPage->PathArg('edit') || $isNew;
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
-	$strAct = $oPage->PathArg('do');
+	$idCust = $oPage->PathArg('cust');
+	$frmEdit = $this->EditForm($idCust);
 
-	$doVoid = ($strAct == 'void');
+	// if we're saving, the page gets restarted, so get that out of the way:
+	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	if ($doSave) {
+	    $frmEdit->Save();
+	    $sMsg = $frmEdit->MessagesString();
+	    $this->SelfRedirect(NULL,$sMsg);
+	}
+	
+	$isNew = $this->IsNew();
+	
+	$sDo = $oPage->PathArg('do');
+	$doVoid = ($sDo == 'void');
+	$doEdit = ($sDo == 'edit') || $isNew;
+	
 	if ($doVoid) {
 	    $arEv = array(
 	      'code'	=> 'VOID',
@@ -129,30 +124,46 @@ class VCR_MailAddr extends clsCustAddr {
 	if ($isNew) {
 	    $sTitle = 'New Address';
 	} else {
-	    $sTitle = 'Address #'.$this->ID;
+	    $sTitle = 'Address #'.$this->GetKeyValue();
 	}
-/*
-	$objPage = new clsWikiFormatter($vgPage);
-	$objSection = new clsWikiSection($objPage,$strName);
-	$objSection->ToggleAdd('edit');
-	$out = $objSection->Generate();
-*/
+	
 	// set up titlebar menu
-	clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
 	$arActs = array(
 	  // 		array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
 	  new clsActionLink_option(array(),'edit',		'do',NULL,NULL,'edit this order'),
 	  //new clsActionLink_option(array(),'merge',	'do'),
 	  );
 	$oPage->PageHeaderWidgets($arActs);
-	$oPage->TitleString($sTitle);
-
-	if ($doEdit || $doSave) {
-	    if ($doSave) {
-		$this->AdminSave();
-	    }
+	$oPage->Skin()->SetPageTitle($sTitle);
+		
+	// 2016-06-11 new version begins here
+	
+	
+	$out = NULL;
+	
+	if ($this->IsNew()) {
+	    $frmEdit->ClearValues();
+	} else {
+	    $frmEdit->LoadRecord();
 	}
+	$oTplt = $this->PageTemplate();
+	$arCtrls = $frmEdit->RenderControls($doEdit);
+	$htID = $this->SelfLink();
+	$arCtrls['ID'] = $htID;
+	
+	if ($doEdit) {
+	    $out .= "\n<form method=post>";
+	}
+	if (!is_null($idCust)) {	// customer set from outside - not editable
+	    $this->CustID($idCust);
+	    $arCtrls['ID_Cust']	= $this->CustomerRecord()->SelfLink();
+	}
+	    
+	$oTplt->VariableValues($arCtrls);
+	$out .= $oTplt->RenderRecursive();
 
+	/* 2016-06-11 old version
+	
 	$ftID = $this->AdminLink();
 	$ftFull	= $this->Value('Full');
 	$ftSearch = $this->Value('Search');
@@ -219,7 +230,7 @@ class VCR_MailAddr extends clsCustAddr {
   <tr><td align=right><b>Searchable</b>:</td><td>$ftSearch</td></tr>
 </table>
 __END__;
-
+*/
 	if ($doEdit) {
 	    if ($isNew) {
 		$out .= '<input type=submit name="btnSave" value="Create">';
@@ -227,14 +238,31 @@ __END__;
 		$out .= '<input type=submit name="btnSave" value="Save">';
 	    }
 	    $out .= '<input type=submit name="btnCancel" value="Cancel">';
-	    $out .= '<input type=reset value="Reset">';
+	    //$out .= '<input type=reset value="Reset">';
 	    $out .= '</form>';
 	}
 
 	$out .= $this->AdminPage_Lists($isNew);
 
-	$out .= '<hr><small>generated by '.__FILE__.':'.__LINE__.'</small>';
+	$out .= '<hr><span class=footer-stats>generated by '.__FILE__.':'.__LINE__.'</span>';
 
+	return $out;
+    }
+    // NOTE: this is read-only; use page to edit or create
+    public function AdminRow_forCust($isOdd) {
+	if ($this->IsVoid()) {
+	    $htRowCSS = 'void';
+	} else {
+	    $htRowCSS = $isOdd?'odd':'even';
+	}
+	$htID = $this->SelfLink();
+	$dt = $this->WhenActive();
+	$ftAct = (empty($dt))?'-':(date('Y-m-d',$dt));
+	$dt = $this->WhenExpires();
+	$ftExp = (empty($dt))?'-':(date('Y-m-d',$dt));
+	$ftAbbr = fcString::EncodeForHTML($this->LabelString());
+	$ftFull = $this->AsSingleLine_withName();
+	$out = "\n<tr class=$htRowCSS><td>$htID</td><td>$ftAct</td><td>$ftExp</td><td>$ftAbbr</td><td>$ftFull</td></tr>";
 	return $out;
     }
     /*----
@@ -257,9 +285,50 @@ __END__;
       HISTORY:
 	2010-11-17 adapted from clsCtgGroup to clsAdminCustAddr
     */
-    private function EditForm() {
-	if (is_null($this->objForm)) {
+    private $frmEdit;
+    private function EditForm($idCust=NULL) {
+	if (is_null($this->frmEdit)) {
 	    // create fields & controls
+
+	    $oForm = new fcForm_DB($this);
+	    
+	      $oField = new fcFormField_Text($oForm,'Name');
+	      $oField = new fcFormField_Num($oForm,'ID_Cust');
+		if (!is_null($idCust)) {
+		    $oField->SetValue($idCust);
+		    $oField->ControlObject()->Editable(FALSE);
+		}
+	      $oField = new fcFormField_Time($oForm,'WhenAct');
+	      $oField = new fcFormField_Time($oForm,'WhenExp');
+	      $oField = new fcFormField_Time($oForm,'WhenVoid');
+	      $oField = new fcFormField_Text($oForm,'Street');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>40));
+	      $oField = new fcFormField_Text($oForm,'Town');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>24));
+	      $oField = new fcFormField_Text($oForm,'State');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>16));
+	      $oField = new fcFormField_Text($oForm,'Zip');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>14));
+	      $oField = new fcFormField_Text($oForm,'Extra');
+		$oCtrl = new fcFormControl_HTML_TextArea($oField,array('rows'=>3,'cols'=>60));
+	      $oField = new fcFormField_Text($oForm,'Country');
+		$oCtrl = new fcFormControl_HTML($oField,array('size'=>16));
+	      $oField = new fcFormField_Text($oForm,'Descr');
+	      
+	      // calculated fields
+	      $oField = new fcFormField_Time($oForm,'WhenEnt');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($oForm,'WhenUpd');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Text($oForm,'Full');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Text($oForm,'Search');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Text($oForm,'Search_raw');
+		$oField->ControlObject()->Editable(FALSE);
+	    
+	    /* 2016-06-11 old version
+	    
 	    $objForm = new clsForm_recs($this);
 
 	    $objForm->AddField(new clsField('Name'),		new clsCtrlHTML());
@@ -275,10 +344,43 @@ __END__;
 	    $objForm->AddField(new clsField('Country'),	new clsCtrlHTML(array('size'=>16)));
 	    $objForm->AddField(new clsField('Descr'),		new clsCtrlHTML());
 
-	    $this->objForm = $objForm;
+	    $this->frmEdit = $objForm; */
+	    $this->frmEdit = $oForm;
 	}
-	return $this->objForm;
+	return $this->frmEdit;
     }
+    private $tpPage;
+    protected function PageTemplate() {
+	if (empty($this->tpPage)) {
+	    $sTplt = <<<__END__
+<table>
+  <tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr>
+  <tr><td align=right><b>Name</b>:</td><td>[[Name]]</td></tr>
+  <tr><td align=right><b>Customer</b>:</td><td>[[ID_Cust]]</td></tr>
+  <tr><td align=right><b>When Active</b>:</td><td>[[WhenAct]]</td></tr>
+  <tr><td align=right><b>When Expires</b>:</td><td>[[WhenExp]]</td></tr>
+  <tr><td align=right><b>When Voided</b>:</td><td>[[WhenVoid]]</td></tr>
+  <tr><td align=right><b>Street</b>:</td><td>[[Street]]</td></tr>
+  <tr><td align=right><b>Town</b>:</td><td>[[Town]]</td></tr>
+  <tr><td align=right><b>State</b>:</td><td>[[State]]</td></tr>
+  <tr><td align=right><b>Postal Code</b>:</td><td>[[Zip]]</td></tr>
+  <tr><td align=right><b>Country</b>:</td><td>[[Country]]</td></tr>
+  <tr><td align=right><b>Instructions</b>:</td><td>[[Extra]]</td></tr>
+  <tr><td align=right><b>Description</b>:</td><td>[[Descr]]</td></tr>
+  <tr><td colspan=2 class=table-section-header>Calculated:</td></tr>
+  <tr><td align=right><b>Full</b>:</td><td>[[Full]]</td></tr>
+  <tr><td align=right><b>Searchable (raw)</b>:</td><td>[[Search_raw]]</td></tr>
+  <tr><td align=right><b>Searchable</b>:</td><td>[[Search]]</td></tr>
+  <tr><td colspan=2 class=table-section-header>Indicia:</td></tr>
+  <tr><td align=right><b>When Created</b>:</td><td>[[WhenEnt]]</td></tr>
+  <tr><td align=right><b>When Updated</b>:</td><td>[[WhenUpd]]</td></tr>
+</table>
+__END__;
+	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
+	}
+	return $this->tpPage;
+    }
+    /* 2016-06-12 This would appear to be redundant now.
     protected function AdminSave() {
 	// update generated fields: searchable, searchable raw, full
 	$arUpd = $this->CalcUpdateArray();
@@ -290,5 +392,5 @@ __END__;
 	// boilerplate: save the data
 	$out = $this->EditForm()->Save();
 	return $out;
-    }
+    }*/
 }

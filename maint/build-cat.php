@@ -2,15 +2,29 @@
 /*
  NAME: build-cat
  PURPOSE: maintenance script for building catalog from scources
- AUTHOR: Woozle (Nick) Staddon
+ AUTHOR: Woozle Staddon
  VERSION:
   2010-06-27 Excerpting relevant code from SpecialVbzAdmin
   2010-11-10 "data_tables" has been renamed "cache_tables"
   2010-12-29 added ID_Supp to 1.3
   2011-01-02 added update of cat_items.Descr
+  2016-01-31 Added EOF so this will work with the status updater.
 */
-require_once '/var/www/vbz/local.php';				// basic library paths
-require_once(KFP_LIB_VBZ.'/config-libs.php');
+$fErrLevel = E_ALL | E_STRICT;
+error_reporting($fErrLevel);
+if (!ini_get('display_errors')) {
+    ini_set('display_errors', 1);
+}
+
+define('EOF',"\x1A"); // should be 26 in hex = ^Z
+
+//require_once '/var/www/vbz/local.php';	// basic library paths
+require_once '/home/vbz/v-user.php';		// basic library paths
+//require_once(KFP_LIB_VBZ.'/config-libs.php');
+require_once(KFS_VBZCART_CONFIG);
+
+fcCodeLibrary::Load_byName('vbzcart');
+fcCodeLibrary::Load_byName('ferreteria.login');
 
 $arSQL_CtgBuild = array(
 /* STAGE 1: Clear/refill the two temporary tables from which cat_items is updated. */
@@ -107,7 +121,7 @@ __END__
   */
   '3.2 add any new calculated items'
     => 'REPLACE INTO cat_items
-      SELECT j.*,NULL AS cntCtgDup
+      SELECT j.*,NULL AS cntCtgDup,CONCAT("added by cat-build on ",NOW()) AS Notes
       FROM qryCtg_Upd_join AS j LEFT JOIN cat_items AS i ON j.ID=i.ID WHERE i.ID IS NULL;',
    /* -- clear availability flags in any unused items */
   '3.3 clear availability flags in unused items'
@@ -137,7 +151,9 @@ function VbzDb() {
   static $objDb;
 
     if (!isset($objDb)) {
-	$objDb = new clsDatabase(KS_DB_VBZCART);
+	$oApp = new vcApp();
+	//$objDb = new clsDatabase(KS_DB_VBZCART);
+	$objDb = $oApp->Data();
 	$objDb->Open();
     }
     return $objDb;
@@ -147,11 +163,10 @@ function Write($iText) {
     echo $iText;
 }
 function WriteLn($iText) {
-    echo $iText."\n";
+    echo $iText."\n<br>";
 }
 
 function doCatBuild() {
-    global $wgOut;
     global $arSQL_CtgBuild;
 
     $objDB = VbzDb();
@@ -163,7 +178,7 @@ function doCatBuild() {
 	$ok = $objDB->Exec($sql);
 	if ($ok) {
 	    $intRows = $objDB->RowsAffected();
-	    $strStat = $intRows.' row'.Pluralize($intRows).' affected';
+	    $strStat = $intRows.' row'.fcString::Pluralize($intRows).' affected';
 	    WriteLn(' - OK - '.$strStat);
 	} else {
 	    WriteLn(' - ERROR: '.$objDB->getError());
@@ -171,7 +186,7 @@ function doCatBuild() {
 	}
     }
 }
-
 WriteLn('Building catalog...');
 doCatBuild();
 WriteLn('End of build.');
+Write(EOF);

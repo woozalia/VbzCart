@@ -75,7 +75,7 @@ class clsAdminCustPhone extends clsCustPhone {
 	$doSave = $wgRequest->getBool('btnSave');
 	$isNew = $this->IsNew();
 	$htPath = $vgPage->SelfURL(array('edit'=>!$doEdit));
-	$id = $this->KeyValue();
+	$id = $this->GetKeyValue();
 	$strName = $this->Value('Name');
 
 	$vgPage->UseHTML();
@@ -114,8 +114,8 @@ class clsAdminCustPhone extends clsCustPhone {
 	    $ftName	= $this->Value('Name');
 	    $ftNum	= $this->Value('Phone');
 	    $ftDesc	= $this->Value('Descr');
-	    $ftCust	= $rcCust->AdminLink_name();
-	    $ftActive	= NoYes($this->Value('isActive'));
+	    $ftCust	= $rcCust->SelfLink_name();
+	    $ftActive	= fcString::NoYes($this->Value('isActive'));
 	}
 
 	$out .= "\n<table>";
