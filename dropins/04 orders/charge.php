@@ -5,8 +5,10 @@
     2014-02-22 split off OrderCharge classes from order.php
 */
 // order charges
-class VCT_OrderChgs extends vcAdminTable {
+class vctAdminOrderCharges extends vcAdminTable {
     use ftLinkableTable;
+    
+    // ++ SETUP ++ //
     
     // CEMENT
     protected function TableName() {
@@ -14,12 +16,24 @@ class VCT_OrderChgs extends vcAdminTable {
     }
     // CEMENT
     protected function SingularName() {
-	return 'VCR_OrderChg';
+	return 'vcrAdminOrderCharge';
     }
     // CEMENT
     public function GetActionKey() {
 	return 'chg';
     }
+    
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->AdminPage();
+    }
+    
+    // -- EVENTS -- //
+    // ++ WEB UI ++ //
+
     /*----
       HISTORY:
 	2011-03-24 adapted from SpecialVbzAdmin::doCharges()
@@ -47,16 +61,18 @@ class VCT_OrderChgs extends vcAdminTable {
 	$arArgs['descr'] = $strDescr;
 	$wgOut->AddWikiText($objRows->AdminTable($arArgs),TRUE);
     }
+
+    // -- WEB UI -- //
 }
-class VCR_OrderChg extends vcAdminRecordset {
+class vcrAdminOrderCharge extends vcAdminRecordset {
 
     // ++ FIELD VALUES ++ //
 
     protected function GetOrderID() {
-	return $this->Value('ID_Order');
+	return $this->GetFieldValue('ID_Order');
     }
     protected function CardID() {
-	return $this->Value('ID_Card');
+	return $this->GetFieldValue('ID_Card');
     }
 
     // -- FIELD VALUES -- //
@@ -66,17 +82,17 @@ class VCR_OrderChg extends vcAdminRecordset {
 	return KS_CLASS_ORDERS;
     }
     protected function CardsClass() {
-	return KS_CLASS_CUST_CARDS;
+	return KS_CLASS_CUST_CARDS_ADMIN;
     }
 
     // -- CLASSES -- //
     // ++ TABLES ++ //
 
     protected function OrderTable($id=NULL) {
-	return $this->Engine()->Make($this->OrdersClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->OrdersClass(),$id);
     }
     protected function CardTable($id=NULL) {
-	return $this->Engine()->Make($this->CardsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CardsClass(),$id);
     }
 
     // -- TABLES -- //
@@ -99,7 +115,7 @@ class VCR_OrderChg extends vcAdminRecordset {
 	  like what we want is just the contents of the "CardSafe" field.
     */
     protected function SafeCardData() {
-	$row = $this->Row;
+	$row = $this->GetFieldValues();
 
 	if (array_key_exists('CardSafe',$row)) {
 	    $out = $row['CardSafe'];
@@ -153,16 +169,16 @@ class VCR_OrderChg extends vcAdminRecordset {
 __END__;
 	    $isOdd = TRUE;
 	    while ($this->NextRow()) {
-		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
+		$css = $isOdd?'odd':'even';
 		$isOdd = !$isOdd;
 
 		// TODO: replace row[] accesses with class methods
-		$row = $this->Values();
+		$row = $this->GetFieldValues();
 		$id = $row['ID'];
 		$strCard = $this->SafeCardData();
 		$ftCard = $this->CardRecord()->SelfLink($strCard);
 		$rcOrd = $this->OrderRecord();
-		$ftOrd = $rcOrd->SelfLink($rcOrd->Number());
+		$ftOrd = $rcOrd->SelfLink($rcOrd->NumberString());
 		$idTrx = $row['ID_Trxact'];
 		$strAmtTotal = $row['AmtTrx'];
 		$strAmtSold = $row['AmtSold'];
@@ -178,7 +194,7 @@ __END__;
 		$htID = '<b>'.$this->SelfLink().'</b>';
 
 		if ($isVoid) {
-		    $wtStyle .= ' text-decoration: line-through;';
+		    $css .= ',void';
 		    $htOk = 'VOID';
 		} else {
 		    $htOk = $isSuccess?'&radic;':'';
@@ -186,7 +202,7 @@ __END__;
 
 
 		$out .= <<<__END__
-  <tr style="$wtStyle">
+  <tr class=$css>
     <td>$htID</td>
     <td>$ftCard</td>
     <td>$ftOrd</td>
@@ -204,11 +220,12 @@ __END__;
 	    $out .= "\n</table>";
 	} else {
 	    $strDescr = fcArray::Nz($iArgs,'descr');
-	    $out = "\nNo charges$strDescr.";
+	    $out = "\n<div class=container>No charges$strDescr.</div>";
 	}
 	return $out;
     }
     public function AdminPage() {
+	throw new exception('2017-06-05 This will need updating.');
 	$oPage = $this->Engine()->App()->Page();
 
 	$doEdit = $oPage->PathArg('edit');

@@ -6,24 +6,18 @@
     2013-11-09 created
 */
 
-class cVbzSessions extends fctUserSessions {
-/* 2016-10-27 redundant
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('cVbzSession');
-    }
-    */
+class vcUserSessions extends fctUserSessions {
     
     // ++ OVERRIDES ++ //
     
     protected function SingularName() {
-	return 'cVbzSession';
+	return 'vcUserSession';
     }
 
     // -- OVERRIDES -- //
 
 }
-class cVbzSession extends fcrUserSession {
+class vcUserSession extends fcrUserSession {
     use ftSaveableRecord;
     
     // ++ SETUP ++ //
@@ -52,8 +46,7 @@ class cVbzSession extends fcrUserSession {
 	}
     }
     protected function CartsClass() {
-	//return 'vctShopCarts';
-	return 'vctCarts_ShopUI';	// this is a bit of a kluge
+	return 'vctShopCarts';	// this is a bit of a kluge
     }
 
     // -- CLASS NAMES -- //

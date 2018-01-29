@@ -6,15 +6,14 @@
 */
 
 class vcqtaSCSources_wSupplier extends vctaSCSources_base {
-//    use ftLinkableTable;
     
     // ++ SETUP ++ //
-    
+/*    
     public function __construct($db) {
 	parent::__construct($db);
 	  $this->ClassSng('vcqraSCSource_wSupplier');
     }
-
+*/
     // -- SETUP -- //
     // ++ SQL CALCULATIONS ++ //
     
@@ -35,7 +34,7 @@ __END__;
     // ++ RECORDS ++ //
     
     protected function AdminRecords() {
-	$rs = $this->DataSQL($this->AdminRecords_SQL());
+	$rs = $this->FetchRecords($this->AdminRecords_SQL());
 	return $rs;
     }
     
@@ -44,6 +43,18 @@ __END__;
 
     public function AdminPage() {
 	$rs = $this->AdminRecords();
+	$out = $rs->AdminRows();
+	return $out;
+    }
+
+    // -- ADMIN UI PAGES -- //
+
+}
+// This is just so we can use parent:: to access unaltered trait functions.
+class vcqraSCSource_wSupplier_base extends vcraSCSource {
+    use ftShowableRecord;
+
+    protected function AdminRows_settings_columns() {
 	$arCols = array(
 	    'ID'	=> 'ID',
 	    'Name'	=> 'Name',
@@ -52,16 +63,8 @@ __END__;
 	    'ID_Supercede'	=> 'Replaced by',
 	    'isCloseOut'	=> 'Closeout?'
 	  );
-	$out = $rs->AdminRows($arCols);
-	return $out;
+	return $arCols;
     }
-    
-    // -- ADMIN UI PAGES -- //
-
-}
-// This is just so we can use parent:: to access unaltered trait functions.
-class vcqraSCSource_wSupplier_base extends vcraSCSource {
-    use ftShowableRecord;
 }
 class vcqraSCSource_wSupplier extends vcqraSCSource_wSupplier_base {
 

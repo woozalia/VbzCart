@@ -10,16 +10,21 @@
 define('KS_ACTION_VIEW_CASHFLOW',	'cflow');
 
 // -- classes
-define('KS_CLASS_ADMIN_CASHFLOW',	'vctqCashflow');
+define('KS_CLASS_ADMIN_CASHFLOW',	'vcqtCashflow');
 
 // MENU
 
 $om = $oRoot->SetNode(new fcMenuFolder('Miscellaneous'));	// anything that doesn't fit elsewhere
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_VIEW_CASHFLOW,'Cashflow','revenues and expenses'));
-    $omi->SetPageTitle('Cashflow Over Time');
-    $omi->SetActionClass(KS_CLASS_ADMIN_CASHFLOW);
-    $omi->SetRequiredPrivilege(KS_PERM_SITE_VIEW_CONFIG);
+  $omi = $om->SetNode(
+    new fcDropinLink(
+      KS_ACTION_VIEW_CASHFLOW,
+      KS_CLASS_ADMIN_CASHFLOW,
+      'Cashflow',
+      'revenue and expenses'));
+    //$omi->SetPageTitle('Cashflow Over Time');
+//    $omi->SetRequiredPrivilege(KS_PERM_SITE_VIEW_CONFIG);
+    $omi->SetRequiredPrivilege(NULL);
 
 /* 2016-12-11 old dropin version
 $om = new fcMenuFolder($oRoot, '*misc','Miscellaneous','Miscellaneous Stuff','whatever doesn\t fit elsewhere');

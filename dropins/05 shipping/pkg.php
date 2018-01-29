@@ -11,7 +11,7 @@
 define('KS_ACTION_PKG_LINES_EDIT','edit.lines');
 define('KS_ACTION_PKG_LINES_ADD','add.lines');
 
-class clsPackages extends vcAdminTable {
+class vctAdminPackages extends vcAdminTable {
 
     // ++ SETUP ++ //
 
@@ -21,7 +21,7 @@ class clsPackages extends vcAdminTable {
     }
     // CEMENT
     protected function SingularName() {
-	return 'clsPackage';
+	return 'vcrAdminPackage';
     }
     // CEMENT
     public function GetActionKey() {
@@ -29,11 +29,15 @@ class clsPackages extends vcAdminTable {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->RenderSearch();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->ExecArgs($arArgs);
 	$out = $this->RenderSearch();
@@ -47,14 +51,14 @@ class clsPackages extends vcAdminTable {
 	    $this->arExec = $arArgs;
 	}
 	return $this->arExec;
-    }
+    } */
 
     // -- DROP-IN API -- //
     // ++ RECORDS ++ //
 
     // TODO: Rename to OrderRecord()
     public function GetOrder($iID) {
-	$rsPkgs = $this->GetData('ID_Order='.$iID);
+	$rsPkgs = $this->SelectRecords('ID_Order='.$iID);
 	$rsPkgs->SetOrderID($iID);	// make sure this is set, regardless of whether there is data
 	return $rsPkgs;
     }
@@ -155,8 +159,34 @@ __END__;
 	return $out;
     }
 }
-class clsPackage extends vcAdminRecordset {
-    use ftFrameworkAccess;
+class vcrAdminPackage_trait extends vcAdminRecordset {
+    use ftShowableRecord;
+    
+    // CALLBACK
+    // who uses it except AdminRows_settings_columns()? TODO: check into this
+    public function AdminRows_fields() {
+	$ar = array(
+	  '!ID'		=> 'ID',	// show link
+	  '!ord'	=> 'Order #',
+	  'Seq'	=> 'Seq',
+	  'WhenStarted'	=> 'Started',
+	  '!isReturn'	=> 'R?',
+	  '!qItems'	=> '<span title="total # of items">qty</span>',	// ItemQty()
+	  '!idShip'	=> 'Shipment',	// need to override to show link or drop-down
+	  '!prcSale'	=> 'sale $',	// need to override to call Charge_forItemSale_html()
+	  '!ChgShipPkg'	=> 'chg s/h $',	// need to format
+	  '!ShipCost'	=> 'act s/h $',	// need to format
+	  'ShipNotes'	=> 'notes'
+	);
+	return $ar;
+    }
+    // CALLBACK
+    public function AdminRows_settings_columns() {
+	return $this->AdminRows_fields();
+    }
+}
+class vcrAdminPackage extends vcrAdminPackage_trait {
+    use ftFrameworkAccess;	// 2017-04-11 is this used anymore?
 
     // ++ SETUP ++ //
 
@@ -251,13 +281,13 @@ class clsPackage extends vcAdminRecordset {
     // ++ TABLES ++ //
 
     protected function OrderTable($id=NULL) {
-	return $this->Engine()->Make($this->OrdersClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->OrdersClass(),$id);
     }
     protected function OrderLineTable($id=NULL) {
 	return $this->OrderTable()->LineTable($id);
     }
     protected function ShipmentTable($id=NULL) {
-	return $this->Engine()->Make($this->ShipmentsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ShipmentsClass(),$id);
     }
     protected function TrxactTable($id=NULL) {
 	return $this->Engine()->Make($this->TrxactsClass(),$id);
@@ -266,7 +296,7 @@ class clsPackage extends vcAdminRecordset {
       RETURNS: LINE subdata table (order lines)
     */
     public function LineTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_PACKAGE_LINES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_PACKAGE_LINES,$id);
     }
     public function BinTable($id=NULL) {
 	return $this->Engine()->Make($this->BinsClass(),$id);
@@ -286,12 +316,11 @@ class clsPackage extends vcAdminRecordset {
 
     /*----
       RETURNS: record object for Order to which this Package belongs
-      TODO: 2016-09-11 This probably could be simplified. We can assume the Order ID will not change during a given page-load.
     */
     private $rcOrd;
     protected function OrderRecord() {
 	$doLoad = TRUE;
-	$idObj = $this->ValueNz('ID_Order');
+	$idObj = $this->GetOrderID_orNull();
 	if (is_null($idObj)) {
 	   $this->rcOrd = NULL;
 	} else {
@@ -314,7 +343,7 @@ class clsPackage extends vcAdminRecordset {
     protected function ShipmentRecord() {
 	$doLoad = TRUE;
 	if ($this->HasShipment()) {
-	    $idShip = $this->Value('ID_Shipment');
+	    $idShip = $this->GetShipmentID();
 	    if (isset($this->rcShip)) {
 		$doLoad = ($idShip != $this->rcShip->KeyValue());
 	    }
@@ -347,19 +376,16 @@ class clsPackage extends vcAdminRecordset {
 	return $this->rsTrx;
     }
     /*----
-      RETURNS: LINE subdata recordset
+      RETURNS: Order Lines recordset for this Order
     */
-    public function LinesData($iFilt=NULL) {
-	throw new exception('LinesData() is deprecated; call LineRecords(). Also, does this really need to be public?');
-    }
     protected function LineRecords($iFilt=NULL) {
-	$objTbl = $this->LineTable();
+	$t = $this->LineTable();
 	$sqlFilt = 'ID_Pkg='.$this->GetKeyValue();
 	if (!is_null($iFilt)) {
 	    $sqlFilt = "($sqlFilt) AND ($iFilt)";
 	}
-	$objRows = $objTbl->GetData($sqlFilt);
-	return $objRows;
+	$rs = $t->SelectRecords($sqlFilt);
+	return $rs;
     }
     /*----
       ACTION: Find an unused (inactive) line record, if any.
@@ -370,11 +396,11 @@ class clsPackage extends vcAdminRecordset {
 
 	// first, look only at inactive lines already assigned to this package
 	$sqlFilt = "(ID_Pkg=$idPkg) AND $sqlFiltUnused";
-	$rc = $this->LineTable()->GetData($sqlFilt);
+	$rc = $this->LineTable()->SelectRows($sqlFilt);
 	if ($rc->RowCount() == 0) {
 	    // if nothing found, then look for *any* inactive lines
 	    $sqlFilt = $sqlFiltUnused;
-	    $rc = $this->LineTable()->GetData($sqlFilt);
+	    $rc = $this->LineTable()->SelectRows($sqlFilt);
 	    if ($rc->RowCount() == 0) {
 		return NULL;
 	    }
@@ -410,31 +436,49 @@ class clsPackage extends vcAdminRecordset {
 
     // PUBLIC so Package Table can call it
     public function SetOrderID($id) {
-	$this->SetValue('ID_Order',$id);
+	$this->SetFieldValue('ID_Order',$id);
     }
     // PUBLIC so Transaction can access it
     public function GetOrderID() {
-	return $this->GetValue('ID_Order');
+	return $this->GetFieldValue('ID_Order');
+    }
+    protected function GetOrderID_orNull() {
+	return $this->GetFieldValueNz('ID_Order');
+    }
+    protected function GetShipmentID() {
+	return $this->GetFieldValue('ID_Shipment');
     }
     // RETURNS: total charged for sale of all items
     protected function Charge_forItemSale($n=NULL) {
-	return $this->Value('ChgItmSale',$n);
+	throw new exception('2017-06-05 Call GetCharge_forItemSale() or SetCharge_forItemSale() instead.');
+    }
+    protected function SetCharge_forItemSale($n) {
+	return $this->SetFieldValue('ChgItmSale',$n);
+    }
+    protected function GetCharge_forItemSale() {
+	return $this->GetFieldValue('ChgItmSale');
+    }
+    protected function Charge_forShipping_Items($n=NULL) {
+	throw new exception('2017-06-05 Call GetCharge_forShipping_Items() or SetCharge_Shipping_Items() instead.');
+    }
+    protected function SetCharge_forShipping_Items($n) {
+	return $this->SetFieldValue('ChgShipItm',$n);
     }
     // RETURNS: total charged for per-item s/h
-    protected function Charge_forShipping_Items($n=NULL) {
-	return $this->Value('ChgShipItm',$n);
+    protected function GetCharge_forShipping_Items() {
+	return $this->GetFieldValue('ChgShipItm');
     }
     // RETURNS: amount charged for package s/h
-    protected function Charge_forShipping_Package($n=NULL) {
-	return $this->Value('ChgShipPkg',$n);
+    protected function GetCharge_forShipping_Package() {
+	return $this->GetFieldValue('ChgShipPkg');
     }
     // RETURNS: actual cost of postage
-    protected function Cost_forShipping_Postage() {
-	return $this->Value('ShipCost');
+    protected function GetCost_forShipping_Postage() {
+	return $this->GetFieldValue('ShipCost');
     }
-    // RETURNS: actual (estimated) cost of packaging/handling
-    protected function Cost_forShipping_Package() {
-	return $this->Value('PkgCost');
+    // RETURNS: actual (human-estimated) cost of packaging/handling
+    protected function GetCost_forShipping_Package() {
+	return $this->GetFieldValue('PkgCost');
     }
     protected function ShipPounds() {
 	return $this->Value('ShipPounds');
@@ -449,7 +493,7 @@ class clsPackage extends vcAdminRecordset {
 	return $this->Value('ShipTracking');
     }
     public function WhenStarted() {
-	return $this->Value('WhenStarted');
+	return $this->GetFieldValue('WhenStarted');
     }
     protected function WhenArrived() {
 	return $this->Value('WhenArrived');
@@ -462,13 +506,13 @@ class clsPackage extends vcAdminRecordset {
 	return is_null($this->Value('WhenVoided'));
     }
     public function IsVoid() {
-	return !is_null($this->Value('WhenVoided'));
+	return !is_null($this->GetFieldValue('WhenVoided'));
     }
     public function IsChecked() {
 	return !is_null($this->Value('WhenChecked'));
     }
     public function Seq() {
-	return $this->Value('Seq');
+	return $this->GetFieldValue('Seq');
     }
     
     // -- FIELD VALUES -- //
@@ -477,15 +521,15 @@ class clsPackage extends vcAdminRecordset {
     protected function HasWeight() {
 	return !is_null($this->ShipPounds()) || !is_null($this->ShipOunces());
     }
-    protected function ShipID() {
+    protected function GetShipmentID_orNull() {
 	if ($this->IsNew()) {
 	    return NULL;
 	} else {
-	    return $this->Value('ID_Shipment');
+	    return $this->GetShipmentID();
 	}
     }
     protected function HasShipment() {
-	return (!is_null($this->ShipID()));
+	return (!is_null($this->GetShipmentID_orNull()));
     }
     protected function ShipmentLink() {
 	if ($this->HasShipment()) {
@@ -497,7 +541,7 @@ class clsPackage extends vcAdminRecordset {
 	return $out;
     }
     public function Number() {
-	$out = $this->OrderRecord()->Number();
+	$out = $this->OrderRecord()->NumberString();
 	$out .= '-';
 	$intSeq = $this->Seq();
 	$out .= empty($intSeq)?'*':$intSeq;
@@ -511,10 +555,10 @@ class clsPackage extends vcAdminRecordset {
     }
     // RETURNS: total charged for sale of items
     protected function Charge_forItemSale_html() {
-	$val = $this->Charge_forItemSale();
+	$val = $this->GetCharge_forItemSale();
 	return is_null($val)
 	  ?'-'
-	  :clsMoney::Format_withSymbol($val)
+	  :fcMoney::Format_withSymbol($val)
 	  ;
     }
     /* // RETURNS: total charged for per-item shipping, HTML format
@@ -537,8 +581,8 @@ class clsPackage extends vcAdminRecordset {
     }//*/
     // RETURNS: All charges for shipping, HTML format
     protected function Charges_forShipping_html() {
-	$dlrItm = $this->Charge_forShipping_Items();
-	$dlrPkg = $this->Charge_forShipping_Package();
+	$dlrItm = $this->GetCharge_forShipping_Items();
+	$dlrPkg = $this->GetCharge_forShipping_Package();
 
 	$sItm = is_null($dlrItm)?'':fcMoney::Format_withSymbol($dlrItm).'i';
 	$sPkg = is_null($dlrPkg)?'':fcMoney::Format_withSymbol($dlrPkg).'p';
@@ -547,8 +591,8 @@ class clsPackage extends vcAdminRecordset {
 	return $out;
     }
     protected function Costs_forShipping_html() {
-	$dlrPost = $this->Cost_forShipping_Postage();
-	$dlrPack = $this->Cost_forShipping_Package();
+	$dlrPost = $this->GetCost_forShipping_Postage();
+	$dlrPack = $this->GetCost_forShipping_Package();
 
 	$sPst = is_null($dlrPost)?'':fcMoney::Format_withSymbol($dlrPost).'po';
 	$sPkg = is_null($dlrPack)?'':fcMoney::Format_withSymbol($dlrPack).'pk';
@@ -789,7 +833,7 @@ class clsPackage extends vcAdminRecordset {
       HISTORY:
 	2011-01-02 Adapted from VbzAdminDept::DropDown to VbzAdminOrderTrxType
 	  Control name now defaults to table action key
-	2011-03-30 Adapted from VbzAdminOrderTrxType to clsPackage
+	2011-03-30 Adapted from VbzAdminOrderTrxType to vcrAdminPackage (formerly clsPackage)
 	2016-08-13 This function is probably obsolete, but I won't know for sure
 	  until some other functions that use it are rewritten.
     */
@@ -1112,9 +1156,10 @@ __END__;
 	$oTplt = $this->PageTemplate();
 	$arCtrls = $frmEdit->RenderControls($doEdit);
 
+	$idShip = $this->GetShipmentID_orNull();
 	if ($doForm) {
-	    $idOrd = $this->Value('ID_Order');
-	    $htShip = $this->ShipmentTable()->ActiveRecords('WhenCreated DESC')->DropDown(NULL,$this->ShipID());
+	    $idOrd = $this->GetOrderID();
+	    $htShip = $this->ShipmentTable()->ActiveRecords('WhenCreated DESC')->DropDown(NULL,$idShip);
 	    $arLink = array(
 	      'edit'	=> FALSE,
 	      'add'	=> FALSE,
@@ -1122,7 +1167,6 @@ __END__;
 	      'order'	=> FALSE
 	      );
 	} else {
-	    $idShip = $this->ShipID();
 	    $arArgs['id'] = $idShip;
 	    if (is_null($idShip)) {
 		$htShip = '<i>N/A</i>';
@@ -1540,9 +1584,13 @@ __END__;
 	    $arActs[] = new clsActionLink_option($arPath,
 	      'replace',$sActDo,NULL,NULL,'put items back in stock');
 	} */
+	/*
 	$arActs = NULL;
 	
 	$out = $this->PageObject()->ActionHeader('Packages',$arActs);
+	*/
+	$oHdr = new fcSectionHeader('Packages');
+	$out = $oHdr->Render();
 
 	$doStock = $this->Option_HandleStock();
 	if ($doStock) {
@@ -1579,7 +1627,7 @@ __END__;
 	* will need some updating in order to work at all
     */
     protected function UpdateTotals() {
-	$oTot = new clsPackageTotal();
+	$oTot = new vcPackageTotal();
 	$rs = $this->LineRecords();
 	while ($rs->NextRow()) {
 	    $qty = $rs->QtyShipped();
@@ -1659,7 +1707,7 @@ __END__;
 
 		if ($doReally) {
 		    // set up stock log event object with all the stuff we do know
-		    $rcStkEv = $this->StockItemLog()->CreateRemoval($qty,$idBin,clsStkLog::chTypePkg);
+		    $rcStkEv = $this->StockItemLog()->CreateRemoval($qty,$idBin,vctStockLineLog::chTypePkg);
 		      $rcStkEv->EventID($rcSysEv->GetKeyValue());
 		      $rcStkEv->ItemID($idLCItem);
 		      $rcStkEv->OtherContID($this->GetKeyValue());		// might be NULL (new package)
@@ -2036,7 +2084,7 @@ __END__;
 	    $sDescEv = "quantity <b>$qty</b> of item <b>$sItem</b> from package <b>$sPkg</b> to bin <b>$sBin</b>";
 
 	    // start a stock log event - we know pretty much all of the parameters except destination stock line
-	    $rcStkEv = $this->StockItemLog()->CreateAddition($qty,$idBin,clsStkLog::chTypePkg);
+	    $rcStkEv = $this->StockItemLog()->CreateAddition($qty,$idBin,vctStockLineLog::chTypePkg);
 	      $rcStkEv->EventID($rcSysEv->GetKeyValue());
 	      $rcStkEv->ItemID($idItem);
 	      $rcStkEv->StockBinID($idBin);
@@ -2201,31 +2249,9 @@ __END__;
 	      );
 	    $oPage = $this->Engine()->App()->Page();
 	    $url = $oPage->SelfURL($arLink);
-	    $out = clsHTML::BuildLink($url,$sAdd,'create a new package');
+	    $out = fcHTML::BuildLink($url,$sAdd,'create a new package');
 	}
 	return $out;
-    }
-    // CALLBACK
-    // who uses it except AdminRows_settings_columns_default()?
-    public function AdminRows_fields() {
-	$ar = array(
-	  '!ID'		=> 'ID',	// show link
-	  '!ord'	=> 'Order #',
-	  'Seq'	=> 'Seq',
-	  'WhenStarted'	=> 'Started',
-	  '!isReturn'	=> 'R?',
-	  '!qItems'	=> '<span title="total # of items">qty</span>',	// ItemQty()
-	  '!idShip'	=> 'Shipment',	// need to override to show link or drop-down
-	  '!prcSale'	=> 'sale $',	// need to override to call Charge_forItemSale_html()
-	  '!ChgShipPkg'	=> 'chg s/h $',	// need to format
-	  '!ShipCost'	=> 'act s/h $',	// need to format
-	  'ShipNotes'	=> 'notes'
-	);
-	return $ar;
-    }
-    // CALLBACK
-    public function AdminRows_settings_columns_default() {
-	return $this->AdminRows_fields();
     }
     // CALLBACK
     protected function AdminField($sField,array $arOptions=NULL) {
@@ -2248,7 +2274,7 @@ __END__;
 		}
 		break;
 	      case '!isReturn':
-		$val = $this->Value('isReturn')?'R':'';
+		$val = $this->GetFieldValue('isReturn')?'R':'';
 		break;
 	      case '!qItems':
 		$val = $this->ItemQty();

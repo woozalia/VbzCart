@@ -12,14 +12,10 @@ fcCodeLibrary::Load_byName('ferreteria.db.2');
 $fp = dirname( __FILE__ );
 fcCodeModule::BasePath($fp.'/');
 
-$om = new fcCodeModule(__FILE__, 'orders.php');
-  $om->AddClass('vctOrders');
-$om = new fcCodeModule(__FILE__, 'order-line.php');
-  $om->AddClass('vctOrderLines');
-$om = new fcCodeModule(__FILE__, 'order-msg.php');
-  $om->AddClass('vctOrderMsgs');
+$om = new fcCodeModule(__FILE__, 'globals.php');
+  $om->AddClass('vcGlobals');
 $om = new fcCodeModule(__FILE__, 'session.php');
-  $om->AddClass('cVbzSessions');
+  $om->AddClass('vcUserSessions');
 $om = new fcCodeModule(__FILE__, 'settings.php');
   $om->AddClass('vctSettings');
 $om = new fcCodeModule(__FILE__, 'user.php');
@@ -33,6 +29,8 @@ $om = new fcCodeModule(__FILE__, 'vbz-app-admin.php');
 $om = new fcCodeModule(__FILE__, 'vbz-app-shop.php');
   $om->AddClass('vcAppShop_catalog');
   $om->AddClass('vcAppShop_search');
+  $om->AddClass('vcAppShop_cart');
+  $om->AddClass('vcAppShop_topic');
 $om = new fcCodeModule(__FILE__, 'vbz-crypt.php');
   $om->AddClass('vcCipher');
 
@@ -44,8 +42,8 @@ $om = new fcCodeModule(__FILE__, 'vbz-data.php');
 
 // do this more elegantly later:
 require_once('cart/@libs.php');
-require_once('cat/@libs.php');
-require_once('cust/@libs.php');
+require_once('logic/@lib.php');
 require_once('page/@libs.php');
 require_once('ship/@libs.php');
+require_once('shop/@lib.php');
 //require_once('skin/@libs.php');

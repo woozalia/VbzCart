@@ -55,8 +55,42 @@ __END__;
 
 }
 
-class vcraSCSupplier extends VC_Supplier {
+class vcraSCSupplier extends vcrAdminSupplier {
+    use vtTableAccess_Supplier_admin;
 
+    // ++ EVENTS ++ //
+  
+    //protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sName = $this->NameString();
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle('SC for '.$sName);
+	$oPage->SetContentTitle('Supplier Catalog for '.$sName);
+    }
+    /*
+    public function Render() {
+	return $this->AdminPage();
+    }*/
+
+    // -- EVENTS -- //
+    // ++ TABLES ++ //
+
+    protected function SCSourceTable($id=NULL) {
+	return $this->GetConnection()->MakeTableWrapper($this->SCSourcesClass(),$id);
+    }
+
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
+    
+    protected function LCSupplierRecord() {
+	$rc = $this->SupplierTable()->SpawnRecordset();
+	$rc->SetFieldValues($this->GetFieldValues());
+	return $rc;
+    }
+    
+    // -- RECORDS -- //
     // ++ ADMIN WEB UI ++ //
     
     //++single++//
@@ -67,42 +101,55 @@ class vcraSCSupplier extends VC_Supplier {
 	except the Supplier's name; this is about SCM dependent records.
     */
     protected function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-
-	$sShow = $oPage->PathArg('show');	// subpage to show
+	//$sShow = $oPage->PathArg('show');	// subpage to show
 	
 	$sName = $this->NameString();
 	
-	$arActs = array(
-	  new clsAction_section('Manage'),	// menu divider
-	  new clsActionLink_option(array(),
-	    'cat',
-	    'show',
-	    'catalogs',
-	    NULL,
-	    'wholesale catalogs from '.$sName
-	  ),
-	  new clsActionLink_option(array(),
-	    'ctg',
-	    'show',
-	    'catalog groups',
-	    NULL,
-	    "groups for organizing $sName catalog items"
-	  )
-	);
-	$oPage->PageHeaderWidgets($arActs);
-	$oPage->TitleString('SCM:'.$sName);
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('section','Manage'));
+	    $oGrpSection = $oGrp;	// save for later
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('cat','wholesale catalogs from '.$sName,'catalogs'));
+	    
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('ctg',"groups for organizing $sName catalog items",'catalog groups'));
+
+	    $sShow = $oGrp->GetChoiceValue();
+
+	$rcBase = $this->LCSupplierRecord();
+	$htStatus = $rcBase->SelfLink_name();
+	if (is_null($sShow)) {
+	    $htStatus .= ' &ndash; choose a menu option.';
+	}
+	$out = "<div class=content>Catalog Management for $htStatus</div>";
 	
+/*
 	// temporarily replace Action Key so we can link back to base admin page for this Supplier
 	$sActKey = $this->Table()->ActionKey();
-	$this->Table()->ActionKey(KS_ACTION_CATALOG_SUPPLIER);
+	$this->GetTableWrapper()->ActionKey(KS_ACTION_CATALOG_SUPPLIER);
 	$out = 'Catalog Management for '.$this->SelfLink_name();
 	$this->Table()->ActionKey($sActKey);	// restore SCM action key
-
+*/
+	$sHdr = NULL;
+	$oMenu = new fcHeaderMenu();
 	switch ($sShow) {
 	  case 'cat':
 	    $sHdr = 'Catalogs';
-	    $sKey = $this->SCSourceTable()->ActionKey();
+	    $sKey = $this->SCSourceTable()->GetActionKey();
+			      // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	    $oMenu->SetNode($ol = new fcMenuOptionLink('page',$sKey,'add',NULL,'add a catalog to '.$sName));
+	      $ol->AddLinkArray(
+		array(
+		  'id'		=> KS_NEW_REC,
+		  'supp'	=> $this->GetKeyValue()
+		  )
+		);
+
+	    $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','View'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	      $oGrp->SetChoice($ol = new fcHeaderChoice('inact','include inactive catalogs','inactive'));
+		$ol->AddLinkArray($oGrpSection->GetSelfArray());	// make sure we stay in the same section
+		$doInact = $ol->GetIsSelected();
+	    /*
 	    $arActs = array(
 	      new clsActionLink_option(
 		array(
@@ -127,10 +174,15 @@ class vcraSCSupplier extends VC_Supplier {
 	    );
 	    $out .= $oPage->ActionHeader($sHdr,$arActs);
 	    $doInact = ($oPage->PathArg('view') == 'inact');
-	    $out .= $this->SourceAdmin($doInact);
+	    */
+	    $sSection = $this->SourceAdmin($doInact);
 	    break;
 	  case 'ctg':
 	    $sHdr = 'Catalog Groups';
+			      // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	    $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit the list of groups'));
+	      $doEdit = $ol->GetIsSelected();
+	    /*
 	    $arActs = array(
 	      new clsActionLink_option(array(),
 		'edit',			// $iLinkKey
@@ -141,10 +193,16 @@ class vcraSCSupplier extends VC_Supplier {
 	      )
 	    );
 	    $out .= $oPage->ActionHeader($sHdr,$arActs);
-	    
 	    $doEdit = ($oPage->PathArg('do') == 'edit');
-	    $out .= $this->GroupAdmin($doEdit);
+	    */
+	    $sSection = $this->GroupAdmin($doEdit);
 	    break;
+	}
+	if (!is_null($sHdr)) {
+	    $oHdr = new fcSectionHeader($sHdr,$oMenu);
+	    $out .= $oHdr->Render()
+	      .$sSection
+	      ;
 	}
 	
 	return $out;
@@ -159,7 +217,7 @@ class vcraSCSupplier extends VC_Supplier {
 	$sCatKey = $this->CatKey();
 	$sName = $this->NameString();
 	$htSupp = $this->SelfLink($sCatKey.' - '.$sName);
-	$ftActive = clsHTML::fromBool($this->isActive());
+	$ftActive = fcHTML::fromBool($this->isActive());
 
 	$out = <<<__END__
     <td>$id</td>

@@ -5,6 +5,7 @@
     2010-11-03 extracted classes from SpecialVbzAdmin.php:
       VbzStockPlace(s), VbzStockBin(s), VbzStockBinLog, VbzStockBinEvent, VbzAdminStkItem(s), clsStkLog, vcrStockEvent (was clsStockEvent)
     2013-12-14 extracted from stock.php: clsStkLog, vcrStockEvent (was clsStockEvent), VbzStockBinLog, VbzStockBinEvent
+    2017-04-16 clsStkLog -> vctStockLineLog, vcrStockEvent -> vcrStockLineEvent, VbzStockBinLog -> vctStockBinLog, VbzStockBinEvent -> vcrStockBinEvent
   CONCEPTS:
     This deals primarily with two places where stock can be:
       STOCK refers to the actual stock tables.
@@ -19,7 +20,7 @@ define('KS_TBL_STOCK_BIN_HIST','stk_bin_history');
 
 // STOCK ITEM HISTORY //
 
-class clsStkLog extends vcAdminTable {
+class vctStockLineLog extends vcAdminTable {
     use ftLinkableTable;
 
     //const chTypeBin = 'L';	// 2016-02-24 not sure why this was a thing; some stock event records need fixing
@@ -29,26 +30,26 @@ class clsStkLog extends vcAdminTable {
     const chTypeMult = 'M';
 
     // ++ SETUP ++ //
-/*
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->Name(KS_TBL_STOCK_ITEM_HIST);
-	  $this->KeyName('ID');
-	  $this->ClassSng('clsStockEvent');
-	  $this->ActionKey(KS_ACTION_STOCK_LINE_LOG);
-    } */
     protected function TableName() {
 	return KS_TBL_STOCK_ITEM_HIST;
     }
     protected function SingularName() {
-	return 'vcrStockEvent';
+	return 'vcrStockLineEvent';
     }
     public function GetActionKey() {
 	return KS_ACTION_STOCK_LINE_LOG;
     }
 
     // -- SETUP -- //
-    // ++ DATA TABLE ACCESS ++ //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'There is currently no display function for displaying all stock line events. (There should be.)';
+    }
+    
+    // -- EVENTS -- //
+    // ++ TABLES ++ //
 
     /*----
       PUBLIC so recordset can call it
@@ -63,7 +64,7 @@ class clsStkLog extends vcAdminTable {
 	return $this->Engine()->Make(KS_CLASS_STOCK_BINS,$id);
     }
 
-    // -- DATA TABLE ACCESS -- //
+    // -- TABLES -- //
     // ++ ACTIONS ++ //
 
     /*----
@@ -111,6 +112,7 @@ class clsStkLog extends vcAdminTable {
       HISTORY:
 	2016-01-20 Created for those circumstances where we can't know where the item has been moved
 	  until it already has been, e.g. creating a new stock line from a restock.
+	2017-03-28 This is going to need y2017 remediation.
     */
     public function Log_MoveToBin(
       $idItem,
@@ -129,7 +131,7 @@ class clsStkLog extends vcAdminTable {
 	$rcBin = $this->StockBinTable($idBin);
 	$qtyInBin = $rcBin->Qty_forItem($idItem,0);
 	
-	$sUser = $this->Engine()->App()->User()->UserName();
+	$sUser = $this->Engine()->App()->User()->LoginName();
 	$sAddr = $_SERVER['REMOTE_ADDR'];
       
 	$db = $this->Engine();
@@ -189,7 +191,7 @@ class clsStkLog extends vcAdminTable {
 //	}
 	$rcBin = $this->StockBinTable($idBin);
 	$qtyInBin = $rcBin->Qty_forItem($idItem,0);
-	$sUser = $this->Engine()->App()->User()->UserName();
+	$sUser = $this->Engine()->App()->User()->LoginName();
 	$sAddr = $_SERVER['REMOTE_ADDR'];
 	
 	$db = $this->Engine();
@@ -244,7 +246,7 @@ class clsStkLog extends vcAdminTable {
 	  'QtyBinBefore'=> $qtyInBin,
 	  'WhenStarted'	=> 'NOW()',
 	  'What'	=> SQLValue($iDescr),
-	  'WhoAdmin'	=> SQLValue($this->Engine()->App()->User()->UserName()),
+	  'WhoAdmin'	=> SQLValue($this->Engine()->App()->User()->LoginName()),
 	  'WhoNetwork'	=> SQLValue($_SERVER['REMOTE_ADDR'])
 	  );
 	$this->Insert($arData);
@@ -256,7 +258,7 @@ class clsStkLog extends vcAdminTable {
     // ++ ADMIN WEB UI ++ //
 
     public function Listing_forItem($idItem) {
-	$rs = $this->GetData('ID_Item='.$idItem,NULL,'ID DESC');
+	$rs = $this->SelectRecords('ID_Item='.$idItem,'ID DESC');
 	return $rs->AdminRows(array(
 	  'ID'		=> 'ID',
 	  'ID_Event'	=> 'SysEv',
@@ -278,6 +280,8 @@ class clsStkLog extends vcAdminTable {
     }
     public function Listing_forStockLine($idLine) {
 	$rs = $this->GetData('ID_StkLine='.$idLine,NULL,'ID DESC');
+	return $rs->AdminRows();
+	/*
 	return $rs->AdminRows(array(
 	  'ID'		=> 'ID',
 	  'ID_Event'	=> 'SysEv',
@@ -295,12 +299,13 @@ class clsStkLog extends vcAdminTable {
 	  'WhenFinished'=> 'finish',
 	  'What'	=> 'description',
 	  ));
+	  */
     }
     protected function AdminRows(array $arFields) {
 	throw new exception('Who calls this? Use new functionality.');
 	return "\n<table class=listing>".$this->AdminRows($arFields)."\n</table>";
     }
-
+ 
     // -- ADMIN WEB UI -- //
     // ++ DEPRECATED ++ //
 
@@ -327,7 +332,8 @@ class clsStkLog extends vcAdminTable {
 	$this->Update($arData,'ID='.$iEvent);
     }
 }
-class vcrStockEvent extends vcAdminRecordset {
+class vcrStockLineEvent extends vcAdminRecordset {
+    use ftShowableRecord;
 
     // ++ SETUP ++ //
 
@@ -527,11 +533,13 @@ class vcrStockEvent extends vcAdminRecordset {
 	The invoked object can be thought of as an event template, because multiple sub-events
 	  can be created from it with minimal modification.
 	The ID returned by this function is for the created event record.
+      HISTORY:
+	2017-03-28 This will need y2017 remediation.
     */
     public function Write($sDescr) {
 	//$this->FetchTotals();	// look up all available data & do any doable calculations
 
-	$sUser = $this->Engine()->App()->User()->UserName();
+	$sUser = $this->Engine()->App()->User()->LoginName();
 	$sAddr = $_SERVER['REMOTE_ADDR'];
 	$sDescrFull = $this->DescrBase().$sDescr;
 	$db = $this->Engine();
@@ -607,8 +615,27 @@ class vcrStockEvent extends vcAdminRecordset {
     protected function AdminRows_start(array $arOptions=NULL) {
 	return "\n<table class=listing>";
     }
+    protected function AdminRows_settings_columns() {
+	return array(
+	  'ID'		=> 'ID',
+	  'ID_Event'	=> 'SysEv',
+	  'ID_Item'	=> 'Item',
+	  'ID_StkBin'	=> 'Bin',
+	  'CH_OthType'	=> 'oType',
+	  'ID_OthCont'	=> 'oCont',
+	  'ID_OthLine'	=> 'oLine',
+	  'IDS_OthCont'	=> 'Other',
+	  'QtyBefore'	=> 'qLineBef',
+	  'QtyBinBefore'=> 'qBinBef',
+	  'QtyAfter'	=> 'qLineAft',
+	  'QtyBinAfter'	=> 'qBinAft',
+	  'WhenStarted'	=> 'start',
+	  'WhenFinished'=> 'finish',
+	  'What'	=> 'description',
+	  );
+    }
     protected function AdminField($sField) {
-	$val = $this->Value($sField);
+	$val = $this->GetFieldValue($sField);
 	if ($sField == 'ID') {
 	    $val = $this->SelfLink();
 	}
@@ -814,7 +841,7 @@ __END__;
 
 // STOCK BIN HISTORY //
 
-class VbzStockBinLog extends vcAdminTable {
+class vctStockBinLog extends vcAdminTable {
 
     // ++ SETUP ++ //
 
@@ -822,20 +849,33 @@ class VbzStockBinLog extends vcAdminTable {
 	return KS_TBL_STOCK_BIN_HIST;
     }
     protected function SingularName() {
-	return 'VbzStockBinEvent';
+	return 'vcrStockBinEvent';
     }
     public function GetActionKey() {
 	return KS_ACTION_STOCK_BIN_LOG;
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'There is currently no display function for displaying all stock bin events. (There should be.)';
+    }
     
+    // -- EVENTS -- //
+    // ++ DB WRITE ++ //
+    
+    /*----
+      HISTORY:
+	2017-03-28 This will need y2017 remediation.
+    */
     public function LogEvent($iBin,$iSrce,$iDest,$iDescr=NULL) {
 	$db = $this->Engine();
 	$arData = array(
 	    'ID_Bin'	=> $iBin,
 	    'WhenDone'	=> 'NOW()',
-	    'WhoAdmin'	=> $db->SanitizeAndQuote($db->App()->User()->UserName()),
+	    'WhoAdmin'	=> $db->SanitizeAndQuote($db->App()->User()->LoginName()),
 	    'WhoNetwork'=> $db->SanitizeAndQuote($_SERVER['REMOTE_ADDR']),
 	    'ID_Srce'	=> $iSrce,
 	    'ID_Dest'	=> $iDest,
@@ -843,17 +883,19 @@ class VbzStockBinLog extends vcAdminTable {
 	    );
 	return $this->Insert($arData);
     }
+    
+    // -- DB WRITE -- //
 }
 
-class VbzStockBinEvent extends vcAdminRecordset {
+class vcrStockBinEvent extends vcAdminRecordset {
 
-    // ++ DATA TABLE ACCESS ++ //
+    // ++ TABLES ++ //
 
     protected function PlaceTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_STOCK_PLACES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_PLACES,$id);
     }
 
-    // -- DATA TABLE ACCESS -- //
+    // -- TABLES -- //
 
     /*----
       TODO: Hard-coded HTML markup should be replaced by CSS classes or Skin calls
@@ -876,12 +918,12 @@ __END__;
 		$ftStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$isOdd = !$isOdd;
 
-		$row = $this->Values();
+		$row = $this->GetFieldValues();
 		$id = $row['ID'];
 		$ftWhen = $row['WhenDone'];
 		$idSrce = $row['ID_Srce'];
 		$idDest = $row['ID_Dest'];
-		$rcSrce = $tPlaces->GetItem($idSrce);
+		$rcSrce = $tPlaces->GetRecord_forKey($idSrce);
 		if ($rcSrce->RowCount() == 0) {	// happens if idSrce is 0
 		    $strSrce = "<i>??</i>$idSrce";	// TODO: use CSS class
 		} else {
@@ -890,7 +932,7 @@ __END__;
 		if ($idSrce == $idDest) {
 		    $ftToFrom = "<td colspan=2 align=center>$strSrce</td>";
 		} else {
-		    $rcDest = $tPlaces->GetItem($idDest);
+		    $rcDest = $tPlaces->GetRecord_forKey($idDest);
 		    if (is_null($rcDest)) {
 			$strDest = "<i>??</i>$idDest";
 		    } else {

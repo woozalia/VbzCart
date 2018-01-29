@@ -4,14 +4,14 @@
     2014-02-13 split name classes off from cust.php
     2017-01-06 somewhat updated
 */
-class VCT_CustNames extends clsCustNames {
+class vctAdminCustNames extends vctCustNames implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     
     // ++ SETUP ++ //
 
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_CustName';
+	return 'vcrAdminCustName';
     }
     // CEMENT
     public function GetActionKey() {
@@ -19,8 +19,12 @@ class VCT_CustNames extends clsCustNames {
     }
 
     // -- SETUP -- //
-    // ++ ADMIN UI ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->SearchPage();	// 2017-03-27 I'm *guessing* that this is what we want to do... it needs rewriting.
+    }
     /*----
       HISTORY:
 	2012-01-05 adapted from VbzAdminTitles_info_Cat to clsAdminCustNames
@@ -92,9 +96,9 @@ __END__;
 
     // -- ADMIN UI -- //
 }
-class VCR_CustName extends clsCustName {
+class vcrAdminCustName extends vcrCustName {
     use ftLinkableRecord;
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
 
     // ++ TRAIT HELPERS ++ //
     
@@ -155,7 +159,7 @@ class VCR_CustName extends clsCustName {
     
     // PUBLIC so Customer objects can access it
     public function NameString() {
-	return $this->Value('Name');
+	return $this->GetFieldValue('Name');
     }
     public function IsActive() {
 	return $this->Value('isActive');

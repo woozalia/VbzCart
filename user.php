@@ -1,6 +1,8 @@
 <?php
 /*
   FILE: user.php
+  PURPOSE: I *think* the idea here is to allow additional stuff to be attached to user accounts --
+    but I'm no longer (2017-03-28) sure if these vc classes are actually needed or even used anymore.
   HISTORY:
     2013-09-15 created for handling log-ins during checkout
     2013-09-25 split most of clsPageUser into clsPageLogin
@@ -30,7 +32,7 @@ class vcUserRecord extends frcUserAcct {
     // ++ CLASSES ++ //
     
     protected function ContactsClass() {
-	return 'clsCusts';
+	return 'vctCusts';
     }
     
     // -- CLASSES -- //
@@ -58,7 +60,8 @@ class vcUserRecord extends frcUserAcct {
     // -- RECORDS -- //
     // ++ FIELD VALUES ++ //
 
-    public function UserName() {
+    /* 2017-03-28 These should be redundant now.
+    public function LoginName() {
 	return $this->GetFieldValue('UserName');
     }
     
@@ -72,7 +75,7 @@ class vcUserRecord extends frcUserAcct {
 	} else {
 	    return $this->Value('FullName');
 	}
-    }
+    } */
     public function AuthValid($iPass) {
 	// get salt for this user
 	$sSalt = $this->Value('PassSalt');

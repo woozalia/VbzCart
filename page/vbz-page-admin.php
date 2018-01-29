@@ -23,7 +23,7 @@ class vcNavbar_admin extends fcMenuFolder {
     // ++ CEMENTING ++ //
     
     protected function OnCreateElements() {
-	fcDropInManager::ScanDropins(KFP_VBZ_DROPINS,$this);	// add all the dropins as subnodes
+	fcDropInManager::ScanDropins(vcGlobals::Me()->GetFilePath_forDropins(),$this);	// add all the dropins as subnodes
     }
     protected function RenderNodesBlock() {
 	return "\n<ul class=menu>"
@@ -127,54 +127,11 @@ class vcPageAdmin extends vcPage {
     protected function OnRunCalculations() {
 	$this->UseStyleSheet('admin');
 	$this->SetPageTitle(KS_SITE_SHORT.' Control Panel');	// default page title
-/* 2017-01-30 widget does this now
-	$oKiosk = fcApp::Me()->GetKioskObject();
-	$oReq = $oKiosk->GetInputObject();
-	
-	// check for any special commands (just "login" at this point):
-	if ($oReq->KeyExists('do')) {
-	    if ($oReq->GetString('do') == 'login') {
-		$this->GetElement_LoginWidget()->SetInput_ShowLoginForm();
-	    }
-	}
-*/	
     }
-    protected function Class_forTagHTML() {
+    protected function Class_forTagHTML() : string {
 	return 'vcTag_html_admin';
     }
 
     // -- CEMENTING -- //
-    // ++ EMAIL ++ //
-    
-    /*----
-      PUBLIC so other elements can use it (e.g. login widget)
-      TODO:
-	* should be template-based, for i18n
-	* should include links for notifying us and changing password
-    */
-    public function SendEmail_forLoginSuccess() {
-	// for now, we'll always send email; later, this should probably be a user preference
-	$rcUser = fcApp::Me()->GetUserRecord();
-
-	$sUser = $rcUser->UserName();
-	$sSiteName = KS_SITE_NAME;
-	$sAddress = $_SERVER['REMOTE_ADDR'];
-	$sBrowser = $_SERVER['HTTP_USER_AGENT'];
-
-	$sMsg = <<<__END__
-Someone, presumably you, just logged in to $sSiteName with username "$sUser". Please make sure this was actually you.
-* IP address: $sAddress
-* Browser: $sBrowser
-
-If it wasn't you, please let us know, and change your password.
-__END__;
-	$sToAddr = $rcUser->EmailAddress();
-	$sToName = $rcUser->FullName();
-	$sSubj = 'login notification from '.KS_SITE_NAME;
-	$ok = fcApp::Me()->DoEmail_fromAdmin_Auto($sToAddr,$sToName,$sSubj,$sMsg);
-	return $ok;
-    }
-    
-    // -- EMAIL -- //
 
 }

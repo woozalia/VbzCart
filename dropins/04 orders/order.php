@@ -4,6 +4,11 @@
   HISTORY:
     2010-10-16 Extracted order management classes from SpecialVbzAdmin.php
     2013-12-15 Adapting for drop-in module system.
+    2017-06-05 updated stuff earlier; fixed title to describe filtering
+  TODO:
+  * allow for multiple filters
+  * tidy up filter description calculation, maybe?
+  ** We're currently calculating it two different ways.
 */
 
 // Transaction Types
@@ -12,177 +17,71 @@ define('KI_ORD_TXTYPE_PERITM_SH',1);	// per-item shipping charge total
 define('KI_ORD_TXTYPE_PERPKG_SH',2);	// per-package shipping charge
 define('KI_ORD_TXTYPE_PAID_CC',6);	// payment: credit card
 
-class VCM_Orders extends vctOrders {
+class vctAdminOrders extends vctOrders implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
     
     public function __construct($iDB) {
 	parent::__construct($iDB);
-	  $this->ClassSng('VC_Order');	// override parent
-	  $this->ActionKey(KS_PAGE_KEY_ORDER);
+//	  $this->ClassSng();	// override parent
+//	  $this->ActionKey(KS_PAGE_KEY_ORDER);
+    }
+    // OVERRIDE
+    protected function SingularName() {
+	return 'vcrAdminOrder';
     }
 
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {    }
+    protected function OnRunCalculations() {
+	$this->AdminPageMenu();
+	$sOption = $this->GetOption_Description();
+	$sTitle = $sOption.' Orders';
+	$htTitle = 'Orders: '.$sOption;
+    
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle('Order Management');
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->arArgs = $arArgs;
 	$out = $this->AdminPage();
 	return $out;
-    }
+    } */
 
-    // -- CALLBACKS -- //
-    // ++ CLASS NAMES ++ //
+    // -- EVENTS -- //
+    // ++ CLASSES ++ //
 
     protected function LinesClass() {
 	return KS_CLASS_ORDER_LINES;
     }
 
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
 
     public function LineTable($id=NULL) {
-	return $this->Engine()->Make($this->LinesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->LinesClass(),$id);
     }
 
     // -- TABLES -- //
-    // ++ WEB UI ++ //
-
-    protected function RenderSearch() {
-	$oPage = $this->Engine()->App()->Page();
-	//$oSkin = $oPage->Skin();
-
-	$sPfx = $this->ActionKey();
-	$htSearchOut = NULL;
-
-	$sSearchName = $sPfx.'-needle';
-	$sInput = $oPage->ReqArgText($sSearchName);
-	$doSearch = (!empty($sInput));
-	if ($doSearch) {
-	    $rs = $this->Search_forText($sInput);
-	    $htSearchOut .= $rs->Listing('No matching order records.');
-	}
-	$htFind = '"'.fcString::EncodeForHTML($sInput).'"';
-
-	$sOrderName = $sPfx.'-order';
-	$sInput = $oPage->ReqArgText($sOrderName);
-	$doSearch = (!empty($sInput));
-	if ($doSearch) {
-	    $rs = $this->Search_forOrdNum($sInput);
-	    $htSearchOut .= $rs->Listing('No matching order records.');
-	}
-	$htOrd = '"'.fcString::EncodeForHTML($sInput).'"';
-
-	// build forms
-
-	$htSearchHdr = $oPage->SectionHeader('Search',NULL,'section-header-sub');
-	$htSearchForm = <<<__END__
-<form method=post>
-  Search for names or addresses containing:
-  <input name="$sSearchName" size=40 value=$htFind>
-  <input type=submit name=btnSearch value="Go">
-</form>
-<form method=post>
-  Search for order number:
-  <input name="$sOrderName" size=6 value=$htOrd>
-  <input type=submit name=btnSearch value="Go">
-</form>
-__END__;
-
-	$out = $htSearchHdr.$htSearchForm;
-	if (!is_null($htSearchOut)) {
-	    $out .= $oPage->SectionHeader('Search Results',NULL,'section-header-sub')
-	      .$htSearchOut;
-	}
-
-	return $out;
-    }
-    public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-
-	// set up titlebar menu
-	$arPage = $oPage->PathArgs();
-	/* old setup
-	$arActs = array(
-	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
-	  new clsActionLink_option($arPage,'show.pulled',	NULL,'pulled',	NULL,'show pulled orders'),
-	  new clsActionLink_option($arPage,'show.open',	NULL,'open',	NULL,'show orders which have not been completed'),
-	  new clsActionLink_option($arPage,'show.shut',	NULL,'shut',	NULL,'show orders which have been closed'),
-	  ); */
-	$arActs = array(
-	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
-	  $miPull = new clsActionLink_option($arPage,'pulled',	'show',NULL,	NULL,'show only pulled orders'),
-	  $miShut = new clsActionLink_option($arPage,'shut',	'show',NULL,	NULL,'show only orders which have been closed'),
-	  $miOpen = new clsActionLink_option($arPage,'open',	'show',NULL,	NULL,'show only confirmed orders which have not been filled'),
-	  $miUncon = new clsActionLink_option($arPage,'uncon',	'show','unconfirmed',	NULL,'show only unconfirmed orders'),
-	  );
-	$oPage->PageHeaderWidgets($arActs);
-
-	// get current menu selections
-	
-	$doShowPulls = $miPull->Selected();
-	$doShowShut = $miShut->Selected();
-	$doShowOpen = $miOpen->Selected();
-	$doShowUncon = $miUncon->Selected();
-	
-	$doShow = FALSE;
-	$arDescr = array();
-	if ($doShowUncon) {
-	    $arFilt[] = '(WhenPlaced IS NULL)';
-	    $arDescr[] = 'unconfirmed';
-	    $doShow = TRUE;
-	    $doCalc = TRUE;	// do additional calculations to get order's status
-	}
-	if ($doShowOpen) {
-	    $arFilt[] = '(ID_Pull IS NULL) AND (WhenClosed IS NULL) AND (WhenPlaced IS NOT NULL)';
-	    $arDescr[] = 'open';
-	    $doShow = TRUE;
-	    $doCalc = TRUE;	// do additional calculations to get order's status
-	}
-	if ($doShowShut) {
-	    $arFilt[] = '(WhenClosed IS NOT NULL)';
-	    $arDescr[] = 'closed';
-	    $doShow = TRUE;
-	    $doCalc = FALSE;
-	}
-	if ($doShowPulls) {
-	    $arFilt[] = '(ID_Pull IS NOT NULL)';
-	    $arDescr[] = 'pulled';
-	    $doShow = TRUE;
-	    $doCalc = FALSE;
-	}
-	$out = NULL;
-	$out .= $this->RenderSearch();
-	if ($doShow) {
-	    $qof = new fcSQLt_Filt('AND',$arFilt);
-	    $sqlFilt = $qof->RenderValue();
-	    $rs = $this->SelectRecords($sqlFilt,'SortPfx, Number DESC');
-	    $qRows = $rs->RowCount();
-	    $sDescr = fcString::ConcatArray(', ',$arDescr);
-	    $out .= $oPage->ActionHeader('All orders that are '.$sDescr);
-	    $out .= 
-	      'Showing '.$qRows.' order'.fcString::Pluralize($qRows)
-	      .':'
-	      .$rs->Listing("No records found.",$doCalc)
-	      .'<span class=line-stats>('.$rs->sqlMake.')</span>'
-	      ;
-	} else {
-	    $out .= 'No filter selected; not displaying any orders.';
-	}
-	return $out;
-    }
-
-    // -- ADMIN INTERFACE -- //
-    // ++ BUSINESS LOGIC ++ //
+    // ++ ARRAY ++ //
 
     /*-----
       RETURNS: A list of all items needed to fill open orders.
     */
     public function ItemsNeeded() {
+	throw new exception('2017-06-05 This will need rewriting, if it is still used.');
 	$sqlFilt = '(ID_Pull IS NULL) AND (WhenClosed IS NULL)';
 	$objOrd = $this->GetData($sqlFilt,NULL);	// all open orders, one at a time
 	$arNeed = NULL;
@@ -217,9 +116,184 @@ __END__;
 	return $arNeed;
     }
 
-    // -- BUSINESS LOGIC -- //
+    // -- ARRAYS -- //
+    // ++ INPUT ++ //
+
+    private $doShowOpen;
+    protected function SetOption_ShowOpen($b) {
+	$this->doShowOpen = $b;
+    }
+    protected function GetOption_ShowOpen() {
+	return $this->doShowOpen;
+    }
+    private $doShowShut;
+    protected function SetOption_ShowShut($b) {
+	$this->doShowShut = $b;
+    }
+    protected function GetOption_ShowShut() {
+	return $this->doShowShut;
+    }
+    private $doShowHeld;
+    protected function SetOption_ShowHeld($b) {
+	$this->doShowHeld = $b;
+    }
+    protected function GetOption_ShowHeld() {
+	return $this->doShowHeld;
+    }
+    private $doShowUncon;
+    protected function SetOption_ShowUnconfirmed($b) {
+	$this->doShowUncon = $b;
+    }
+    protected function GetOption_ShowUnconfirmed() {
+	return $this->doShowUncon;
+    }
+    protected function GetOption_Description() {
+	$s = NULL;
+	if ($this->GetOption_ShowOpen()) {
+	    $s = 'open';
+	}
+	if ($this->GetOption_ShowShut()) {
+	    $s = fcString::Concat(', ',$s,'shut');
+	}
+	if ($this->GetOption_ShowHeld()) {
+	    $s = fcString::Concat(', ',$s,'on-hold');
+	}
+	if ($this->GetOption_ShowUnconfirmed()) {
+	    $s = fcString::Concat(', ',$s,'unconfirmed');
+	}
+	return $s;
+    }
+
+    // -- INPUT -- //
+    // ++ OUTPUT ++ //
+
+    protected function RenderSearch() {
+	$oFormIn = fcHTTP::Request();
+
+	$sPfx = $this->GetActionKey();
+	$htSearchOut = NULL;
+
+	$sSearchName = $sPfx.'-needle';
+	$sInput = $oFormIn->GetString($sSearchName);
+	$doSearch = (!empty($sInput));
+	if ($doSearch) {
+	    $rs = $this->Search_forText($sInput);
+	    $htSearchOut .= $rs->Listing('No matching order records.');
+	}
+	$htFind = '"'.fcString::EncodeForHTML($sInput).'"';
+
+	$sOrderName = $sPfx.'-order';
+	$sInput = $oFormIn->GetString($sOrderName);
+	$doSearch = (!empty($sInput));
+	if ($doSearch) {
+	    $rs = $this->Search_forOrdNum($sInput);
+	    $htSearchOut .= $rs->Listing('No matching order records.');
+	}
+	$htOrd = '"'.fcString::EncodeForHTML($sInput).'"';
+
+	// build forms
+
+	$oHdr = new fcSectionHeader('Search');
+	$htSearchHdr = $oHdr->Render();
+	$htSearchForm = <<<__END__
+<div class=content>
+<form method=post>
+  Search for names or addresses containing:
+  <input name="$sSearchName" size=40 value=$htFind>
+  <input type=submit name=btnSearch value="Go">
+</form>
+<form method=post>
+  Search for order number:
+  <input name="$sOrderName" size=6 value=$htOrd>
+  <input type=submit name=btnSearch value="Go">
+</form>
+</div>
+__END__;
+
+	$out = $htSearchHdr.$htSearchForm;
+	if (!is_null($htSearchOut)) {
+	    $oHdr = new fcSectionHeader('Search Results');
+	    $out .= $oHdr->Render()
+	      .$htSearchOut
+	      ;
+	}
+
+	return $out;
+    }
+    protected function AdminPageMenu() {
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+
+	// eventually we need a fcHeaderToggleGroup so we can have multiple selections active
+	$oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Show'));
+//	  $sShow = $oGrp->GetChoiceValue();
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('open','show only confirmed orders which have not been filled'));
+	    $this->SetOption_ShowOpen( $ol->GetIsSelected() );
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('shut','show only orders which have been closed'));
+	    $this->SetOption_ShowShut( $ol->GetIsSelected() );
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('pulled','show only pulled orders'));
+	    $this->SetOption_ShowHeld( $ol->GetIsSelected() );
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('uncon','show only unconfirmed orders','tentative'));
+	    $this->SetOption_ShowUnconfirmed( $ol->GetIsSelected() );
+    }
+    public function AdminPage() {
+    
+	$doShowHeld = $this->GetOption_ShowHeld();
+	$doShowShut = $this->GetOption_ShowShut();
+	$doShowOpen = $this->GetOption_ShowOpen();
+	$doShowUncon = $this->GetOption_ShowUnconfirmed();
+	
+	$doShow = FALSE;
+	$arDescr = array();
+	if ($doShowUncon) {
+	    $arFilt[] = '(WhenPlaced IS NULL)';
+	    $arDescr[] = 'unconfirmed';
+	    $doShow = TRUE;
+	    $doCalc = TRUE;	// do additional calculations to get order's status
+	}
+	if ($doShowOpen) {
+	    $arFilt[] = '(WhenHeld IS NULL) AND (WhenClosed IS NULL) AND (WhenPlaced IS NOT NULL)';
+	    $arDescr[] = 'open';
+	    $doShow = TRUE;
+	    $doCalc = TRUE;	// do additional calculations to get order's status
+	}
+	if ($doShowShut) {
+	    $arFilt[] = '(WhenClosed IS NOT NULL)';
+	    $arDescr[] = 'closed';
+	    $doShow = TRUE;
+	    $doCalc = FALSE;
+	}
+	if ($doShowHeld) {
+	    $arFilt[] = '(WhenHeld IS NOT NULL)';
+	    $arDescr[] = 'pulled';
+	    $doShow = TRUE;
+	    $doCalc = FALSE;
+	}
+	
+	$out = $this->RenderSearch();
+	if ($doShow) {
+	    $qof = new fcSQLt_Filt('AND',$arFilt);
+	    $sqlFilt = $qof->RenderValue();
+	    $rs = $this->SelectRecords($sqlFilt,'SortPfx, Number DESC');
+	    $qRows = $rs->RowCount();
+	    $sDescr = fcString::ConcatArray(', ',$arDescr);
+	    
+	    $oHdr = new fcSectionHeader('All Orders that are '.$sDescr);
+	    $out .= $oHdr->Render()
+	      ."<div class=content>Showing $qRows order".fcString::Pluralize($qRows)
+	      .'</div>:'
+	      .$rs->Listing("No records found.",$doCalc)
+	      .'<span class=line-stats>('.$rs->sql.')</span>'
+	      ;
+	} else {
+	    $out .= '<div class=content>No filter selected; not displaying any orders.</div>';
+	}
+	return $out;
+    }
+
+    // -- OUTPUT -- //
 }
-/*%%%%
+/*::::
   HISTORY:
     2010-11-26 copied AdminRedirect() from VbzAdminCatalog to clsRstkRcd
     2011-01-02 copied AdminRedirect() from clsRstkRcd to VbzAdminOrderTrxact
@@ -227,47 +301,56 @@ __END__;
     2011-12-20 copied AdminRedirect() from VbzAdminOrderTrxact to VbzAdminOrder
     2013-01-14 adapted as dropin module
 */
-class VC_Order extends vcrOrder {
+class vcrAdminOrder extends vcrOrder implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
+    use ftSaveableRecord;
     use ftLoggableRecord;
-
-    private $objPull;
-    // object cache
-    private $rsLines;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
 
     protected function InitVars() {
 	parent::InitVars();
-	$this->rsLines = NULL;
+	$this->ResetLineRecords();
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sNum = $this->NumberString();
+	$id = $this->GetKeyValue();
+	
+	$htTitle = "Retail Order #$sNum";
+	$sTitle = "ord $sNum ($id)";
 
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+	$oPage = fcApp::Me()->GetPageObject();	
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
     /*----
       PURPOSE: initialization method called by dropin menu
     */
     public function MenuInit(array $arArgs=NULL) {
+	throw new exception('2017-04-11 Does anything actually call this anymore?');
 	return $this->AdminInit();
     }
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ LOCAL STATUS ++ //
 
     private $doEdit;
-    protected function DoEdit($fOn=NULL) {
-	if (!is_null($fOn)) {
-	    $this->doEdit = $fOn;
-	}
+    protected function SetDoEdit($fOn) {
+	$this->doEdit = $fOn;
+    }
+    protected function GetDoEdit() {
 	return $this->doEdit;
     }
+
     /*
       TODO: This is only ever set to FALSE -- which may be broken coding.
 	Either fix or eliminate.
@@ -287,7 +370,7 @@ class VC_Order extends vcrOrder {
       CALLED BY: $this->SelfLink_name()
     */
     protected function AdminName() {
-	return $this->Number();
+	return $this->NumberString();
     }
     /*----
       CALLED BY: Cart admin object
@@ -302,29 +385,22 @@ class VC_Order extends vcrOrder {
     }
 
     // -- TRAIT HELPERS -- //
-    // ++ APP FRAMEWORK ++ //
-    
-    protected function PageObject() {
-	return $this->Engine()->App()->Page();
-    }
-    
-    // -- APP FRAMEWORK -- //
-    // ++ CLASS NAMES ++ //
+    // ++ CLASSES ++ //
 
     protected function CustomersClass() {
 	return KS_CLASS_ADMIN_CUSTOMERS;
     }
     protected function CustAddrsClass() {
-	return KS_CLASS_MAIL_ADDRS;
+	return KS_CLASS_MAIL_ADDRS_ADMIN;
     }
     public function TrxactsClass() {
 	return KS_CLASS_ORDER_TRXS;
     }
     public function CardsClass() {
-	return KS_CLASS_CUST_CARDS;
+	return KS_CLASS_CUST_CARDS_ADMIN;
     }
     protected function CartsClass() {
-	if (fcDropInManager::IsReady('vbz.carts')) {
+	if (fcApp::Me()->GetDropinManager()->HasModule('vbz.carts')) {
 	    return KS_CLASS_ADMIN_CARTS;
 	} else {
 	    return parent::CartsClass();
@@ -344,17 +420,20 @@ class VC_Order extends vcrOrder {
     protected function PackagesClass() {
 	return KS_CLASS_PACKAGES;
     }
-    protected function PullsClass() {
+    /*protected function PullsClass() {
 	return KS_CLASS_ORDER_PULLS;
+    }*/
+    protected function HoldsClass() {
+	return KS_CLASS_ORDER_HOLDS;
     }
     protected function CustomerEmailsClass() {
-	return KS_CLASS_EMAIL_ADDRS;
+	return KS_CLASS_EMAIL_ADDRS_ADMIN;
     }
     protected function CustomerPhonesClass() {
-	return KS_CLASS_CUST_PHONES;
+	return KS_CLASS_CUST_PHONES_ADMIN;
     }
 
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
 
     // TODO: make these protected or document why they are public
@@ -364,50 +443,71 @@ class VC_Order extends vcrOrder {
       USED BY package class
     */
     public function LineTable($id=NULL) {
-	return $this->Table()->LineTable($id);
+	return $this->GetTableWrapper()->LineTable($id);
     }
     protected function CustTable($id=NULL) {
 	return $this->Engine()->Make(KS_CLASS_ADMIN_CUSTOMERS,$id);
     }
     protected function CustAddrTable($id=NULL) {
-	return $this->Engine()->Make($this->CustAddrsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CustAddrsClass(),$id);
     }
     public function CardTable($id=NULL) {
-	return $this->Engine()->Make($this->CardsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->CardsClass(),$id);
     }
     public function ChargeTable($id=NULL) {
-	return $this->Engine()->Make($this->ChargesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ChargesClass(),$id);
     }
     public function MessageTable($id=NULL) {
-	return $this->Engine()->Make($this->MessagesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->MessagesClass(),$id);
     }
     public function TrxactTable($id=NULL) {
-	return $this->Engine()->Make($this->TrxactsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->TrxactsClass(),$id);
     }
     protected function PackageTable($id=NULL) {
-	return $this->Engine()->Make($this->PackagesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->PackagesClass(),$id);
     }
+    /*
     protected function PullTable($id=NULL) {
-	return $this->Engine()->Make($this->PullsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->PullsClass(),$id);
+    }*/
+    protected function HoldTable() {
+	return $this->GetConnection()->MakeTableWrapper($this->HoldsClass());
     }
 
     // -- TABLES -- //
     // ++ RECORDS ++ //
 
     public function PullRecord() {
+	throw new exception('2017-06-03 Call HoldingRecords() instead.');
 	$rcPull = $this->PullTable($this->PullID());
 	return $rcPull;
     }
+    // ACTION: get holding records for this Order, newest first
+    protected function HoldingRecords() {
+	return $this->HoldTable()->Records_forOrder($this->GetKeyValue());
+//	return $this->HoldingTable()->SelectRecords('ID_Order='.$this->GetKeyValue(),'WhenStart DESC');
+    }
+    
+    private $rsLines;
+    protected function ResetLineRecords() {
+	$this->rsLines = NULL;
+    }
+    protected function SetLineRecords($rs) {	// TODO: class for param!
+	$this->rsLines = $rs;
+    }
     /*-----
       RETURNS: Recordset of lines for this order, sorted by Seq
+      HISTORY:
+	2017-04-11 does not appear to be called from outside, so making it PROTECTED
     */
-    public function LinesData($iRefresh=FALSE) {
-	if ($iRefresh || is_null($this->rsLines)) {
+    protected function GetLineRecords(bool $bRefresh=FALSE) {
+	if ($bRefresh || is_null($this->rsLines)) {
 	    $tbl = $this->LineTable();
-	    $this->rsLines = $tbl->GetData('ID_Order='.$this->GetKeyValue(),NULL,'Seq');
+	    $this->rsLines = $tbl->SelectRecords('ID_Order='.$this->GetKeyValue(),'Seq');
 	}
 	return $this->rsLines;
     }
+
     public function LineRecord_forItem($idItem) {
 	$tbl = $this->LineTable();
 	$rc = $tbl->GetData('(ID_Order='.$this->GetKeyValue().') AND (ID_Item='.$idItem.')');
@@ -423,7 +523,7 @@ class VC_Order extends vcrOrder {
 	if (!$useVoid) {
 	    $sqlFilt = "($sqlFilt) AND (WhenVoided IS NULL)";
 	}
-	$rs = $this->PackageTable()->GetData($sqlFilt);
+	$rs = $this->PackageTable()->SelectRecords($sqlFilt);
 	return $rs;
     }
     public function CardRecord() {
@@ -432,7 +532,7 @@ class VC_Order extends vcrOrder {
     }
     protected function CardRecords() {
 	if ($this->HasBuyer()) {
-	    $idCust = $this->BuyerID();
+	    $idCust = $this->GetBuyerID();
 	    $rsCards = $this->CardTable()->SelectRecords('ID_Cust='.$idCust);
 	    return $rsCards;
 	} else {
@@ -486,7 +586,7 @@ class VC_Order extends vcrOrder {
 	return $this->rsTrx;
     }
     protected function BuyerString() {
-	$out = $this->Value('BuyerName');
+	$out = $this->GetFieldValue('BuyerName');
 	if (is_null($out)) {
 	    if ($this->HasBuyer()) {
 		$rc = $this->BuyerRecord();
@@ -498,7 +598,7 @@ class VC_Order extends vcrOrder {
 	return $out;
     }
     protected function RecipString() {
-	$out = $this->Value('RecipName');
+	$out = $this->GetFieldValue('RecipName');
 	if (is_null($out)) {
 	    if ($this->HasRecip()) {
 		$rc = $this->RecipRecord();
@@ -538,26 +638,30 @@ class VC_Order extends vcrOrder {
     // CALLED BY Order Item
     // TODO: Rename to WhenCreated()
     public function WhenStarted() {
-    	return $this->Value('WhenCreated');
+    	return $this->GetFieldValue('WhenCreated');
+    }
+    protected function WhenHeld() {
+    	return $this->GetFieldValue('WhenHeld');
     }
     protected function PullID() {
-	return $this->Value('ID_Pull');
+	throw new exception('2017-06-03 Not how it works anymore...');
+	return $this->GetFieldValue('ID_Pull');
     }
     protected function CardID() {
-	return $this->Value('ID_BuyerCard');
+	return $this->GetFieldValue('ID_BuyerCard');
     }
     //--
     protected function QuotedSaleAmt() {
-	return $this->Value('WebTotal_Merch');
+	return $this->GetFieldValue('WebTotal_Merch');
     }
     protected function QuotedShipAmt() {
-	return $this->Value('WebTotal_Ship');
+	return $this->GetFieldValue('WebTotal_Ship');
     }
     protected function QuotedFinalAmt() {
-	return $this->Value('WebTotal_Final');
+	return $this->GetFieldValue('WebTotal_Final');
     }
     public function NameString() {
-	return $this->Value('Number');
+	return $this->GetFieldValue('Number');
     }
 
     // -- FIELD VALUES -- //
@@ -575,19 +679,23 @@ class VC_Order extends vcrOrder {
 	FALSE otherwise (i.e. pulled or closed).
     */
     protected function IsActive() {
-	return $this->IsPlaced() && !$this->IsPulled() && !$this->IsClosed();
+	return $this->IsPlaced() && !$this->IsOnHold() && !$this->IsClosed();
     }
-    // 2016-08-09 DEPRECATED
-    public function Pulled($iPull=NULL) {
-	if (!is_null($iPull)) {
-	    throw new exception('We should not be passing an argument to this.');
-	}
-	throw new exception('Call IsPulled() instead. Also, may need to make IsPulled() public.');
+    protected function IsOnHold() {
+	return !is_null($this->WhenHeld());
     }
     protected function IsPulled() {
+	throw new exception('2017-06-03 Call IsOnHold() instead.');
+	echo 'PULLED?=['.!is_null($this->PullID()).'] PULL ID=['.$this->PullID().']<br>';
 	return !is_null($this->PullID());
     }
+    protected function HoldingText() {
+	$rs = $this->HoldingRecords();
+	$sAbout = $rs->ListActiveHolds();
+	return $sAbout;
+    }
     public function PulledText() {
+	throw new exception('2017-06-03 Call HoldingText() instead.');
 	if ($this->IsPulled()) {
 	    return $this->PullRecord()->TypeName();
 	} else {
@@ -614,7 +722,7 @@ class VC_Order extends vcrOrder {
 	    return "<i>N/A</i>";
 	} else {
 	    $rc = $this->CardTable($id);
-	    return $rc->SafeString();
+	    return $rc->GetSafeString();
 	}
     }
     
@@ -674,7 +782,7 @@ class VC_Order extends vcrOrder {
     // ++ DATA CALCULATIONS ++ //
 
     public function HasLines() {
-	$rsLines = $this->LinesData();
+	$rsLines = $this->GetLineRecords();
 	if (is_null($rsLines)) {
 	    return FALSE;
 	} else {
@@ -690,27 +798,13 @@ class VC_Order extends vcrOrder {
     }
     public function NextSeq() {
 	throw new exception('NextSeq() is deprecated; call table->NextID().');
-/*
-      if ($this->HasLines()) {
-	    $objLines = $this->LinesData();
-	    $intMax = 0;
-	    while ($objLines->NextRow()) {
-		if ($objLines->Seq > $intMax) {
-		    $intMax = $objLines->Seq;
-		}
-	    }
-	    return $intMax+1;
-	} else {
-	    return 1;
-	}
-*/
     }
     private $oTotals;
     protected function TotalsObject() {
 	if (empty($this->oTotals)) {
-	    $doEdit = $this->DoEdit();
+	    $doEdit = $this->GetDoEdit();
 	    // calculate line totals
-	    $rs = $this->LinesData();	// get order lines
+	    $rs = $this->GetLineRecords();	// get order lines
 	    if ($rs->hasRows()) {
 		$arTotItm = $rs->FigureTotals();
 
@@ -721,9 +815,9 @@ class VC_Order extends vcrOrder {
 		$prcCalcTotal = $prcCalcShip + $prcCalcSale;
 
 		// get web totals
-		$prcTotMerch = $this->Value('WebTotal_Merch');
-		$prcTotShip = $this->Value('WebTotal_Ship');
-		$prcTotFinal = $this->Value('WebTotal_Final');
+		$prcTotMerch = $this->QuotedSaleAmt();
+		$prcTotShip = $this->QuotedShipAmt();
+		$prcTotFinal = $this->QuotedFinalAmt();
 
 		if ($doEdit) {
 		    $frm = $this->PageForm();
@@ -760,7 +854,7 @@ class VC_Order extends vcrOrder {
     */
     function QtysOrdered() {
 	$t = $this->LineTable();
-	$rs = $t->GetData('ID_Order='.$this->GetKeyValue());
+	$rs = $t->SelectRecords('ID_Order='.$this->GetKeyValue());
 	$arQtys = $rs->QtyArray();
 	return $arQtys;
     }
@@ -908,6 +1002,7 @@ class VC_Order extends vcrOrder {
 	2016-09-13 now expects "total" and "ship" amount arguments instead of a single array with "sale" and "ship" elements.
     */
     protected function DoChargeCard($dlrTotal,$dlrShip) {
+	throw new exception('2017-04-29 Order Events need refactoring, so this will need some rewriting.');
 	$db = $this->Engine();
 
 	$rcCard = $this->CardRecord();
@@ -971,7 +1066,7 @@ class VC_Order extends vcrOrder {
     */
     private function DoRecalcBal() {
 	$ftOut = 'Recalculating order totals...<ul>';
-	$rs = $this->LinesData();	// get order lines
+	$rs = $this->GetLineRecords();	// get order lines
 	if ($rs->hasRows()) {
 	    $ar = $rs->FigureTotals();
 	    $prcNewShItm = $ar['sh-itm'];
@@ -980,9 +1075,9 @@ class VC_Order extends vcrOrder {
 	    $prcNewSale = $ar['cost-sell'];
 	    $prcNewTotal = $prcNewShip + $prcNewSale;
 
-	    $prcOldShip = $this->Value('WebTotal_Ship');
-	    $prcOldSale = $this->Value('WebTotal_Merch');
-	    $prcOldTotal = $this->Value('WebTotal_Final');
+	    $prcOldShip = $this->QuotedShipAmt();
+	    $prcOldSale = $this->QuotedSaleAmt();
+	    $prcOldTotal = $this->QuotedFinalAmt();
 
 	    $arUpd = NULL;
 
@@ -1061,7 +1156,7 @@ __END__;
 	$htOut = NULL;
 	$arErrs = NULL;
 
-	$idCart = $this->CartID();
+	$idCart = $this->GetCartID();
 	$idOrder = $this->GetKeyValue();
 
 	if (is_null($idCart)) {
@@ -1070,7 +1165,7 @@ __END__;
 	    $rcCart = $this->CartRecord();
 	    $htOut .= $rcCart->SelfLink();
 	}
-	$rsCart = $this->CartTable()->GetData('ID_Order='.$idOrder);
+	$rsCart = $this->CartTable()->SelectRecords('ID_Order='.$idOrder);
 	if ($rsCart->HasRows()) {
 	    $arOthers = NULL;
 	    $cntOthers = 0;
@@ -1107,6 +1202,7 @@ __END__;
     }
     /*----
       PURPOSE: Stuff to do before admin page is displayed
+      USED ONLY BY AdminInit(), which may itself be unused
     */
     protected function AdminInit() {
 	$this->PageObject()->Skin()->SetBrowserTitle('ord#'.$this->Number());	// browser title
@@ -1116,13 +1212,27 @@ __END__;
 	This method calls other methods to do the work, depending on input
     */
     protected function AdminPage() {
-	$out = NULL;
-	$oPage = $this->PageObject();
+	$oFormIn = fcHTTP::Request();
+	$doSave = $oFormIn->GetBool('btnSave');
+	if ($doSave) {
+	    $this->PageForm()->Save();
+	    // return to the list form after saving
+	    $this->SelfRedirect();
+	}
+	
 	$sNum = $this->NumberString();
-	$oPage->Skin()->SetPageTitle("Order #$sNum");	// page title
 
-	$id = $this->GetKeyValue();
+	$oMenu = fcApp::Me()->GetHeaderMenu();
 
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('do','Manage'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('rcpt',"receipt for order #$sNum",'receipt'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('email','sent an email'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('edit',"edit order #$sNum"));
+ 
+	    $sShow = $oGrp->GetChoiceValue();
+ 
+	/*
 	// set up titlebar menu
 	$arActs = array(
 	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
@@ -1136,38 +1246,34 @@ __END__;
 
 	$sDo = $oPage->PathArg('do');
 	$doSave = $oPage->ReqArgBool('btnSave');
+	*/
 
 	// handle actions
-	$doEdit 	= FALSE;
-	$doReceipt	= FALSE;
-	$doEmail	= FALSE;
-	switch ($sDo) {
-	  case 'edit':		$doEdit = TRUE;		break;
-	  case 'receipt':	$doReceipt = TRUE;	break;
-	  case 'email':		$doEmail = TRUE;	break;
-	  case 'charge':	$ftRecalcStat = $this->DoChargeCard_forBalance();	break;	// to be written - use DoChargeCard() with balance from trx recordset
-	  case 'recalc':	$ftRecalcStat = $this->DoRecalcBal();			break;
-	  default: $ftRecalcStat = NULL;
+	$out = NULL;
+	$this->SetDoEdit(FALSE);
+	switch ($sShow) {
+	  case 'edit':
+	    $this->SetDoEdit(TRUE);
+	    break;
+	  case 'receipt':
+	    $out .= $this->RenderReceipt();
+	    break;
+	  case 'email':
+	    $out .= $this->AdminPage_email();
+	    break;
+	  case 'charge':
+	    $ftRecalcStat = $this->DoChargeCard_forBalance();
+	    break;	// to be written - use DoChargeCard() with balance from trx recordset
+	  case 'recalc':
+	    $ftRecalcStat = $this->DoRecalcBal();
+	    break;
+	  default:
+	    $ftRecalcStat = NULL;
 	}
 
-	if ($doSave) {
-	    $this->PageForm()->Save();
-	    // return to the list form after saving
-	    $this->AdminRedirect();
-	}
-	if (!$doSave) {
-	    $this->DoEdit($doEdit);
-	    if ($doReceipt) {
-		// display order receipt
-		$out .= $this->RenderReceipt();
-	    } elseif ($doEmail) {
-		// manual email confirmation
-		$out .= $this->AdminPage_email();
-	    } else {
-		// regular order admin display
-		$out .= $this->AdminPage_basic();
-	    }
-	}
+	$out .= $this->AdminPage_basic()
+	  .$ftRecalcStat
+	  ;
 
 	return $out;
     }
@@ -1175,19 +1281,22 @@ __END__;
       ACTION: Displays the normal admin page
     */
     protected function AdminPage_basic() {
-	$doEdit = $this->DoEdit();
-	$oPage = $this->PageObject();
+	$doEdit = $this->GetDoEdit();
 	$out = NULL;
 
+	$isOnHold = FALSE;
 	// get order status
 	if ($this->NeedSetup()) {
 	    $txtStatus = 'not set up yet';
 	} else {
-	    if ($this->IsPulled()) {
-		$out .= 'This order has been pulled.';
-		$txtStatus = 'pulled';
+	    $isOnHold = $this->IsOnHold();
+	    if ($isOnHold) {
+		$sMsg = 'This order is on hold.';
+		fcApp::Me()->GetPageObject()->AddWarningMessage($sMsg);
+		$txtStatus = 'on hold';
 	    } else {
-		$out .= 'This order is set up and ready to process.';
+		$sMsg = 'This order is set up and ready to process.';
+		fcApp::Me()->GetPageObject()->AddSuccessMessage($sMsg);
 		$txtStatus = 'ready to process';
 	    }
 	}
@@ -1204,15 +1313,15 @@ __END__;
 	} else {
 	    $frmEdit->LoadRecord();
 	}
-    //echo 'RECORD:'.fcArray::Render($this->Values());
+
 	$oTplt = $this->PageTemplate();
 	$arCtrls = $frmEdit->RenderControls($doEdit);
-    //echo 'CTRLS:'.fcArray::Render($arCtrls);
+	
 	$arCtrls['ID'] = $this->SelfLink();
 	$arCtrls['Status'] = $txtStatus;
-	$arCtrls['QuoSale'] = clsMoney::Format_withSymbol($this->QuotedSaleAmt());
-	$arCtrls['QuoShip'] = clsMoney::Format_withSymbol($this->QuotedShipAmt());
-	$arCtrls['QuoFinal'] = clsMoney::Format_withSymbol($this->QuotedFinalAmt());
+	$arCtrls['QuoSale'] = fcMoney::Format_withSymbol($this->QuotedSaleAmt());
+	$arCtrls['QuoShip'] = fcMoney::Format_withSymbol($this->QuotedShipAmt());
+	$arCtrls['QuoFinal'] = fcMoney::Format_withSymbol($this->QuotedFinalAmt());
 
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
@@ -1224,7 +1333,7 @@ __END__;
 	    $arCtrls['ID_Recip'] = $this->RecipLink();
 	    $arCtrls['ID_RecipAddr'] = $this->RecipAddrLink();
 	    
-	    $out .= $this->AdminPulls_form();	// display/process Pull-edit form if needed
+	    $out .= $this->AdminHolds_form();	// display/process Holds management form as needed
 
 	    $this->AreTotalsOk(FALSE);
 
@@ -1241,17 +1350,18 @@ __END__;
 	    $oTotals = $this->TotalsObject($doEdit);
 	    $htAmtMerch = $oTotals->RenderItems();
 	} else {
-	    $htAmtMerch = $oPage->Skin()->ErrorMessage('Order has no item lines.');
+	    $s = 'Order has no item lines.';
+	    fcApp::Me()->GetPageObject()->AddWarningMessage($s);
 	}
 	$arCtrls['AmtMerch'] = $htAmtMerch;
 
-	if ($this->IsPulled()) {
-	    $htPullText = $this->PulledText();
-	    $htPullLine = "\n<tr><td align=right><b>Pulled</b>:</td><td>".$htPullText.'</td></tr>';
+	if ($isOnHold) {
+	    $htHoldText = $this->HoldingText();
+	    $htHoldLine = "\n<tr><td align=right><b>On Hold</b>:</td><td>".$htHoldText.'</td></tr>';
 	} else {
-	    $htPullLine = NULL;
+	    $htHoldLine = NULL;
 	}
-	$arCtrls['PullInfo'] = $htPullLine;
+	$arCtrls['PullInfo'] = $htHoldLine;
 
 	if (isset($ftRecalcStat)) {
 	    $htRecalcLine = "\n<tr><td align=left colspan=2>$ftRecalcStat</td></tr>";
@@ -1263,7 +1373,7 @@ __END__;
 	$arCart = $this->CartList();
 	$arCtrls['Cart'] = $arCart['html'];
 
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -1274,6 +1384,13 @@ __END__;
 	      .'</form>';
 	}
 	
+	$oMenu = new fcHeaderMenu();
+	  if ($this->IsActive()) {
+	      // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	      $oMenu->SetNode($ol = new fcMenuOptionLink('do','pkg.stk',NULL,'find stock',NULL,'find stock for this order'));
+	  }
+
+	/*
 	if ($this->IsActive()) {
 	    $arMenuItm = array(
 	      // 			array $arData,$sLinkKey,	$sGroupKey,$sDispOff,$sDispOn,$sDescr
@@ -1281,10 +1398,10 @@ __END__;
 	      );
 	} else {
 	    $arMenuItm = NULL;	// no package actions on a closed order
-	}
+	}*/
 
 	$out .= 
-	  $this->Lines_RenderTable($arMenuItm)	// order lines
+	  $this->Lines_RenderTable($oMenu)	// order lines
 	  .$this->Pkg_RenderTable(NULL)
 	  .$ftTrxacts
 	  .$this->Msg_RenderTable()
@@ -1299,7 +1416,7 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table class=listing>
+<table class=form-record>
   <tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr>
   <tr><td align=right><b>Status</b>:</td><td>[[Status]]</td></tr>
   <tr><td align=right><b>Cart</b>:</td><td>[[Cart]]</td></tr>
@@ -1372,7 +1489,7 @@ __END__;
 	      $oField = new fcFormField_Num($oForm,'ID_Buyer');
 	      $oField = new fcFormField_Num($oForm,'ID_BuyerCard');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->CardRecords());
+		$oCtrl->SetRecords($this->CardRecords());
 	      $oField = new fcFormField_Text($oForm,'BuyerName');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>30));
 		
@@ -1437,14 +1554,13 @@ __END__;
 	2012-01-02 copied from VbzAdminOrderItem to VbzAdminOrder
     */
     protected function ListingRow($bCalcStats,$isOdd) {
-	$row = $this->Values();
 	$htOdd = $isOdd?'class=odd':'class=even';
 
 	$ftID		= $this->SelfLink();
 	$strNum		= $this->NumberString();
-	$strPull	= $this->PulledText();
+	$strPull	= $this->HoldingText();
 	$sWho		= $this->WhoDescrip();
-	$mnyTotal	= $row['WebTotal_Final'];
+	$mnyTotal	= $this->QuotedFinalAmt();
 	$dtCreate	= $this->WhenCreated();
 	$dtClosed	= $this->WhenPlaced();
 
@@ -1592,28 +1708,39 @@ __END__;
 
 	return $out;
     }
-    protected function Lines_RenderTable(array $arInputMenu=NULL) {
-	$oPage = $this->Engine()->App()->Page();
-
-	$strAction = $oPage->pathArg('do');
-	$doAddItem = ($strAction == 'add-item');
-	if ($oPage->ReqArgBool('btnSaveItem')) {
-	    $arFields = VCA_OrderLines::CaptureEdit();
-	    VCA_OrderLines::SaveEdit($this,$arFields);
+    protected function Lines_RenderTable(fcHeaderMenu $oMenu) {
+	$oFormIn = fcHTTP::Request();
+	if ($oFormIn->GetBool('btnSaveItem')) {
+	    $arFields = vctAdminOrderLines::CaptureEdit();
+	    vctAdminOrderLines::SaveEdit($this,$arFields);
+	    // 2017-04-11 Should there be a redirect here?
 	}
+	
+	$oMenu->SetNode($ol = new fcMenuOptionLink('do','add-item','add',NULL,'add a new item to the order'));
+	  $doAddItem = $ol->GetIsSelected();
+
+	//$strAction = $oPage->pathArg('do');
+	//$doAddItem = ($strAction == 'add-item');
 
 	// set up titlebar menu
+	// ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	/*
 	$arLocalMenu = array(
 	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
 	  new clsActionLink_option(array(),'add-item',		'do','add',	NULL,'add a new item to the order'),
 	  );
 	$arMenu = array_merge($arLocalMenu,$arInputMenu);
 	$out = $oPage->ActionHeader('Items',$arMenu);
+	*/
+	
+	$oHdr = new fcSectionHeader('Items',$oMenu);
 
-	$rsRows = $this->LinesData();
+	$rsRows = $this->GetLineRecords();
 	$rsRows->Want_ShowNewEntry($doAddItem);
 	// TODO: Can we use AdminRows() instead?
-	$out .= $rsRows->AdminTable_forOrder();
+	$out = $oHdr->Render()
+	  .$rsRows->AdminTable_forOrder()
+	  ;
 
 	return $out;
     }
@@ -1648,11 +1775,8 @@ __END__;
       RETURNS: formatted code of header and table showing transactions for this order
     */
     protected function Trxact_RenderTable() {
+	/*
 	$id = $this->GetKeyValue();
-	$oPage = $this->PageObject();
-	
-	// display transactions
-	$rs = $this->TransactionRecords();
 	$arActs = array(
 	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
 	  new clsActionLink_option(array('order'=>$id),'add-trx',	'do','add',	NULL,'add a new transaction for this order'),
@@ -1660,26 +1784,52 @@ __END__;
 	  //new clsActionLink_option(array(),'show.shut',	NULL,'shut',	NULL,'show orders which have been closed'),
 	  );
 	$out = $oPage->ActionHeader('Transactions',$arActs);
-	$out .= $rs->AdminTable($this);
+	*/
+	
+	$oMenu = new fcHeaderMenu();
+
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Show'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('open','show orders which have not been completed'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('shut','show orders which have been closed out'));
+
+	$oHdr = new fcSectionHeader('Transactions',$oMenu);	
+
+	// put the output bits together
+	$rs = $this->TransactionRecords();
+	$out = $oHdr->Render()
+	  .$rs->AdminTable($this)
+	  ;
 
 	return $out;
     }
     // MESSAGE subdata
     public function Msg_RenderTable() {
 	$tbl = $this->MessageTable();
-	$rs = $tbl->GetData('ID_Ord='.$this->GetKeyValue());
-	return $this->Engine()->App()->Skin()->SectionHeader('Messages',NULL,'section-header-sub')
-	  .$rs->AdminTable();
+	$rs = $tbl->SelectRecords('ID_Ord='.$this->GetKeyValue());
+	$oHdr = new fcSectionHeader('Messages');
+	return $oHdr->Render()
+	  .$rs->AdminTable()
+	  ;
     }
     public function Charge_RenderTable() {
 	// get table showing existing charges
 	$tbl = $this->ChargeTable();
-	$rs = $tbl->GetData('ID_Order='.$this->GetKeyValue());
-	return $this->Engine()->App()->Skin()->SectionHeader('Charges',NULL,'section-header-sub')
-	  .$rs->AdminTable();
+	$rs = $tbl->SelectRecords('ID_Order='.$this->GetKeyValue());
+	$oHdr = new fcSectionHeader('Charges');
+	return $oHdr->Render()
+	  .$rs->AdminTable()
+	  ;
     }
     public function Event_RenderTable() {
 	return $this->EventListing();
+    }
+    private $frmHold=NULL;
+    protected function OrderHoldsForm() {
+	if (is_null($this->frmHold)) {
+	    $this->frmHold = new vcOrderHoldsForm($this);
+	}
+	return $this->frmHold;
     }
     /*----
       ACTION: Shows any Pulls for this Order, and the link to modify them, but does not display
@@ -1689,9 +1839,22 @@ __END__;
 	  near the top even though the Pull table is displayed further down.
     */
     protected function AdminPulls() {
+    
+	/*
 	$rs = $this->PullTable()->GetOrder($this->GetKeyValue());
 	$oPage = $this->PageObject();
-	$out = $oPage->SectionHeader('Pulls',NULL,'section-header-sub');
+	$oHdr = new fcSectionHeader('Pulls');
+	$out = $oHdr->Render();
+
+	// build "pull" control
+	if ($this->IsPulled()) {
+	    $sMsg = 'Release this order';
+	} else {
+	    $sMsg = 'Pull this order';
+	}
+	$arLink['form'] = 'pull';
+	$url = $this->SelfURL($arLink);		// 2017-04-11 not tested
+	$htLink = fcHTML::BuildLink($url,$sMsg);
 	
 	if ($rs->hasRows()) {
 	    $out .= <<<__END__
@@ -1708,7 +1871,7 @@ __END__;
 		$cssClass = $isOdd?'odd':'even';
 		$isOdd = !$isOdd;
 
-		$row = $rs->Values();
+		$row = $rs->GetFieldValues();
 		$id = $row['ID'];
 
 		$idType = $row['ID_Type'];
@@ -1735,36 +1898,29 @@ __END__;
   </tr>
 __END__;
 		}
+		$out .= "\n<tr><td colspan=4>[ $htLink ]</td></tr>";
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    /* TableArg() is never set, and this is the only place that reads it.
-	    $strDescr = $this->TableArg('descr');
-	    $out .= fcString::ConcatArray(' ',array("\nNo pulls",$strDescr)).'.';
-	    */
-	    $out .= "\nNo pulls.";
+	    $out .= "\n<div class=content>No pulls. [ $htLink ]</div>";
 	}
-	
-	// TODO: should this be in the action header?
-	if ($this->IsPulled()) {
-	    $strMsg = 'Release this order';
-	} else {
-	    $strMsg = 'Pull this order';
-	}
-	$arLink = $oPage->PathArgs();
-	$arLink['form'] = 'pull';
-	$url = $oPage->SelfURL($arLink);
-	$htLink = clsHTML::BuildLink($url,$strMsg,'pull this order');
-	$out .= ' [ '.$htLink.' ]';
-	
+		
 	return $out;
+	*/
+	
+	$frm = $this->OrderHoldsForm();
+	return $frm->AdminRows();
     }
     /*----
-      PURPOSE: where appropriate, displays the Pull-editing form and handles any user input from it
+      PURPOSE: where appropriate, displays the Hold-management form and handles any user input from it
     */
-    protected function AdminPulls_form() {
+    protected function AdminHolds_form() {
+	$frm = $this->OrderHoldsForm();
+	return $frm->AdminRequest();
+	/*
+	
 	$oPage = $this->PageObject();
-	$tPulls = $this->PullTable();
+	$tHolds = $this->HoldingTable();
 	
 	if ($this->AdminPulls_form_isSubmitted()) {
 	    $sNotes = $oPage->ReqArgText('notes');
@@ -1828,30 +1984,31 @@ __END__;
 	}
 	
 	return $out;
+	*/
     }
     /*----
       PURPOSE: determines whether the Pull-editing form should be displayed
       NOTE: We don't bother to check whether form data has been submitted, because when that happens
 	the form data is processed and then the page is reloaded, so we never get this far.
     */
+    /*
     protected function AdminPulls_form_isNeeded() {
-	$oPage = $this->Engine()->App()->Page();
-	return ($oPage->PathArg('form') == 'pull');
-    }
+	return (fcApp::Me()->GetKioskObject()->GetInputObject()->GetString('form') == 'pull');
+    }*/
     /*----
       PURPOSE: determines whether we need to process data from the Pull-editing form
-    */
+    */ /*
     protected function AdminPulls_form_isSubmitted() {
 	return $this->AdminPulls_form_wantsPull()
 	  || $this->AdminPulls_form_wantsFree()
 	  ;
     }
     protected function AdminPulls_form_wantsPull() {
-	return $this->PageObject()->ReqArgBool('btnPull');
+	return fcHTTP::Request()->GetBool('btnPull');
     }
     protected function AdminPulls_form_wantsFree() {
-	return $this->PageObject()->ReqArgBool('btnFree');
-    }
+	return fcHTTP::Request()->GetBool('btnFree');
+    } */
 
     // -- ADMIN INTERFACE -- //
 

@@ -4,18 +4,10 @@
   HISTORY:
     2016-03-07 Split off some methods from clsShopCart[s] (later renamed vctShopCart[s])
 */
-class vctCarts_ShopUI extends vctShopCarts {
-    use ftFrameworkAccess;
+class vctShopCarts extends vctCarts {
+    //use ftFrameworkAccess;
     use ftLoggableTable;
 
-    // ++ SETUP ++ //
-/* 2016-10-17 rearranged
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('vcrCart_ShopUI');
-    }
-*/    
-    // -- SETUP -- //
     // ++ CEMENTING ++ //
     
     public function GetActionKey() {
@@ -26,7 +18,7 @@ class vctCarts_ShopUI extends vctShopCarts {
     // ++ OVERRIDES ++ //
     
     protected function SingularName() {
-	return 'vcrCart_ShopUI';
+	return 'vcrShopCart';
     }
 
     // -- OVERRIDES -- //
@@ -37,7 +29,7 @@ class vctCarts_ShopUI extends vctShopCarts {
       ASSUMES: We have form input that actually requires a cart record. (Caller should check this;
 	don't call if cart not required.)
       HISTORY:
-	2013-11-09 moved from clsShopCart to clsShopCarts (later renamed vctShopCarts)
+	2013-11-09 moved from clsShopCart to clsShopCarts (later renamed vctShopCarts and then vctCarts)
     */
     public function HandleCartFormInput() {
 	$rcCart = $this->CartRecord_required_allow_invalid();
@@ -74,28 +66,15 @@ class vctCarts_ShopUI extends vctShopCarts {
     // -- SHOPPING UI -- //
 
 }
-class vcrCart_ShopUI extends vcrShopCart {
-    use ftFrameworkAccess;
+class vcrShopCart extends vcrCart {
+    //use ftFrameworkAccess;
     use ftSaveableRecord;
 
-    // ++ CLASS NAMES ++ //
-
-    /* 2017-01-16 not needed unless EventTable() is.
-    protected function EventsClass() {
-	return $this->AppObject()->EventsClass();
-    } */
-    
-    // -- CLASS NAMES -- //
-    // ++ TABLES ++ //
-    
-    /* 2017-01-16 Document usage, if any.
-    protected function EventTable() {
-	return $this->GetConnection()->MakeTableWrapper($this->EventsClass());
-    } */
-    
-    // -- TABLES -- //
     // ++ INPUT ++ //
 
+    static protected function FoundInputButton_AddToCart() {
+	return vcGlobals::Me()->FoundInputButton_AddToCart();
+    }
     /*----
       ACTION: Looks at the received form data to see if a cart should be required.
 	For now, I'm assuming that any in-cart functions (such as delete, recalculate,
@@ -103,14 +82,17 @@ class vcrCart_ShopUI extends vcrShopCart {
 	but the rules can be fine-tuned as needed.
     */
     static public function FormInputNeedsCart() {
+	return self::FoundInputButton_AddToCart();
+    /*
 	$yes = array_key_exists(KSF_CART_BTN_ADD_ITEMS,$_POST);
 	return $yes;
+    */
     }
     // ACTION Do whatever needs to be done to the current cart based on the form input
     public function HandleFormInput() {
 // check for input
 	// - buttons
-	$doAddItems	= array_key_exists(KSF_CART_BTN_ADD_ITEMS,$_POST);
+	$doAddItems	= self::FoundInputButton_AddToCart();	// array_key_exists(KSF_CART_BTN_ADD_ITEMS,$_POST);
 	$doRecalc	= array_key_exists(KSF_CART_BTN_RECALC,$_POST);
 	$doCheckout	= array_key_exists(KSF_CART_BTN_CKOUT,$_POST);
 	// - other items
@@ -140,12 +122,13 @@ class vcrCart_ShopUI extends vcrShopCart {
 		$this->ZeroAll();
 	    }
 	    // get the list of items posted
-	    $arItems = $_POST[KSF_CART_ITEM_ARRAY_NAME];
+	    $arItems = vcGlobals::Me()->GetCartItemsInput();
 	    // add each non-empty item
+	    $db = $this->GetConnection();
 	    foreach ($arItems as $key => $val) {
 		if (!empty($val)) {
 		    $nVal = (int)0+$val;
-		    $sCatNum = $this->GetConnection()->Sanitize($key);
+		    $sCatNum = $db->SanitizeString($key);	// prevent SQL injection when adding to cart items table
 		    $this->AddItem($sCatNum,$nVal);
 		}
 	    } // END for each item

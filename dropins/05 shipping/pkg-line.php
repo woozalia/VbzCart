@@ -26,8 +26,12 @@ class clsPkgLines extends vcAdminTable {
     }
     
     // -- SETUP -- //
-    // ++ ADMIN UI ++ //
-    
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	// nothing yet
+    }
     public function AdminList_forPackage($idPkg) {
 	$rs = $this->SelectRecords('ID_Pkg='.$idPkg);
 	$rs->PackageID_default($idPkg);	// for new rows
@@ -72,13 +76,13 @@ class clsPkgLine extends vcAdminRecordset {
     // ++ FIELD VALUES ++ //
 
     public function OrderLineID() {
-	return $this->Value('ID_OrdLine');
+	return $this->GetFieldValue('ID_OrdLine');
     }
     /*----
       RETURNS: The quantity of items in the package, for the current line, when it was shipped.
     */
     public function QtyShipped() {
-	return $this->Value('QtyShipped');
+	return $this->GetFieldValue('QtyShipped');
     }
     /*----
       RETURNS: The quantity of items actually present in the package for the current line
@@ -97,16 +101,16 @@ class clsPkgLine extends vcAdminRecordset {
       RETURNS: The quantity of items that are or were in a return package
     */
     public function QtyReturned() {
-	return $this->Value('QtyReturned');
+	return $this->GetFieldValue('QtyReturned');
     }
     public function QtyKilled() {
-	return $this->Value('QtyKilled');
+	return $this->GetFieldValue('QtyKilled');
     }
     public function QtyNotAvail() {
-	return $this->Value('QtyNotAvail');
+	return $this->GetFieldValue('QtyNotAvail');
     }
     public function ItemID() {
-	return $this->Value('ID_Item');
+	return $this->GetFieldValue('ID_Item');
     }
     public function CostSale() {
 	return $this->Value('CostSale');
@@ -118,7 +122,7 @@ class clsPkgLine extends vcAdminRecordset {
 	return $this->Value('CostShPkg');
     }
     public function NotesText() {
-	return $this->Value('Notes');
+	return $this->GetFieldValue('Notes');
     }
 
     // -- FIELD VALUES -- //
@@ -144,11 +148,12 @@ class clsPkgLine extends vcAdminRecordset {
 	return (($this->QtyShipped() + $this->QtyReturned()) != 0);
     }
     // PUBLIC so Table can set it
+    // 2017-06-30 This will throw an error now when used -- maybe nobody is using it?
     public function SetPackageID($id=NULL) {
 	$this->SetValue('ID_Pkg',$id);
     }
     protected function GetPackageID() {
-	$idPkg = $this->ValueNz('ID_Pkg');
+	$idPkg = $this->GetFieldValueNz('ID_Pkg');
 	if (is_null($idPkg)) {
 	    $idPkg = $this->PackageID_default();
 	}
@@ -242,7 +247,7 @@ class clsPkgLine extends vcAdminRecordset {
     // ++ TABLES ++ //
 
     protected function PackageTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_PACKAGES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_PACKAGES,$id);
     }
     protected function ItemTable($id=NULL) {
 	return $this->Engine()->Make($this->ItemsClass(),$id);

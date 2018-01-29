@@ -12,16 +12,21 @@ define('KS_PAGE_KEY_CART_LINE','cart-line');
 define('KS_PAGE_KEY_CART_FIELD','cart-field');
 
 // -- classes
-define('KS_CLASS_ADMIN_CARTS',		'VC_Carts');
+define('KS_CLASS_ADMIN_CARTS',		'vctAdminCarts');
 define('KS_CLASS_ADMIN_CART_LINES',	'VCT_CartLines_admin');
 define('KS_CLASS_ADMIN_CART_EVENTS',	'VCT_CartLog_admin');
 define('KS_CLASS_ADMIN_CART_EVENT',	'VCR_CartEvent_admin');
 
 // MENU
 
-$om = $oRoot->SetNode(new fcDropinLink(KS_PAGE_KEY_CART,'Carts','management of shopping carts'));
-  $om->SetPageTitle('Shopping Cart management');
-  $om->SetActionClass(KS_CLASS_ADMIN_CARTS);
+$om = $oRoot->SetNode(
+  new fcDropinLink(
+    KS_PAGE_KEY_CART,
+    KS_CLASS_ADMIN_CARTS,
+    'Carts',
+    'management of shopping carts')
+  );
+  //$om->SetPageTitle('Shopping Cart management');
   $om->SetRequiredPrivilege(KS_PERM_CART_ADMIN);
 
 /* 2016-12-11 old dropin version

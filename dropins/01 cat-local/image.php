@@ -5,7 +5,7 @@
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
 */
-class VCTA_Images extends clsImages_StoreUI {
+class vctAdminImages extends vctImages_StoreUI implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
@@ -18,16 +18,14 @@ class VCTA_Images extends clsImages_StoreUI {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ ADMIN WEB UI ++ //
 
     /*-----
@@ -42,11 +40,47 @@ class VCTA_Images extends clsImages_StoreUI {
       HISTORY:
 	2016-01-17 updated nzArray() calls to clsarray::Nz(), and noticed that some functions are still hooked to MediaWiki objects
 	2016-03-29 Updated clsArray:: to fcArray::
+	2017-05-21 Making $arArgs optional; it may even be unnecessary. Nobody seems to use it.
     */
-    public function AdminPage(array $iarArgs) {
-	$oPage = $this->Engine()->App()->Page();
-	$out = '';
+    public function AdminPage(array $arArgs=array()) {
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader('Images',$oMenu);
+	$sDoKey = 'do.'.$this->GetActionKey();
+		      // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	  $oMenu->SetNode($ol = new fcMenuOptionLink($sDoKey,'edit',NULL,'cancel','edit image records'));
+	    $doEdit = $ol->GetIsSelected();  
+	    
+	  $oMenu->SetNode($ol = new fcMenuOptionLink($sDoKey,'add',NULL,'cancel','add image records'));
+	    $doAdd = $ol->GetIsSelected();
+	    
+	  // "show" option:
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Display'));
+						  // ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('un','show unassigned images','unused'));
+	    $doUnused = $ol->GetIsSelected();
+
+	$out = $oHdr->Render();
+	
+	// 2017-08-01 written but not really tested (need to confirm that SQL is correct)
+	if ($doUnused) {
+	    $rs = $this->SelectRecords_Unused();
+	    $oHdr = new fcSectionHeader('Unassigned');
+	    $out .=
+	      "\n<table align=right><tr><td>"	// yeah, this is bad form, but I can remember how to do it.
+	      .$oHdr->Render()
+	      .$rs->AdminRows()
+	      ."\n</td></tr></table>"
+	      ;
+	}
+	
+	$arArgs['edit'] = $doEdit;
+	$sqlFilt = fcArray::Nz($arArgs,'filt');
+	$sqlSort = fcArray::Nz($arArgs,'sort');
+
+	/* 2017-03-17 old
 	// get URL input
 	$doEdit = ($oPage->PathArg('edit.img'));
 	$doAdd = ($oPage->PathArg('add.img'));
@@ -63,24 +97,24 @@ class VCTA_Images extends clsImages_StoreUI {
 	  new clsActionLink_option(array(),'add.img',NULL,'add',NULL,'add one or more image records')
 	  );
 	$oPage->PageHeaderWidgets($arActs);
-
+*/
 // handle possible form requests
 
 	// -- bulk-entry form stage 1: check input
-	if ($oPage->ReqArgBool('btnCheckImgs')) {
+	if ($oFormIn->GetBool('btnCheckImgs')) {
 	    $doCheck = TRUE;
-	    $xts = new xtString($oPage->ReqArgText('txtImgs'));
+	    $xts = new xtString($oFormIn->GetString('txtImgs'));
 	    $arLines = $xts->ParseTextLines(array('line'=>'arr'));
 	    $htForm = "\nImages submitted:\n<ul>";
 	    foreach ($arLines as $idx => $arLine) {
 		$txtURL = $arLine[0];
-		$txtSize = isset($arLine[1])?$arLine[1]:NULL;
+		$txtSize = fcArray::Nz($arLine,1);
 
-		$rsFldr = $this->Engine()->Folders()->FindBest($txtURL);
+		$rsFldr = $this->FolderTable()->FindBest($txtURL);
 		if (is_null($rsFldr)) {
 		    $htForm .= "\n<li>No folder found for <b>$txtUrl</b></li>";
 		} else {
-		    $fsFldr = $rsFldr->Value('PathPart');
+		    $fsFldr = $rsFldr->GetFieldValue('PathPart');
 		    $fsImg = $rsFldr->Remainder($txtURL);
 		    $idFldr = $rsFldr->GetKeyValue();
 
@@ -96,10 +130,11 @@ class VCTA_Images extends clsImages_StoreUI {
 	    $htForm .= '</ul>';
 	} else { $doCheck = FALSE; }
 	// -- bulk-entry form stage 2: create records
-	if ($oPage->ReqArgBool('btnAddImgs')) {
-	    $arFldrs = $wgRequest->GetArray('img-fldr');
-	    $arSpecs = $wgRequest->GetArray('img-spec');
-	    $arSizes = $wgRequest->GetArray('img-size');
+	if ($oFormIn->GetBool('btnAddImgs')) {
+	    $arFldrs = $oFormIn->GetArray('img-fldr');
+	    $arSpecs = $oFormIn->GetArray('img-spec');
+	    $arSizes = $oFormIn->GetArray('img-size');
+	    throw new exception('2017-03-17 At the moment, I am not sure how this is supposed to work. Will need fixing, tho.');
 	    $idTitle = $vgPage->Arg('id');
 	    assert('!empty($idTitle);');
 
@@ -135,17 +170,17 @@ class VCTA_Images extends clsImages_StoreUI {
 	    $objTitle->FinishEvent($arEv);
 	}
 	// -- existing item edit form
-	if ($oPage->ReqArgBool('btnSaveImgs')) {
+	if ($oFormIn->GetBool('btnSaveImgs')) {
 
-	    $arUpdate = $oPage->ReqArgArray('update');
-	    $arDelete = $oPage->ReqArgArray('del');
-	    $arActive = $oPage->ReqArgArray('isActive');
-	    $arFolder = $oPage->ReqArgArray('ID_Folder');
-	    $arFileSpec = $oPage->ReqArgArray('txtFileSpec');
-	    $arAttrSize = $oPage->ReqArgArray('txtAttrSize');
-	    $arAttrFldr = $oPage->ReqArgArray('txtAttrFldr');
-	    $arAttrDispl = $oPage->ReqArgArray('txtAttrDispl');
-	    $arAttrSort = $oPage->ReqArgArray('txtAttrSort');
+	    $arUpdate = $oFormIn->GetArray('update');
+	    $arDelete = $oFormIn->GetArray('del');
+	    $arActive = $oFormIn->GetArray('isActive');
+	    $arFolder = $oFormIn->GetArray('ID_Folder');
+	    $arFileSpec = $oFormIn->GetArray('txtFileSpec');
+	    $arAttrSize = $oFormIn->GetArray('txtAttrSize');
+	    $arAttrFldr = $oFormIn->GetArray('txtAttrFldr');
+	    $arAttrDispl = $oFormIn->GetArray('txtAttrDispl');
+	    $arAttrSort = $oFormIn->GetArray('txtAttrSort');
 
 	    if (count($arActive > 0)) {
 		// add any reactivated rows to the update list
@@ -157,7 +192,7 @@ class VCTA_Images extends clsImages_StoreUI {
 	    $cntRows = count($arUpdate);
 	    if ($cntRows > 0) {
 		$out .= '<b>Updating</b>: ';
-		$txtEvDescr = 'Checking '.$cntRows.' record'.Pluralize($cntRows);
+		$txtEvDescr = 'Checking '.$cntRows.' record'.fcString::Pluralize($cntRows);
 		$txtRowEdits = '';
 		$txtRowFlips = '';
 
@@ -179,7 +214,7 @@ class VCTA_Images extends clsImages_StoreUI {
 		    if (empty($arFileSpec[$id])) {
 			$isNew = FALSE;	// nothing to save
 		    }
-		    $objImg = $this->GetItem($id);
+		    $objImg = $this->GetRecord_forKey($id);
 
 		    if ($isNew) {
 			$isDiff = TRUE;
@@ -196,9 +231,9 @@ class VCTA_Images extends clsImages_StoreUI {
 			  'ID_Folder'	=> $arFolder[$id],
 			  'Spec'	=> $arFileSpec[$id],
 			  'Ab_Size'	=> $arAttrSize[$id],
-			  'AttrFldr'	=> nz($arAttrFldr[$id]),
-			  'AttrDispl'	=> nz($arAttrDispl[$id]),
-			  'AttrSort'	=> nz($arAttrSort[$id])
+			  'AttrFldr'	=> fcArray::Nz($arAttrFldr,$id),
+			  'AttrDispl'	=> fcArray::Nz($arAttrDispl,$id),
+			  'AttrSort'	=> fcArray::Nz($arAttrSort,$id)
 			  );
 			$isDiff = !$objImg->SameAs($arUpd);
 		    }
@@ -254,11 +289,11 @@ class VCTA_Images extends clsImages_StoreUI {
 	// if no external filter, display search form
 	if (is_null($sqlFilt)) {
 	    // we'll trust admins, for now, not to try to hack the database:
-	    $sqlFilt = clsHTTP::Request()->GetText('sqlFilt');
+	    $sqlFilt = $oFormIn->GetString('sqlFilt');
 	    $htFilt = fcString::EncodeForHTML($sqlFilt);
 	    $out .= <<<__END__
 	    <form method=get>
-Search filter:<input name=sqlFilt width=30 value="$htFilt">
+Search filter (SQL WHERE clause):<input name=sqlFilt width=30 value="$htFilt">
 <input type=submit value="Search">
 </form>
 __END__;
@@ -266,11 +301,7 @@ __END__;
 	if (!is_null($sqlFilt)) {
 	    // render edit form outer shell:
 	    if ($doEdit || $doAdd || $doCheck) {
-		$arLink = $oPage->PathArgs(array('page','id'));
 
-		// this can/should probably just be replaced by removing "action=" and redirecting after a form-save
-		//$urlSelf = $this->SelfURL($arLink,TRUE);
-		//$arArgs['pfx'] = '<form method=post action="'.$urlSelf.'">';
 		$arArgs['pfx'] = "\n<form method=post>";
 
 		if ($doEdit) {
@@ -292,10 +323,10 @@ __END__;
 
 	// load the latest data and show it in a table:
 	    $arArgs['none'] = 'No images found.';
-	    $rs = $this->GetData($sqlFilt,NULL,$sqlSort);
+	    $rs = $this->SelectRecords($sqlFilt,$sqlSort);
 	    $out .= $rs->AdminList($arArgs);
 	}
-	return $out;
+	return "<div class=content>$out</div>";
     }
     /*----
       HISTORY:
@@ -303,7 +334,7 @@ __END__;
 	2010-11-16 Commented out editing functions, per earlier thought, after partly updating them.
 	  Note: they were written for AdminPage().
     */
-    /* 2016-03-05 This is almost certainly obsolete.
+    /* 2016-03-05 This is almost certainly obsolete. ...(2017-07-30) except we don't seem to have a menu item that does this.
     public function AdminPage_Unassigned() {
 	global $wgRequest,$wgOut;
 	global $vgPage,$vgOut;
@@ -342,11 +373,24 @@ __END__;
 	$wgOut->AddHTML($out); $out = NULL;
 	return $out;
     }//*/
+    
+    // ++ READ DATA ++ //
+    
+    protected function SelectRecords_Unused() {
+	$sqlFilt = 'isActive AND (ID_Title IS NULL)';
+	$sqlSort = NULL;	// maybe this could be useful later (plenty of useful options...)
+	$rs = $this->SelectRecords($sqlFilt,$sqlSort);
+	return $rs;
+    }
+    
+    // -- READ DATA -- //
 }
-class VCRA_Image extends clsImage_StoreUI {
+class vcrAdminImage extends vcrImage_StoreUI implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
     use ftShowableRecord;
     use ftLoggableRecord;
+    use ftExecutableTwig;
+    use ftSaveableRecord;
 
     // ++ CLASS NAMES ++ //
 
@@ -358,16 +402,22 @@ class VCRA_Image extends clsImage_StoreUI {
     }
 
     // -- CLASS NAMES -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sTitle = 'Image #'.$this->GetKeyValue().': '.$this->SpecPart();
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ FIELD CALCS ++ //
 
     protected function TitleLink($sText=NULL) {
@@ -394,12 +444,23 @@ class VCRA_Image extends clsImage_StoreUI {
       ACTION: Renders the current record as an editable page
     */
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	$doEdit = $oPage->PathArg('edit');
-	$doSave = $oPage->ReqArgBool('btnSave');
+	//$doEdit = $oPage->PathArg('edit');
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	// save edits before showing events
+	if ($doSave) {
+	    $sNotes = $oFormIn->GetText('EvNotes');
+	    $frm = $this->PageForm();
+	    $frm->Save();
+	    $ftSaveMsg = $frm->MessagesString();
+	    $rcEv->Finish();
+	    $this->SelfRedirect(NULL,$ftSaveMsg);
+	}
+	
+	/*
 	if ($doSave) {
 	    $sNotes = clsHTTP::Request()->GetText('EvNotes');
 	    $arEv = array(
@@ -414,18 +475,22 @@ class VCRA_Image extends clsImage_StoreUI {
 	    $ftSaveMsg = $frm->MessagesString();
 	    $rcEv->Finish();
 	    $this->SelfRedirect(NULL,$ftSaveMsg);
-	}
+	} */
 
-	// page title bar and action links
-	
-	// -- title string
-	$sTitle = 'Image #'.$this->GetKeyValue().': '.$this->Value('Spec');
-	$oPage->TitleString($sTitle);
-	// -- action links
+	// page title bar and menu
+
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit the image record'));
+	    $doEdit = $ol->GetIsSelected();
+
+	/*
 	$arActs = array(
 	  new clsActionLink_option(array(),'edit')
 	  );
 	$oPage->PageHeaderWidgets($arActs);
+	*/
 
 	// generate the record display
 	
@@ -449,9 +514,10 @@ class VCRA_Image extends clsImage_StoreUI {
 	    $fsPart = $this->Spec();
 	    // 2016-02-12 ShopLink() not tested; ok to remove it if it is broken.
 	    $arCtrls['Spec'] = "<a href='$fsFull'>$fsPart</a> [$htShop]";
+	    $arCtrls['ID_Title'] = $this->TitleLink();
 	}
 	
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -472,7 +538,7 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-  <table>
+  <table class=form-record>
     <tr><td align=right>ID:</td><td>[[!ID]] [[isActive]]</td></tr>
     <tr><td align=right>Folder:</td><td>[[ID_Folder]]</td></tr>
     <tr><td align=right>Spec:</td><td>[[Spec]]</td></tr>
@@ -499,7 +565,7 @@ __END__;
 	    
 	      $oField = new fcFormField_Num($oForm,'ID_Folder');
 		$oField->ControlObject($oCtrl = new fcFormControl_HTML_DropDown($oField));
-		$oCtrl->Records($this->FolderTable()->SelectRecords());
+		$oCtrl->SetRecords($this->FolderTable()->SelectRecords());
 	      
 	      $oField = new fcFormField_Text($oForm,'Spec');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>40));
@@ -543,6 +609,21 @@ __END__;
 	  ."\n  </tr>"
 	  ;
     }
+    protected function AdminRows_settings_columns() {
+	$arFlds = array('ID'	=> 'ID',
+	  'isActive'	=> 'A?',
+	  'ID_Folder'	=> 'Folder',
+	  'Spec'	=> 'File',
+	  'Ab_Size'	=> 'Size',
+	  'AttrFldr'	=> 'Folder',
+	  'AttrDispl'	=> 'Display',
+	  'AttrSort'	=> 'Sort',
+	  'WhenAdded'	=> 'Added',
+	  'WhenEdited'	=> 'Edited',
+	  );
+	return $arFlds;
+    }
+    
     // CALLBACK for AdminRows()
     protected function AdminField($sField,array $arOptions=NULL) {
 	switch ($sField) {
@@ -550,13 +631,13 @@ __END__;
 	    $val = $this->SelfLink();
 	    break;
 	  case 'isActive':
-	    $val = clsHTML::fromBool($this->IsActive());
+	    $val = fcHTML::fromBool($this->IsActive());
 	    break;
 	  case 'Spec':
 	    $val = $this->RenderImageLink($this->Spec(),TRUE);
 	    break;
 	  default:
-	    $val = $this->Value($sField);
+	    $val = $this->GetFieldValue($sField);
 	}
 	return "<td>$val</td>";
     }
@@ -570,19 +651,8 @@ __END__;
 	edit: render editable fields
 	new: allow entering new records -- show edit even if no data
     */
-    public function AdminList(array $arArgs) {
-	$arFlds = array('ID'	=> 'ID',
-	  'isActive'	=> 'A?',
-	  'ID_Folder'	=> 'Folder',
-	  'Spec'	=> 'File',
-	  'Ab_Size'	=> 'Size',
-	  'AttrFldr'	=> 'Folder',
-	  'AttrDispl'	=> 'Display',
-	  'AttrSort'	=> 'Sort',
-	  'WhenAdded'	=> 'Added',
-	  'WhenEdited'	=> 'Edited',
-	  );
-	$out = $this->AdminRows($arFlds);
+    public function AdminList() {
+	$out = $this->AdminRows();
     
 	return $out;
     }

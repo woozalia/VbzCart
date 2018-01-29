@@ -100,7 +100,7 @@ trait vtRestockTable_admin {
 	    }
 	    $htLink = $this->SelfLink($sYear,$sPopup,array('year'=>$sYear));
 	    $htCtrl = "[$htLink:$qty]";
-	    $out .= ' '.clsHTML::FlagToFormat($htCtrl,($idYearCurr == $sYear));
+	    $out .= ' '.fcHTML::FlagToFormat($htCtrl,($idYearCurr == $sYear));
 	}
 	return $out;
     }
@@ -124,7 +124,7 @@ trait vtRestockRecords_admin {
     // PUBLIC so received restock can use it
     // WRITABLE so received restock can set it as a default
     public function WarehouseID($id=NULL) {
-	return $this->Value('ID_Warehouse',$id);
+	return $this->GetFieldValue('ID_Warehouse',$id);
     }
     
     // -- FIELD VALUES -- //
@@ -192,7 +192,7 @@ trait vtRestockRecords_admin {
     }
     // USED BY page edit form
     protected function SupplierRecords_all() {
-	return $this->SupplierTable()->AllRecords();
+	return $this->SupplierTable()->SelectRecords();
     }
     
     protected function WarehouseRecord() {
@@ -209,7 +209,7 @@ trait vtRestockRecords_admin {
     }
     // USED BY page edit form
     protected function WarehouseRecords_all() {
-	return $this->WarehouseTable()->AllRecords();
+	return $this->WarehouseTable()->SelectRecords();
     }
     
     // -- RECORDSETS -- //

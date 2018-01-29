@@ -4,15 +4,11 @@
   HISTORY:
     2015-10-19 extracted from trxact.php
 */
-class VCT_OrderTrxTypes extends vcAdminTable {
+class vctOrderTrxTypes extends vcAdminTable {
+    use ftExecutableTwig;
 
-    /*
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng();
-	  $this->Name();
-	  $this->KeyName('ID');
-    }*/
+    // ++ SETUP ++ //
+
     protected function TableName() {
 	return 'ord_trx_type';
     }
@@ -22,6 +18,22 @@ class VCT_OrderTrxTypes extends vcAdminTable {
     public function GetActionKey() {
 	return KS_PAGE_KEY_ORDER_TRX_TYPE;
     }
+
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Transaction Types');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
+	return $this->AdminPage();	// TODO: to be written
+    }
+
+    // -- EVENTS -- //
 }
 class vcraOrderTrxType extends vcAdminRecordset {
 
@@ -36,13 +48,19 @@ class vcraOrderTrxType extends vcAdminRecordset {
     // ++ FIELD VALUES ++ //
 
     protected function CategoryIndex() {
-	return $this->Value('Catg');
+	return $this->GetFieldValue('Catg');
+    }
+    protected function AboutString() {
+	return $this->GetFieldValue('Descr');
+    }
+    protected function CodeString() {
+	return $this->GetFieldValue('Code');
     }
     public function NameShort() {
-	return $this->Value('Code');
+	return $this->CodeString();
     }
     public function NameLong() {
-	return $this->Value('Code').' '.$this->Value('Descr');
+	return $this->CodeString().' '.$this->AboutString();
     }
 /*    public function IsShipping() {
 	return $this->Value('isShipg') != chr(0);
@@ -55,9 +73,10 @@ class vcraOrderTrxType extends vcAdminRecordset {
     // ++ FIELD CALCULATIONS ++ //
     
     public function DocLink($iText=NULL) {
-	$txtCode = (is_null($iText))?$this->Value('Code'):$iText;
+	$htCode = (is_null($iText))?$this->CodeString():$iText;
 	// TODO: should integrate with a wiki module to detect if the wiki page is actually available
-	return clsHTML::BuildLink(KWT_DOC_TRX_TYPES.'/'.$this->Value('Code'),$txtCode,$this->Value('Descr'));
+	$url = vcGlobals::Me()->GetWebPath_forAdminDocs_TransactionType($this->CodeString());
+	return fcHTML::BuildLink($url,$htCode,$this->AboutString());
     }
     public function IsSale() {
 	return $this->CategoryIndex() == 1;

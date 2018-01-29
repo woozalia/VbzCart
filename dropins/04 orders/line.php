@@ -6,14 +6,14 @@
     2014-02-22 split off OrderItem classes from order.php
     2015-04-21 manually merged changes accidentally not synced from Rizzo
 */
-class VCA_OrderLines extends vctOrderLines {
+class vctAdminOrderLines extends vctOrderLines implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
     // OVERRIDE
     protected function SingularName() {
-	return 'VCA_OrderItem';
+	return 'vcrAdminOrderLine';
     }
     // CEMENT
     public function GetActionKey() {
@@ -21,16 +21,20 @@ class VCA_OrderLines extends vctOrderLines {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->RenderSearch();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->arArgs = $arArgs;
 	$out = $this->RenderSearch();
 	return $out;
-    }
+    } */
 
     // -- DROP-IN API -- //
     // ++ ADMIN WEB UI ++ //
@@ -69,8 +73,9 @@ __END__;
 
 	return $out;
     }
-    // TODO: why is this here instead of with the related functions in VCA_OrderItem?
+    // TODO: why is this here instead of with the related functions in vcrAdminOrderLine?
     static public function CaptureEdit() {
+	throw new exception('2017-05-31 Does anything still call this?');
 	$oReq = clsHTTP::Request();
 
 	// always capture these fields
@@ -89,10 +94,11 @@ __END__;
 	a new Order record was called for based on whether that was set or not. This doesn't make
 	any sense, since the Order being saved to may exist, and in that case we wouldn't want
 	to create a new one. I am therefore changing this logic to check $rcOrder->IsNew() instead.
-      TODO: why is this here instead of with the related functions in VCA_OrderItem?
+      TODO: why is this here instead of with the related functions in vcrAdminOrderLine?
 	See EditForm(), RenderEdit_inline()
     */
     static public function SaveEdit(vcrOrder $rcOrder, array $arFields, vcrOrderLine $rcLine=NULL) {
+	throw new exception('2017-05-31 Does anything actually call this now?');
 	if (is_null($rcLine)) {
 	    $rcLine = $rcOrder->SpawnLineRecord();
 	}
@@ -149,12 +155,12 @@ __END__;
     // -- ADMIN WEB UI -- //
 
 }
-class VCA_OrderItem extends vcrOrderLine {
+class vcrAdminOrderLine extends vcrOrderLine implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
-    use ftLoggableRecord;
+    use ftLoggableRecord;	// display record-specific event log
     use ftFrameworkAccess;
-
-    private $doNewEntry;
+    use ftExecutableTwig;	// dispatch events
+    use ftSaveableRecord;	// implements ChangeFieldValues()
 
     // ++ SETUP ++ //
 
@@ -174,6 +180,26 @@ class VCA_OrderItem extends vcrOrderLine {
     }
     
     // -- TRAIT HELPERS -- //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$rcOrd = $this->OrderRecord();
+	$sOrd = $rcOrd->NameString();
+	$sSeq = $this->SequenceNumber();
+	$htTitle = "Order $sOrd line # $sSeq";
+	$sTitle = "ord $sOrd-$sSeq";
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+
+    // -- EVENTS -- //
     // ++ OPTIONS ++ //
 
     public function Want_ShowNewEntry($bShow=NULL) {
@@ -182,28 +208,36 @@ class VCA_OrderItem extends vcrOrderLine {
 	}
 	return $this->doNewEntry;
     }
+    private $doNewEntry;
+    protected function Set_NewEntryVisible($bShow) {
+	$this->doNewEntry = $bShow;
+    }
+    protected function Get_NewEntryVisible() {
+    }
 
     // -- OPTIONS -- //
     // ++ FIELD VALUES ++ //
 
 
     protected function GetOrderID() {
-	return $this->Value('ID_Order');
+	return $this->GetFieldValue('ID_Order');
     }
     protected function ItemID() {
-	return $this->Value('ID_Item');
+	return $this->GetFieldValue('ID_Item');
     }
     public function QtyOrdered() {
-	return $this->Value('QtyOrd');
+	return $this->GetFieldValue('QtyOrd');
     }
     public function ShipPerItem() {
+	throw new exception('2017-04-11 Call GetShippingPerUnit() instead.');
 	return $this->Value('ShipItm');
     }
     public function ShipPerPackage() {
+	throw new exception('2017-04-11 Call GetShippingPerPackage() instead.');
 	return $this->Value('ShipPkg');
     }
     public function NotesText() {
-	return $this->Value('Notes');
+	return $this->GetFieldValue('Notes');
     }
     protected function HasNotes() {
 	return ($this->NotesText() != NULL);
@@ -221,16 +255,38 @@ class VCA_OrderItem extends vcrOrderLine {
     }
     
     // -- FIELD CALCULATIONS -- //
+    // ++ ARRAY CALCULATIONS ++ //
+
+    /*----
+      RETURNS: array contining sum of quantities ordered for each item in the order
+      HISTORY:
+	2011-03-24 fixed bug where multiple rows of same item were not being handled properly
+	  Quantities are now added instead of latest overwriting previous value.
+    */
+    public function QtyArray() {
+	if ($this->hasRows()) {
+	    $arOut = NULL;
+	    while ($this->NextRow()) {
+		$idItem = $this->ItemID();
+		$arOut[$idItem] = $this->GetFieldValue('QtyOrd') + fcArray::Nz($arOut,$idItem,0);
+	    }
+	    return $arOut;
+	} else {
+	    return NULL;
+	}
+    }
+
+    // -- ARRAY CALCULATIONS -- //
     // ++ CLASS NAMES ++ //
 
     protected function OrdersClass() {
 	return KS_CLASS_ORDERS;
     }
     protected function ItemsClass() {
-	if (fcDropInManager::IsReady('vbz.lcat')) {
+	if (fcApp::Me()->GetDropInManager()->HasModule('vbz.lcat')) {
 	    return KS_ADMIN_CLASS_LC_ITEMS;
 	} else {
-	    return 'clsItems';
+	    return 'vctItems';
 	}
     }
 
@@ -238,10 +294,10 @@ class VCA_OrderItem extends vcrOrderLine {
     // ++ TABLES ++ //
 
     protected function OrderTable($id=NULL) {
-	return $this->Engine()->Make($this->OrdersClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->OrdersClass(),$id);
     }
     protected function ItemTable($id=NULL) {
-	return $this->Engine()->Make($this->ItemsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ItemsClass(),$id);
     }
 
     // -- TABLES -- //
@@ -339,7 +395,7 @@ class VCA_OrderItem extends vcrOrderLine {
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=record-block>
   <tr><td align=right><b>ID</b>:</td><td><#ID#></td></tr>
   <tr><td align=right><b>Order</b>:</td><td><#!ord#></td></tr>
   <tr><td align=right><b>Seq</b>:</td><td><#Seq#></td></tr>
@@ -401,7 +457,7 @@ __END__;
     */
     public function AdminPage() {
 	// save edits before rendering anything
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	$doSave = fcHTTP::Request()->GetBool('btnSave');
 	if ($doSave) {
 	    $oForm = $this->EditForm();
 	    if ($oForm->Save()) {
@@ -409,17 +465,22 @@ __END__;
 		$this->SelfRedirect(NULL,$sMsgs);
 	    }
 	}
-	$out = NULL;
-	$oPage = $this->Engine()->App()->Page();
 
-	$sDo = $oPage->PathArg('do');
-	$doEdit = ($sDo == 'edit');
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	$oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit line record'));
+	  $doEdit = $ol->GetIsSelected();
+	
+	$out = NULL;
+
+//	$sDo = $oPage->PathArg('do');
+//	$doEdit = ($sDo == 'edit');
 	$doForm = $doEdit;
 
 	$rcOrd = $this->OrderRecord();
 
-	$sTitle = 'Order '.$rcOrd->NameString().' line #'.$this->Value('Seq');
+	//$sTitle = 'Order '.$rcOrd->NameString().' line #'.$this->Value('Seq');
 
+	/*
 	// set up titlebar menu
 	//clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
 	$arActs = array(
@@ -427,6 +488,7 @@ __END__;
 	  );
 	$oPage->PageHeaderWidgets($arActs);
 	$oPage->TitleString($sTitle);
+	*/
 
 //	$ftWho = $this->Value('VbzUser');
 //	$ftWhere = $this->Value('Machine');
@@ -453,7 +515,7 @@ __END__;
 	    $out .= '<form method=post>';
 	}
 	$tplt = $this->PageTemplate();
-	$tplt->VariableValues($arCtrls);
+	$tplt->SetVariableValues($arCtrls);
 	$out .= $tplt->Render();
 
 	/*
@@ -505,7 +567,7 @@ __END__;
 */
 	if ($doForm) {
 	    $out .= '<input type=submit name="btnSave" value="Save">';
-	    $out .= '<input type=reset value="Reset">';
+	    //$out .= '<input type=reset value="Reset">';
 	    $out .= '</form>';
 	}
 
@@ -514,7 +576,7 @@ __END__;
 	  // 			array $iarData,$iLinkKey,	$iGroupKey,$iDispOff,$iDispOn,$iDescr
 //	  new clsActionLink_option(array(),'add-item',		'do','add',	NULL,'add a new item to the order'),
 	  );
-	$out .= $oPage->ActionHeader('Events',$arActs);
+	//$out .= $oPage->ActionHeader('Events',$arActs);
 	$out .= $this->EventListing();
 
 	return $out;
@@ -524,7 +586,7 @@ __END__;
 	$iArgs needs to be documented
     */
     public function AdminTable_forOrder() {
-	$oPage = $this->Engine()->App()->Page();
+	$oFormIn = fcHTTP::Request();
 	$out = NULL;
 
 	$doNew = $this->Want_ShowNewEntry();	// displaying extra stuff for adding new line
@@ -532,7 +594,7 @@ __END__;
 	$doRows = $nRows > 0;
 
 	if ($doRows) {
-	    $this->StartRows();		// rewind to before first row
+	    $this->RewindRows();	// rewind to before first row
 	    // no, I don't know why it doesn't remember the last row loaded
 	    $this->NextRow();		// load first row to get order ID
 	    $arPkgSums = $this->OrderRecord()->PackageSums();
@@ -541,8 +603,8 @@ __END__;
 	    $hasPkgs = FALSE;
 	}
 
-	$doLookup = $oPage->ReqArgBool('btnLookup');
-	$doSave =  $oPage->ReqArgBool('btnSaveItem');
+	$doLookup = $oFormIn->GetBool('btnLookup');
+	$doSave =  $oFormIn->GetBool('btnSaveItem');
 	$doCapture = $doLookup || $doSave;	// is there form data to capture?
 	if ($doRows || $doNew) {
 	    if ($hasPkgs) {
@@ -575,31 +637,31 @@ __END__;
 	    $out .= "\n  </tr>";
 
 	    if ($doCapture) {
-		$arFields = $this->Table()->CaptureEdit();
+		$arFields = $this->GetTableWrapper()->CaptureEdit();
 	    } else {
 		$arFields = NULL;
 	    }
 	    if ($doRows) {
-		$rnItem = $this->ItemTable()->SpawnItem();
+		$rcItem = $this->ItemTable()->SpawnRecordset();
 		$isOdd = TRUE;
-		$this->StartRows();
+		$this->RewindRows();
 		while ($this->NextRow()) {
 		    $wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		    $isOdd = !$isOdd;
 
-		    $row = $this->Values();
+		    $row = $this->GetFieldValues();
 		    $id = $row['ID'];
 		    $nSeq = $this->SequenceNumber();
-		    $idItem = $this->Value('ID_Item');
+		    $idItem = $this->ItemID();
 		    $ftID = $this->SelfLink();
-		    $strCatNum = $this->CatNum();
+		    $strCatNum = $this->GetCatNum();
 		    $hasNotes = $this->HasNotes();
 		    if ($hasNotes) {
 			$sNotes = $this->NotesText();
 			$htNotes = fcString::EncodeForHTML($sNotes);
 		    }
-		    $rnItem->SetKeyValue($idItem);
-		    $htCatNum = $rnItem->SelfLink($strCatNum);
+		    $rcItem->SetKeyValue($idItem);
+		    $htCatNum = $rcItem->SelfLink($strCatNum);
 		    $strDescr = $row['Descr'];
 		    $strPrice = $row['Price'];
 		    $strPerItem = $row['ShipPkg'];
@@ -628,9 +690,6 @@ __END__;
 			} else {
 			    $htOrd = $this->SelfLink();
 			    $htPkgCells = "<td colspan=5><b>Warning</b>: package data is missing for ID $idItem</td>";
-			    //echo 'ARPKGSUMS:<pre>'.print_r($arPkgSums,TRUE).'</pre>';
-			    //$idOrd = $this->OrderRecord()->KeyValue();
-			    //throw new exception("Internal error in order administration (order ID $idOrd, item ID $idItem)");
 			}
 		    }
 
@@ -718,16 +777,16 @@ __END__;
 	    $isOdd = TRUE;
 	    while ($this->NextRow()) {
 		$idOrd = $this->GetOrderID();
-		$rcOrd = $this->OrderTable()->GetItem($idOrd);
-		$key = $rcOrd->Value('WhenStarted').$rcOrd->Number();
+		$rcOrd = $this->OrderTable()->GetRecord_forKey($idOrd);
+		$key = $rcOrd->GetFieldValue('WhenStarted').$rcOrd->Number();
 		$arOrd[$key]['line'] = $this->Values();
 		$arOrd[$key]['ord'] = $rcOrd->Values();
 	    }
 	    krsort($arOrd);
 	    foreach ($arOrd as $key => $data) {
 		$rcLine = $this;
-		$rcLine->Values($data['line']);
-		$rcOrd->Values($data['ord']);
+		$rcLine->SetFieldValues($data['line']);
+		$rcOrd->SetFieldValues($data['ord']);
 		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$isOdd = !$isOdd;
 
@@ -742,11 +801,11 @@ __END__;
 		$wtStatus = $rcOrd->PulledText();
 
 		$arStats = $rcOrd->PackageSums($rcLine->ItemID());
-		$qtyOrd = $rcLine->Value('QtyOrd');
-		$qtyShp = clsArray::Nz($arStats,'qty-shp');
-		$qtyRtn = clsArray::Nz($arStats,'qty-rtn');
-		$qtyKld = clsArray::Nz($arStats,'qty-kld');
-		$qtyNA = clsArray::Nz($arStats,'qty-na');
+		$qtyOrd = $rcLine->GetFieldValue('QtyOrd');
+		$qtyShp = fcArray::Nz($arStats,'qty-shp');
+		$qtyRtn = fcArray::Nz($arStats,'qty-rtn');
+		$qtyKld = fcArray::Nz($arStats,'qty-kld');
+		$qtyNA = fcArray::Nz($arStats,'qty-na');
 		$qtyOpen = $qtyOrd - $qtyShp - $qtyKld - $qtyNA;
 		$wtOpen = empty($qtyOpen)?'-':"<b>$qtyOpen</b>";
 		$wtWhen = $rcOrd->WhenStarted();
@@ -777,26 +836,4 @@ __END__;
     }
 
     // -- ADMIN INTERFACE -- //
-    // ++ BUSINESS LOGIC ++ //
-
-    /*----
-      RETURNS: array contining sum of quantities ordered for each item in the order
-      HISTORY:
-	2011-03-24 fixed bug where multiple rows of same item were not being handled properly
-	  Quantities are now added instead of latest overwriting previous value.
-    */
-    public function QtyArray() {
-	if ($this->hasRows()) {
-	    $arOut = NULL;
-	    while ($this->NextRow()) {
-		$idItem = $this->ItemID();
-		$arOut[$idItem] = $this->Value('QtyOrd') + clsArray::Nz($arOut,$idItem,0);
-	    }
-	    return $arOut;
-	} else {
-	    return NULL;
-	}
-    }
-
-    // -- BUSINESS LOGIC -- //
 }

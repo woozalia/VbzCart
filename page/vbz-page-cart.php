@@ -7,15 +7,15 @@
   HISTORY:
     2012-05-14 extracted from cart.php
 */
-class vcPageBrowse_Cart extends vcBrowsePage {
+class vcPageBrowse_Cart extends vcPageContent {
 
     // ++ SETUP ++ //
 
-    public function __construct() {
+/*    public function __construct() {
 	parent::__construct();
 	//$this->strSideXtra = NULL;
 	$this->GetSkinObject()->Sheet('cart');
-    }
+    } */
     
     // -- SETUP -- //
     // ++ CEMENTING ++ //
@@ -79,7 +79,7 @@ class vcPageBrowse_Cart extends vcBrowsePage {
     // ++ CALCULATIONS ++ //
     
     protected function FormInputNeedsCart() {
-	return vcrCart_ShopUI::FormInputNeedsCart();
+	return vcrShopCart::FormInputNeedsCart();
     }
     
     // -- CALCULATIONS -- //

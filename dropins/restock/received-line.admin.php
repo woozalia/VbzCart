@@ -4,7 +4,7 @@
   HISTORY:
     2016-01-06 split off from received-line.logic.php (formerly received-line.php)
 */
-class vctaRstkRcdLines extends vctlRstkRcdLines {
+class vctaRstkRcdLines extends vctlRstkRcdLines implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use ftLoggableTable;
     
@@ -20,6 +20,14 @@ class vctaRstkRcdLines extends vctlRstkRcdLines {
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'Nothing written yet; maybe searches by item or date-range would be good.';
+    }
+
+    // -- EVENTS -- //
     // ++ TABLES ++ //
     
     protected function LineTable($id=NULL) {
@@ -106,7 +114,7 @@ class vctaRstkRcdLines extends vctlRstkRcdLines {
     // -- FORM HANDLING -- //
 
 }
-class vcraRstkRcdLine extends vcrlRstkRcdLine {
+class vcraRstkRcdLine extends vcrlRstkRcdLine implements fiLinkableRecord {
     use ftLinkableRecord;
     use ftShowableRecord { AdminRows_head as AdminRows_head_base; }
     use ftFrameworkAccess;
@@ -141,7 +149,7 @@ class vcraRstkRcdLine extends vcrlRstkRcdLine {
     // ++ TABLES ++ //
     
     protected function ParentTable($id=NULL) {
-	return $this->Engine()->Make($this->ParentClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ParentClass(),$id);
     }
     protected function BinTable($id=NULL) {
 	return $this->Engine()->Make($this->BinsClass(),$id);
@@ -154,7 +162,7 @@ class vcraRstkRcdLine extends vcrlRstkRcdLine {
     // ++ RECORDS ++ //
     
     protected function ParentRecord() {
-	return $this->ParentTable($this->ParentID());
+	return $this->ParentTable($this->GetParentID());
     }
     
     // -- RECORDS -- //
@@ -204,24 +212,36 @@ class vcraRstkRcdLine extends vcrlRstkRcdLine {
 	  I'm removing it.
     */
     private function AdminPage() {
-	$oPage = $this->PageObject();
-	$doSave = $oPage->ReqArgBool('btnSave');
-	$doEdit = ($oPage->PathArg('edit'));
-	$isNew = $this->IsNew();
-	
+	$oFormIn = fcHTTP::Request();
+
+	$doSave = $oFormIn->GetBool('btnSave');
 	if ($doSave) {
 	    $this->PageForm()->Save();
 	    $this->SelfRedirect();
 	}
+
+	// page title
 	
+	$sTitle = 'Received Restock Line ID #'.$this->GetKeyValue();
+	fcApp::Me()->GetPageObject()->SetPageTitle($sTitle);
+
+	// header menu
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit this record'));
+ 
+	    $doEdit = $ol->GetIsSelected();
+	
+//	$doEdit = ($oPage->PathArg('edit'));
+	$isNew = $this->IsNew();
+	
+	/* 2017-03-24 old
 	$arActs = array(
 	    // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
 	  new clsActionLink_option(array(),'edit'),
-	  );
+	  ); */
 
-	$sTitle = 'Received Restock Line ID #'.$this->GetKeyValue();
-	$oPage->TitleString($sTitle);
-	$oPage->PageHeaderWidgets($arActs);
+	//$oPage->PageHeaderWidgets($arActs);
 	
 	$frm = $this->PageForm();
 	
@@ -243,7 +263,7 @@ class vcraRstkRcdLine extends vcrlRstkRcdLine {
 	    $arCtrls['ID_Item'] = $this->ItemRecord()->SelfLink_name();
 	}
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 	if ($doEdit) {
 	    $out .= '<input type=submit name="btnSave" value="Save">';
@@ -376,6 +396,11 @@ __END__;
 	  );
     }
     
+    // CEMENT
+    protected function AdminRows_settings_columns() {
+	throw new exception('2017-04-16 Is this actually being called?');
+    }
+    
     // OVERRIDES trait
     protected function AdminRows_start() {
 	return "\n<form method=post>"
@@ -481,7 +506,7 @@ __END__;
     //++multiple-for-item++//
     
     protected function AdminRows_forItem_NoDataText() {
-	return 'No received restocks found for this item.';
+	return '<div class=content>No received restocks found for this item.</div>';
     }
     protected function AdminRows_forItem_Header() {
 	return <<<__END__
@@ -516,12 +541,12 @@ __END__;
 __END__;
     }
     protected function AdminRow_forItem(array $arRow) {
-	$rcMain = $this->ParentTable()->SpawnItem();
+	$rcMain = $this->ParentTable()->SpawnRecordset();
 	
 	$arLine = $arRow['line'];
 	$arMain = $arRow['main'];
-	$this->Values($arLine);
-	$rcMain->Values($arMain);
+	$this->SetFieldValues($arLine);
+	$rcMain->SetFieldValues($arMain);
 
 	// Request fields
 
@@ -535,22 +560,22 @@ __END__;
 	$yr = date('Y',$dt);
 
 	$sWhenRcd = $rcMain->WhenReceived();
-	$ftWhenRcd = clsDate::DefaultYear($sWhenRcd,$yr);
+	$ftWhenRcd = fcDate::DefaultYear($sWhenRcd,$yr);
 
 	$sWhenDeb = $rcMain->WhenDebited();
-	$ftWhenDeb = clsDate::DefaultYear($sWhenDeb,$yr);
+	$ftWhenDeb = fcDate::DefaultYear($sWhenDeb,$yr);
 	
 	// Line-item fields
 	
 	$ftLineID = $this->SelfLink();
-	$sCatNum = $this->Value('InvcCatNo');
-	$sDescr = $this->Value('InvcDescr');
-	$qtyOrd = $this->Value('InvcQtyOrd');
-	$qtySent = $this->Value('InvcQtySent');
+	$sCatNum = $this->GetFieldValue('InvcCatNo');
+	$sDescr = $this->GetFieldValue('InvcDescr');
+	$qtyOrd = $this->GetFieldValue('InvcQtyOrd');
+	$qtySent = $this->GetFieldValue('InvcQtySent');
 	$qtyRecd = $this->QtyReceived();
 	$qtyFiled = $this->QtyFiled();
 
-	$sNotes = $this->Value('Notes');
+	$sNotes = $this->GetFieldValue('Notes');
 
 	return <<<__END__
     <td>$ftMainID</td>

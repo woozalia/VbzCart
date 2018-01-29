@@ -3,8 +3,7 @@
   HISTORY:
     2014-03-24 extracted from catalog.php
 */
-class VCTA_SCGroups extends vcAdminTable {
-//    use ftLinkableTable;
+class vctaSCGroups extends vcAdminTable {
 
     // ++ SETUP ++ //
     
@@ -22,16 +21,20 @@ class VCTA_SCGroups extends vcAdminTable {
     }
     
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
-    // -- CALLBACKS -- //
+    // -- EVENTS -- //
     // ++ RECORDS ++ //
     
     // TODO: Rename this to Records_forSupplier_active() OSLT
@@ -70,21 +73,60 @@ class VCTA_SCGroups extends vcAdminTable {
     // -- WEB UI -- //
 
 }
-class VCRA_SCGroup extends clsDataSet {
+class vcraSCGroup extends vcAdminRecordset implements fiEventAware {
     use ftLinkableRecord;
-    use ftLoggableRecord;
+    use ftExecutableTwig;	// dispatch events
+    //use ftLoggableRecord;
 
-    private $frmPage;
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	if ($this->IsNew()) {
+	    $sTitle = 'New SC Group';
+	} else {
+	    $sTitle = 'SC Group: '.$this->NameString();
+	}
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle($sTitle);
+	//$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
-    // ++ SETUP ++ //
+    // -- EVENTS -- //
+    // ++ FIELD VALUES ++ //
 
-    protected function InitVars() {
-	$this->frmPage = NULL;
+    // PUBLIC so SCTitle listing can use it
+    public function NameString() {
+	return $this->GetFieldValue('Name');
+    }
+    protected function IsActive() {
+	return $this->GetFieldValue('isActive');
+    }
+    protected function CodeString() {
+	return $this->GetFieldValue('Code');
+    }
+    protected function SortString() {
+	return $this->GetFieldValue('Sort');
+    }
+    protected function Description() {
+	return $this->GetFieldValue('Descr');
     }
 
-    // -- SETUP -- //
-    // ++ TRAIT HELPERS ++ //
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
 
+    // TRAIT HELPER
     public function SelfLink_friendly(array $iarArgs=NULL) {
 	$out = $this->SelfLink($this->NameString(),NULL,$iarArgs);
 	if (!$this->IsActive()) {
@@ -92,58 +134,27 @@ class VCRA_SCGroup extends clsDataSet {
 	}
 	return $out;
     }
+    // TRAIT HELPER
     public function SelfLink_name() {
 	return $this->SelfLink_friendly();
     }
-
-    // -- TRAIT HELPERS -- //
-    // ++ CALLBACKS ++ //
-    
-    //++dropins++//
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
-	return $this->AdminPage();
-    }
+    // CALLBACK
     public function ListItem_Text() {
 	return $this->NameString();
     }
+    // CALLBACK
     public function ListItem_Link() {
 	return $this->SelfLink($this->ListItem_Text());
     }
 
-    //--dropins--//
-    
-    // -- CALLBACKS -- //
-    // ++ FIELD VALUES ++ //
-
-    // PUBLIC so SCTitle listing can use it
-    public function NameString() {
-	return $this->Value('Name');
-    }
-    protected function IsActive() {
-	return $this->Value('isActive');
-    }
-    protected function CodeString() {
-	return $this->Value('Code');
-    }
-    protected function SortString() {
-	return $this->Value('Sort');
-    }
-    protected function Description() {
-	return $this->Value('Descr');
-    }
-
-    // -- FIELD VALUES -- //
+    // -- FIELD CALCULATIONS -- //
     // ++ TABLES ++ //
     
     protected function SCItemTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_ITEMS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_ITEMS,$id);
     }
     protected function SupplierTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_CATALOG_SUPPLIERS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_CATALOG_SUPPLIERS,$id);
     }
 
     // -- TABLES -- //
@@ -182,24 +193,37 @@ class VCRA_SCGroup extends clsDataSet {
     //++single++//
     
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-	$out = NULL;
+//	$out = NULL;
 
-	$isNew = is_null($this->GetKeyValue());
-	$doEdit = $oPage->PathArg('edit') || $isNew;
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
-	$idSupp = (int)$oPage->PathArg('supp');
-	if (!empty($idSupp)) {
-	    $this->Value('ID_Supplier',$idSupp);
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	$isNew = $this->IsNew();
+
+	if ($isNew) {
+	    $doEdit = TRUE;
+	} else {
+	    $oMenu = fcApp::Me()->GetHeaderMenu();
+	    $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit this record'));
+    
+	      $doEdit = $ol->GetIsSelected();
 	}
 
+//	$doEdit = $oPage->PathArg('edit') || $isNew;
+	$doSave = $oFormIn->GetBool('btnSave');
+
+	$idSupp = $oPathIn->GetInt('supp');
+	if (!empty($idSupp)) {
+	    $this->SetFieldValue('ID_Supplier',$idSupp);
+	}
+/*
 	if ($isNew) {
 	    $sTitle = 'New Group';
 	} else {
 	    $sTitle = 'Group: '.$this->NameString();
 	}
 	$oPage->TitleString($sTitle);
-	
+*/	
 	// Set up rendering objects
 	$frm = $this->PageForm();
 	if ($isNew) {
@@ -214,7 +238,7 @@ class VCRA_SCGroup extends clsDataSet {
 	    $sMsg = $frm->MessagesString();
 	    $this->SelfRedirect(NULL,$sMsg);
 	}
-	
+/*	
 	if (!$isNew) {
 
 	    $arMenu = array(
@@ -223,7 +247,7 @@ class VCRA_SCGroup extends clsDataSet {
 
 	    $oPage->PageHeaderWidgets($arMenu);
 	}
-	
+*/	
 	$out = NULL;
 
 	$oTplt = $this->PageTemplate();
@@ -236,7 +260,7 @@ class VCRA_SCGroup extends clsDataSet {
 	}
 
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -287,7 +311,10 @@ class VCRA_SCGroup extends clsDataSet {
 	    $out .= '</form>';
 	} */
 	if (!$isNew) {
+	    $out .= $this->AdminItems();
+	
 
+	/*
 	    $arActs = array(
 	      // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL,$iDescr=NULL)
 	      new clsActionLink_option(
@@ -301,8 +328,7 @@ class VCRA_SCGroup extends clsDataSet {
 		)
 	      );
 	    $out .= $oPage->ActionHeader('Items',$arActs);
-
-	    $out .= $this->AdminItems();
+	*/
 	}
 
 	return $out;
@@ -311,7 +337,7 @@ class VCRA_SCGroup extends clsDataSet {
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=record-block>
   <tr><td align=right><b>ID</b>:</td><td>[[ID]]</td></tr>
   <tr><td align=right><b>Active</b>:</td><td>[[isActive]]</td></tr>
   <tr><td align=right><b>Name</b>:</td><td>[[Name]]</td></tr>
@@ -340,7 +366,7 @@ __END__;
 	      
 	      $oField = new fcFormField_Num($oForm,'ID_Supplier');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->SupplierTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->SupplierTable()->ActiveRecords());
 	      
 	      $oField = new fcFormField_Text($oForm,'Descr');
 	    
@@ -367,7 +393,9 @@ __END__;
 	2011-02-06 added editing ability
     */
     public function AdminList($iEdit,array $iContext) {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	$t = $this->GetTableWrapper();
 
 	$out = NULL;
 	$txtEdit = NULL;
@@ -375,28 +403,28 @@ __END__;
 	    $out .= "\n<form method=post>";
 	}
 
-	$db = $this->Engine();
-	if ($oPage->ReqArgBool('btnCtgChange')) {
-	    $arUpd = $db->SanitizeAndQuote($oPage->ReqArgArray('ctg-upd'));
-	    $arIns = $db->SanitizeAndQuote($oPage->ReqArgArray('ctg-ins'));
+	$db = $this->GetConnection();
+	if ($oFormIn->GetBool('btnCtgChange')) {
+	    $arUpd = $db->Sanitize_andQuote($oFormIn->GetArray('ctg-upd'));
+	    $arIns = $db->Sanitize_andQuote($oFormIn->GetArray('ctg-ins'));
 	    if (is_array($arUpd)) {
 		foreach ($arUpd as $id => $row) {
-		    $this->Table()->Update($row,'ID='.$id);
-		    $out .= '<br>'.$this->Table()->sqlExec;
+		    $t->Update($row,'ID='.$id);
+		    $out .= '<br>'.$t->sql;
 		}
 	    }
 	    if (is_array($arIns)) {
 		foreach ($arIns as $idx => $row) {
 		    $row = array_merge($row,$iContext);
-		    $this->Table()->Insert($row);
-		    $out .= '<br>'.$this->Table()->sqlExec;
+		    $t->Insert($row);
+		    $out .= '<br>'.$t->sql;
 		}
 	    }
 	    $iEdit = FALSE;	// saving changes -- turn off edit controls
 	    // this has not yet been tested
 	}
-	if ($oPage->ReqArgBool('btnCtgCheck')) {
-	    $txtEdit = $oPage->ReqArgText('txtCtgGrps');
+	if ($oFormIn->GetBool('btnCtgCheck')) {
+	    $txtEdit = $oFormIn->GetString('txtCtgGrps');
 	    $arLines = preg_split("/\n/",$txtEdit);
 
 	    $xts = new xtString();
@@ -418,7 +446,7 @@ __END__;
 	    $idxIns = 0;
 	    $isOdd = FALSE;
 	    foreach ($arLines as $line) {
-		$xts->Value = $line;
+		$xts->SetValue($line);
 		$arRow = $xts->Xplode();
 
 		$isOdd = !$isOdd;
@@ -442,7 +470,7 @@ __END__;
 		    $htRow .= '</tr>';
 		    $htTbl .= $htRow;
 		} else {
-		    $rc = $this->Table()->GetItem($id);
+		    $rc = $t->GetRecord_forKey($id);
 
 		    $chg = NULL;
 		    $htID = $rc->SelfLink();
@@ -452,7 +480,7 @@ __END__;
 			$htRow .= '<td>';
 			$idxFld++;
 			$vNew = $arRow[$idxFld];
-			if ($orc->Value($key) != $vNew) {
+			if ($orc->GetFieldValue($key) != $vNew) {
 			    $chg .= ' '.$key;
 			    $htVal = fcString::EncodeForHTML($vNew);
 			    $ctVal = $htVal.'<input type=hidden name="ctg-upd['.$id.']['.$key.']" value="'.$htVal.'">';
@@ -489,11 +517,11 @@ __END__;
 		if (is_null($txtEdit)) {
 		    while ($this->NextRow()) {
 			$txt = "\n\t".$this->GetKeyValue()
-			  ."\t".$this->Value('isActive')
-			  ."\t".$this->Value('Code')
-			  ."\t".$this->Value('Sort')
-			  ."\t".$this->Value('Name')
-			  ."\t".$this->Value('Descr');
+			  ."\t".$this->GetFieldValue('isActive')
+			  ."\t".$this->GetFieldValue('Code')
+			  ."\t".$this->GetFieldValue('Sort')
+			  ."\t".$this->GetFieldValue('Name')
+			  ."\t".$this->GetFieldValue('Descr');
 			$out .= fcString::EncodeForHTML($txt);
 		    }
 		} else {
@@ -563,9 +591,8 @@ __END__;
 	$arOpts = array(
 	  'context'	=> array(
 	    'ID_Group'		=> $this->GetKeyValue(),
-	    'ID_Supplier'	=> $this->Value('ID_Supplier')
+	    'ID_Supplier'	=> $this->GetFieldValue('ID_Supplier')
 	    ),
-	  'logger'	=> $this->Log()
 	  );
 	return $rsRows->AdminRows(NULL,$arOpts);
     }

@@ -5,7 +5,7 @@
     2013-12-18 created to reduce confusion
 */
 
-class vctaRstksRcvd extends vctRstksRcvd {
+class vctaRstksRcvd extends vctRstksRcvd implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use vtRestockTable_admin;
 
@@ -21,6 +21,20 @@ class vctaRstksRcvd extends vctRstksRcvd {
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->AdminPage();
+    }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminRows();
+    } */
+    
+    // -- EVENTS -- //
     // ++ TRAIT HELPERS ++ //
     
     /*----
@@ -46,16 +60,6 @@ class vctaRstksRcvd extends vctRstksRcvd {
     }
     
     // -- TRAIT HELPERS -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
-	return $this->AdminRows();
-    }
-
-    // -- DROP-IN API -- //
     // ++ CLASS NAMES ++ //
     
     protected function RequestsClass() {
@@ -106,10 +110,10 @@ class vctaRstksRcvd extends vctRstksRcvd {
     // -- ADMIN UI -- //
 }
 
-class vcraRstkRcvd extends vcrRstkRcvd {
+class vcraRstkRcvd extends vcrRstkRcvd implements fiLinkableRecord {
     use ftLinkableRecord;
     use ftShowableRecord;
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
     use vtRestockRecords_admin;
 
     // ++ CALLBACKS ++ //
@@ -137,34 +141,34 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 
     // PUBLIC so lines can read it
     public function InvoiceNumber() {
-	return $this->Value('SuppInvcNum');
+	return $this->GetFieldValue('SuppInvcNum');
     }
     protected function CarrierText() {
-	return $this->Value('CarrierDescr');
+	return $this->GetFieldValue('CarrierDescr');
     }
     // PUBLIC so lines can read it
     public function WhenShipped() {
-	return $this->Value('WhenShipped');
+	return $this->GetFieldValue('WhenShipped');
     }
     // PUBLIC so lines can read it
     public function WhenReceived() {
-	return $this->Value('WhenReceived');
+	return $this->GetFieldValue('WhenReceived');
     }
     // PUBLIC so lines can read it
     public function WhenDebited() {
-	return $this->Value('WhenDebited');
+	return $this->GetFieldValue('WhenDebited');
     }
     protected function InvoiceTotal_Merch() {
-	return $this->Value('TotalInvMerch');
+	return $this->GetFieldValue('TotalInvMerch');
     }
     protected function InvoiceTotal_Final() {
-	return $this->Value('TotalInvFinal');
+	return $this->GetFieldValue('TotalInvFinal');
     }
     protected function PaymentMethod_text() {
-	return $this->Value('PayMethod');
+	return $this->GetFieldValue('PayMethod');
     }
     protected function NotesText() {
-	return $this->Value('Notes');
+	return $this->GetFieldValue('Notes');
     }
     
     // -- DATA FIELDS -- //
@@ -181,7 +185,7 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 	return $this->SupplierRecord()->CatKey().' '.$s;
     }
     protected function InvoiceCondition_short() {
-	$vCond = $this->Value('InvcCondition');
+	$vCond = $this->GetFieldValue('InvcCondition');
 	if (is_null($vCond)) {
 	    $out = '--';
 	} else {
@@ -196,7 +200,7 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 	return $out;
     }
     protected function HasRequest() {
-	return !is_null($this->RequestID());
+	return !is_null($this->GetRequestID());
     }
     protected function RequestLink() {
 	if ($this->HasRequest()) {
@@ -219,15 +223,15 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 	return
 	  fcString::IfPresent(
 	    $this->WhenShipped(),
-	    'sh&nbsp;'.clsDate::DefaultYear($this->WhenShipped(),$yrCur).'<br>'
+	    'sh&nbsp;'.fcDate::DefaultYear($this->WhenShipped(),$yrCur).'<br>'
 	    )
 	  .fcString::IfPresent(
 	    $this->WhenReceived(),
-	    'rc&nbsp;'.clsDate::DefaultYear($this->WhenReceived(),$yrCur).'<br>'
+	    'rc&nbsp;'.fcDate::DefaultYear($this->WhenReceived(),$yrCur).'<br>'
 	    )
 	  .fcString::IfPresent(
 	    $this->WhenDebited(),
-	    'db&nbsp;'.clsDate::DefaultYear($this->WhenDebited(),$yrCur)
+	    'db&nbsp;'.fcDate::DefaultYear($this->WhenDebited(),$yrCur)
 	    )
 	  ;
     }
@@ -297,6 +301,10 @@ class vcraRstkRcvd extends vcrRstkRcvd {
     // ++ ADMIN UI ++ //
 
     //+ROWS+//
+
+    protected function AdminRows_settings_columns() {
+	throw new exception('2017-04-16 Is this actually being called?');
+    }
     
     private $nYearLast;
     protected function AdminRows_start() {
@@ -306,10 +314,12 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 	  'supp' => FALSE,
 	  'year' => FALSE
 	  );
-	$idReq = $this->RequestID();
+	$idReq = $this->GetRequestID();
 	if (!is_null($idReq)) {
 	    $arBase[KS_ACTION_RESTOCK_REQUEST] = $idReq;
 	}
+	
+	/*
 	$arMenu = array(
 	  new clsActionLink_option(
 	    $arBase,	// other stuff to always appear in URL, regardless of section's menu state
@@ -329,8 +339,24 @@ class vcraRstkRcvd extends vcrRstkRcvd {
 	    the current section. The object should receive a section object that could
 	    be either one (by default it would be the Page), and just modify that.
 	*/
+	/*
 	//$this->PageObject()->PageHeaderWidgets($arMenu);
 	$out = $this->PageObject()->ActionHeader('Restock Shipments Received',$arMenu)
+	  ."\n<table class=listing>"
+	  ; */
+	$oMenu = new fcHeaderMenu();
+	
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink(
+	    KS_PATHARG_NAME_INDEX,	// 'id'
+	    KS_NEW_REC,			// 'new'
+	    NULL,NULL,
+	    'enter a new received restock from scratch'));
+	    $ol->AddLinkArray($arBase);
+
+	$oHdr = new fcSectionHeader('Restock Shipments Received',$oMenu);
+	
+	$out = $oHdr->Render()
 	  ."\n<table class=listing>"
 	  ;
 	return $out;

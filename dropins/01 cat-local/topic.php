@@ -5,10 +5,11 @@
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
     2014-03-28 adapting from MW for standalone CMS
-    2016-02-07 descending VCTA_Topics from clsTopics_StoreUI instead of clsTopics
-      This is needed because _StoreUI knows about the treeview control.
+    2016-02-07 descending VCTA_Topics (now vctAdminTopics) from clsTopics_StoreUI (now vctShopTopics)
+      instead of clsTopics (now vctTopics)
+      This is needed because Shop class knows about the treeview control.
 */
-class VCTA_Topics extends clsTopics_StoreUI {
+class vctAdminTopics extends vctShopTopics implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
@@ -22,18 +23,22 @@ class VCTA_Topics extends clsTopics_StoreUI {
 	return KS_ACTION_CATALOG_TOPIC;
     }
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->AdminPage();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->arArgs = $arArgs;
 	$out = $this->AdminPage();
 	return $out;
-    }
+    } */
 
-    // -- CALLBACKS -- //
+    // -- EVENTS -- //
     // ++ CLASS NAMES ++ //
 
     protected function TitlesClass() {
@@ -267,19 +272,11 @@ __END__;
 	return $arOpts;
     }
 }
-class VCRA_Topic extends clsTopic_StoreUI {
+class vcrAdminTopic extends vcrShopTopic implements fiLinkableRecord {
     use ftLinkableRecord;
-    use ftLoggableRecord;
-    use vtLoggableAdminObject;
+    //use ftLoggableRecord;
     use ftShowableRecord;
 
-    // ++ SETUP ++ //
-
-    protected function InitVars() {
-	parent::InitVars();
-    }
-
-    // -- SETUP -- //
     // ++ TRAIT HELPERS ++ //
 
     public function SelfLink_name() {
@@ -327,7 +324,7 @@ class VCRA_Topic extends clsTopic_StoreUI {
     protected function AdminRows_start() {
 	return "\n<table class=listing>";
     }
-    public function AdminRows_settings_columns_default() {
+    public function AdminRows_settings_columns() {
 	return array(
 	    'ID'	=> 'ID',
 	    'ID_Parent'	=> 'Parent',
@@ -377,9 +374,6 @@ class VCRA_Topic extends clsTopic_StoreUI {
     }
     protected function XTitlesClass() {
 	return KS_CLASS_CATALOG_TITLES_TOPICS;
-    }
-    protected function SystemEventsClass() {
-	return KS_CLASS_EVENT_LOG;
     }
 
     // -- CLASS NAMES -- //

@@ -27,9 +27,9 @@ class clsCartLog extends vcShopTable {
       * Adapted from clsOrderLog::Add()
       * Should the order log be merged into the global event log?
     */
-    public function Add(vcrShopCart $rcCart,$sCode,$sDescr) {
+    public function Add(vcrCart $rcCart,$sCode,$sDescr) {
 	$oApp = $this->AppObject();
-	$sUser = $oApp->UserName();
+	$sUser = $oApp->LoginName();
 
 	$db = $this->GetConnection();
 	$arIns = array(

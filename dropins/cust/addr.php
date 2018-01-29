@@ -4,14 +4,14 @@
     2014-02-13 split address classes off from cust.php
     2017-01-06 somewhat updated
 */
-class VCT_MailAddrs extends vctCustAddrs {
+class vctAdminMailAddrs extends vctMailAddrs implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_MailAddr';
+	return 'vcrAdminMailAddr';
     }
     // CEMENT
     public function GetActionKey() {
@@ -19,11 +19,19 @@ class VCT_MailAddrs extends vctCustAddrs {
     }
 
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'Nothing written for this yet.';
+    }
 
+    // -- EVENTS -- //
+    
 }
-class VCR_MailAddr extends clsCustAddr {
+class vcrAdminMailAddr extends vcrCustAddr implements fiLinkableRecord {
     use ftLinkableRecord;
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
 
     // ++ BOILERPLATE HELPERS ++ //
 /*

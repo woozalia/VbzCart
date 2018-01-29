@@ -3,23 +3,36 @@
   FILE: dropins/misc/cashflow.php -- calculates cashflow by year
   HISTORY:
     2016-02-02 started
+    2017-03-28 y2017 remediation
 */
 
-class vctqCashflow extends fcConnectedData {
+class vcqtCashflow extends fcTable_wSource_wRecords implements fiEventAware, fiLinkableTable {
+    use ftLinkableTable;
 
+    // ++ SETUP ++ //
+    
     // CEMENT
     protected function SingularName() {
-	// Maybe a class-structure revision is needed?
-	throw new exception('2017-01-06 I will be surprised if this actually gets called.');
+	return 'vcqrCashflow';
     }
-    
-    // ++ CALLBACKS ++ //
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_CATALOG_SUPPLIER;
+    }
 
-    public function MenuExec() {
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
     
-    // -- CALLBACKS -- //
+    // -- EVENTS -- //
     // ++ SQL CALCULATIONS ++ //
     
     /*----
@@ -84,30 +97,30 @@ __END__;
 	$oData = new vctCashflow();
     
 	// purchases
-	$rs = $this->DataSQL($this->Purchases_SQL());
+	$rs = $this->FetchRecords($this->Purchases_SQL());
 	if ($rs->HasRows()) {
 	    while ($rs->NextRow()) {
-		$sWhen = $rs->Value('Time');
+		$sWhen = $rs->GetFieldValue('Time');
 		$oRow = $oData->Element($sWhen);
 		$oRow->LoadPurchases($rs);
 	    }
 	}
 	
 	// revenue
-	$rs = $this->DataSQL($this->Revenue_SQL());
+	$rs = $this->FetchRecords($this->Revenue_SQL());
 	if ($rs->HasRows()) {
 	    while ($rs->NextRow()) {
-		$sWhen = $rs->Value('Time');
+		$sWhen = $rs->GetFieldValue('Time');
 		$oRow = $oData->Element($sWhen);
 		$oRow->LoadRevenue($rs);
 	    }
 	}
 	
 	// shipping
-	$rs = $this->DataSQL($this->Shipping_SQL());
+	$rs = $this->FetchRecords($this->Shipping_SQL());
 	if ($rs->HasRows()) {
 	    while ($rs->NextRow()) {
-		$sWhen = $rs->Value('Time');
+		$sWhen = $rs->GetFieldValue('Time');
 		$oRow = $oData->Element($sWhen);
 		$oRow->LoadShipping($rs);
 	    }
@@ -127,6 +140,10 @@ __END__;
 
     // ++ WEB UI ++ //
 
+}
+
+// PURPOSE: basically a generic recordset type so we can retrieve query data
+class vcqrCashflow extends fcDataRecord {
 }
 
 class vctCashflow {
@@ -169,17 +186,17 @@ class vcrCashflowElement {
     
     // ++ RECORD PROCESSING ++ //
     
-    public function LoadPurchases(clsRecs_generic $rs) {
-	$this->SetMerchValue($rs->Value('TotalMerch'));
-	$this->SetShipValue($rs->Value('TotalShip'));
-	$this->SetSpentValue($rs->Value('TotalSpent'));
+    public function LoadPurchases(fcDataRow $rs) {
+	$this->SetMerchValue($rs->GetFieldValue('TotalMerch'));
+	$this->SetShipValue($rs->GetFieldValue('TotalShip'));
+	$this->SetSpentValue($rs->GetFieldValue('TotalSpent'));
     }
-    public function LoadRevenue(clsRecs_generic $rs) {
+    public function LoadRevenue(fcDataRow $rs) {
 	// debt-based polarity - charges to customer are negative, so subtract from zero
-	$this->SetRevenueValue(0-$rs->Value('Revenue'));
+	$this->SetRevenueValue(0-$rs->GetFieldValue('Revenue'));
     }
-    public function LoadShipping(clsRecs_generic $rs) {
-	$this->SetShipCostValue($rs->Value('Cost'));
+    public function LoadShipping(fcDataRow $rs) {
+	$this->SetShipCostValue($rs->GetFieldValue('Cost'));
     }
     
     // -- RECORD PROCESSING -- //
@@ -189,14 +206,14 @@ class vcrCashflowElement {
 	$this->ar['Merch'] = $v;
     }
     protected function GetMerchValue() {
-	return clsArray::Nz($this->ar,'Merch');
+	return fcArray::Nz($this->ar,'Merch');
     }
     protected function GetMerchText() {
-	$n = clsArray::Nz($this->ar,'Merch');
+	$n = fcArray::Nz($this->ar,'Merch');
 	if (is_null($n)) {
 	    return '-';
 	} else {
-	    return clsMoney::Format_number($n);
+	    return fcMoney::Format_number($n);
 	}
     }
 
@@ -204,14 +221,14 @@ class vcrCashflowElement {
 	$this->ar['Ship'] = $v;
     }
     protected function GetShipValue() {
-	return clsArray::Nz($this->ar,'Ship');
+	return fcArray::Nz($this->ar,'Ship');
     }
     protected function GetShipText() {
 	$n = clsArray::Nz($this->ar,'Ship');
 	if (is_null($n)) {
 	    return '-';
 	} else {
-	    return clsMoney::Format_number($n);
+	    return fcMoney::Format_number($n);
 	}
     }
 
@@ -219,14 +236,14 @@ class vcrCashflowElement {
 	$this->ar['Spent'] = $v;
     }
     protected function GetSpentValue() {
-	return clsArray::Nz($this->ar,'Spent');
+	return fcArray::Nz($this->ar,'Spent');
     }
     protected function GetSpentText() {
-	$n = clsArray::Nz($this->ar,'Spent');
+	$n = fcArray::Nz($this->ar,'Spent');
 	if (is_null($n)) {
 	    return '-';
 	} else {
-	    return clsMoney::Format_number($n);
+	    return fcMoney::Format_number($n);
 	}
     }
     
@@ -234,14 +251,14 @@ class vcrCashflowElement {
 	$this->ar['Revenue'] = $v;
     }
     protected function GetRevenueValue() {
-	return clsArray::Nz($this->ar,'Revenue');
+	return fcArray::Nz($this->ar,'Revenue');
     }
     protected function GetRevenueText() {
-	$n = clsArray::Nz($this->ar,'Revenue');
+	$n = fcArray::Nz($this->ar,'Revenue');
 	if (is_null($n)) {
 	    return '-';
 	} else {
-	    return clsMoney::Format_number($n);
+	    return fcMoney::Format_number($n);
 	}
     }
 
@@ -249,14 +266,14 @@ class vcrCashflowElement {
 	$this->ar['ShipCost'] = $v;
     }
     protected function GetShipCostValue() {
-	return clsArray::Nz($this->ar,'ShipCost');
+	return fcArray::Nz($this->ar,'ShipCost');
     }
     protected function GetShipCostText() {
-	$n = clsArray::Nz($this->ar,'ShipCost');
+	$n = fcArray::Nz($this->ar,'ShipCost');
 	if (is_null($n)) {
 	    return '-';
 	} else {
-	    return clsMoney::Format_number($n);
+	    return fcMoney::Format_number($n);
 	}
     }
     
@@ -266,19 +283,19 @@ class vcrCashflowElement {
 	  ;
     }
     protected function GetTotalLossesText() {
-	return clsMoney::Format_number($this->GetTotalLossesValue());
+	return fcMoney::Format_number($this->GetTotalLossesValue());
     }
     protected function GetTotalGainsValue() {
 	return $this->GetRevenueValue();
     }
     protected function GetTotalGainsText() {
-	return clsMoney::Format_number($this->GetTotalGainsValue());
+	return fcMoney::Format_number($this->GetTotalGainsValue());
     }
     protected function GetNetGainText() {
 	$nLoss =$this-> GetTotalGainsValue()
 	  - $this->GetTotalLossesValue()
 	  ;
-	return clsMoney::Format_number($nLoss);
+	return fcMoney::Format_number($nLoss);
     }
     
     // -- VALUES -- //

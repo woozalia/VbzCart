@@ -5,28 +5,26 @@
     2016-02-03 started
 */
 
-class vctaShipCosts extends clsShipCosts {
+class vctaShipCosts extends clsShipCosts implements fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('vcraShipCost');
-	  $this->ActionKey(KS_ACTION_SHIPCOST);
+    protected function SingularName() {
+	return 'vcraShipCost';
+    }
+    public function GetActionKey() {
+	return KS_ACTION_SHIPCOST;
     }
     
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
+    // ++ RECORDS ++ //
     
+    // CALLBACK
     public function DropDown_Records() {
 	$rs = $this->SelectRecords(NULL,'Sort');
 	return $rs;
     }
-    
-    // -- CALLBACKS -- //
-    // ++ RECORDS ++ //
-    
     public function ActiveRecords() {
 	$sqlFilt = NULL;
 	$sqlSort = 'Sort';
@@ -66,10 +64,10 @@ class vctaShipCosts extends clsShipCosts {
 	    $objRow->Values($row);
 	    $arList[$key] = $objRow->ChoiceLine();
 	}
-	return clsHTML::DropDown_arr($strName,$arList,$iDefault,$iChoose);
+	return fcHTML::DropDown_arr($strName,$arList,$iDefault,$iChoose);
     }
 }
-class vcraShipCost extends clsShipCost {
+class vcraShipCost extends clsShipCost implements fiLinkableRecord {
     use ftLinkableRecord;
 
     // ++ CALLBACKS ++ //

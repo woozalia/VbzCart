@@ -249,7 +249,8 @@ class vcCartLine_form extends vcCartLine_static {
 	$htDescr = $this->Descrip();
 
 	// form-control name for qty entry field:
-	$htQtyCtrlName = KSF_CART_ITEM_PFX.$htCatNum.KSF_CART_ITEM_SFX;
+	//$htQtyCtrlName = KSF_CART_ITEM_PFX.$htCatNum.KSF_CART_ITEM_SFX;
+	$htQtyCtrlName = vcGlobals::Me()->MakeItemControlName($htCatNum);
 	// HTML for qty entry form field
 	$htQtyCtrl = '<input size=2 align=right name="'.$htQtyCtrlName.'" value='.$nQty.'>';
 	$htDelBtn = '<span class=text-btn>'

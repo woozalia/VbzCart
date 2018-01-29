@@ -65,7 +65,7 @@ class vcCartDataFieldGroup {
 	}
     }
     /*----
-      NOTE: These two methods ^^ vv are essentially duplicates of methods in vcrCart_ShopUI.
+      NOTE: These two methods ^^ vv are essentially duplicates of methods in vcrShopCart.
 	I *think* the way it works is that the Cart object is collating missing-lists from
 	vcCartDataFieldGroup forms. Maybe missing-lists should be their own class?
     */

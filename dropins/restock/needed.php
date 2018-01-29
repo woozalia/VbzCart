@@ -3,28 +3,34 @@
   PURPOSE: classes for handling needed restocks
   HISTORY:
     2014-03-09 split off from request.php
+    2017-03-28 y2017 remediation
 */
 
-class VCM_RstksNeeded extends VCT_RstkReqs {
+class vctAdminRstksNeeded extends vctRstkReqs implements fiEventAware, fiLinkableTable {
+    use ftLinkableTable;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ActionKey(KS_ACTION_RESTOCK_NEED);
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_RESTOCK_NEED;
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->AdminItemsNeeded();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->arArgs = $arArgs;
 	$out = $this->AdminItemsNeeded();
 	return $out;
-    }
+    } */
 
     // -- DROP-IN API -- //
     // ++ DATA TABLE ACCESS ++ //

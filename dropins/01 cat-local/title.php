@@ -5,34 +5,41 @@
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
     2013-12-15 Renamed from vbz-mw-title.php to title.php for drop-in system.
+    2017-03-16 updating for compatibility with Ferreteria revisions
 */
-class VCTA_Titles extends vctShopTitles {
+class vctAdminTitles extends vctShopTitles implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use ftLoggableTable;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
-/*
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng(KS_CLASS_CATALOG_TITLE);
-	  $this->ActionKey(KS_ACTION_CATALOG_TITLE);
-    } */
 
-    // ++ CEMENT ++ //
-    
-    protected function GetActionKey() {
+    protected function SingularName() {
+	return KS_CLASS_CATALOG_TITLE;
+    }
+    public function GetActionKey() {
 	return KS_ACTION_CATALOG_TITLE;
     }
-    
-    // -- SETUP -- //
-    // ++ CALLBACKS ++ //
 
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Titles');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
     // -- CALLBACKS -- //
     // ++ ACTION ++ //
@@ -59,11 +66,12 @@ class VCTA_Titles extends vctShopTitles {
     // ++ QUERIES ++ //
     
     protected function MeInfoQuery() {
-	return $this->Engine()->Make('vcqtaTitlesInfo');
+	return $this->GetConnection()->MakeTableWrapper('vcqtaTitlesInfo');
     }
+    /*
     protected function ImageInfoQuery() {
-	return $this->Engine()->Make('vcqtImagesInfo');
-    }
+	return $this->GetConnection()->MakeTableWrapper('vcqtImagesInfo');
+    }*/
 
     // -- QUERIES -- //
     // ++ RECORDS ++ //
@@ -86,7 +94,7 @@ class VCTA_Titles extends vctShopTitles {
 	  a duplicate lookup going on somewhere. That should be eliminated.
     */
     public function GetData_forDropDown($sqlFilt=NULL) {
-	$sqlTbl = $this->NameSQL();
+	$sqlTbl = $this->TableName_cooked();
 	$sqlFC = is_null($sqlFilt)?NULL:" WHERE $sqlFilt";
 	$sql = "SELECT t.ID, CONCAT_WS(' ',t.CatKey,t.Name) AS Text"
 	  .", t.Name"
@@ -97,7 +105,7 @@ class VCTA_Titles extends vctShopTitles {
 	  .$sqlFC
 	  .' ORDER BY d.CatKey,t.CatKey'
 	  ;
-	$rs = $this->DataSQL($sql);
+	$rs = $this->FetchRecords($sql);
 	return $rs;
     }
 
@@ -105,19 +113,28 @@ class VCTA_Titles extends vctShopTitles {
     // ++ ADMIN WEB UI ++ //
 
     protected function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-	//$oSkin = $oPage->Skin();
+	$oApp = fcApp::Me();
+	//$oPage = $oApp->GetPageObject();
+	$oPathIn = $oApp->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	$sPfx = $this->ActionKey();
+	$sPfx = $this->GetActionKey();
 	$sSearchName = $sPfx.'-needle';
 	$sFilterName = $sPfx.'-filter';
-	$sFind = $oPage->ReqArgText($sSearchName);
-	$sFilt = $oPage->ReqArgText($sFilterName);
+	$sFind = $oFormIn->GetString($sSearchName);
+	$sFilt = $oFormIn->GetString($sFilterName);
 	$doSearch = (!empty($sFind));
 	$doFilter = (!empty($sFilt));
 	$htFind = '"'.fcString::EncodeForHTML($sFind).'"';
 	$htFilt = '"'.fcString::EncodeForHTML($sFilt).'"';
-	
+
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Show'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('no-image','show active titles that have no images'));
+
+	    /*
 	$arMenu = array(
 	  new clsAction_section('Show'),
 	  new clsActionLink_option(
@@ -130,10 +147,13 @@ class VCTA_Titles extends vctShopTitles {
 	    )
 	  );
 	$oPage->PageHeaderWidgets($arMenu);
+	*/
 	
 	// build forms
 
-	$htSearchHdr = $oPage->SectionHeader('Search',NULL,'section-header-sub');
+	//$htSearchHdr = $oPage->SectionHeader('Search',NULL,'section-header-sub');
+	$oHdr = new fcSectionHeader('Search');
+	$htSearchHdr = $oHdr->Render();
 	$htSearchForm = <<<__END__
 <form method=post>
   Search for:
@@ -142,29 +162,29 @@ class VCTA_Titles extends vctShopTitles {
 </form>
 __END__;
 
-	$htFilterHdr = $oPage->SectionHeader('Filter',NULL,'section-header-sub');
+	//$htFilterHdr = $oPage->SectionHeader('Filter',NULL,'section-header-sub');
+	$oHdr = new fcSectionHeader('Filter');
+	$htFilterHdr = $oHdr->Render();
 	$htFilterForm = <<<__END__
 <form method=get>
   Search filter (SQL):<input name="$sFilterName" width=40 value=$htFilt>
   <input type=submit name=btnFilt value="Apply">
 </form>
 __END__;
-/*
-	$out = <<<__END__
-<table width=100%>
-  <tr><th>$htSearchHdr</th><th>$htFilterHdr</th></tr>
-  <tr><td>$htSearchForm</td><td>$htFilterForm</td></tr>
-</table>
-__END__;
-*/
-	$out = $htSearchHdr.$htSearchForm.$htFilterHdr.$htFilterForm;
+
+	$out = "\n<table class=content><tr><td>\n"
+	  .$htSearchHdr.$htSearchForm.$htFilterHdr.$htFilterForm
+	  ."\n</td></tr></table>\n"
+	  ;
 
 	// do the request
 
 	if ($doSearch) {
 	    $rs = $this->Search_forText($sFind);
-	    $sql = $rs->sqlMake;
-	    $out .= $oPage->SectionHeader('Search Results',NULL,'section-header-sub')
+	    $sql = $rs->sql;
+	    $oHdr = new fcSectionHeader('Search Results');
+	    //$out .= $oPage->SectionHeader('Search Results',NULL,'section-header-sub')
+	    $out .= $oHdr->Render()
 	      ."<span class=line-stats><b>SQL</b>: $sql</span><br>"
 	      .$rs->AdminRows();
 	}
@@ -172,31 +192,30 @@ __END__;
 	if ($doFilter) {
 	    $sqlSort = NULL; // implement later
 	    $rs = $this->GetData($sFilt,NULL,$sqlSort);
-	    $out .= $oPage->SectionHeader('Filter Results',NULL,'section-header-sub')
+	    $oHdr = new fcSectionHeader('Filter Results');
+	    //$out .= $oPage->SectionHeader('Filter Results',NULL,'section-header-sub')
+	    $out .= $oHdr->Render()
 	      .$rs->AdminRows();
 	}
-	$sShow =$oPage->PathArg('show');
+	$sShow =$oPathIn->GetString('show');
 	if ($sShow =='no-image') {
 	    $out .= $this->MeInfoQuery()->RenderRows_Active_noImage();
 	}
 
+	//$out .= "\n</td></tr></table>";
+	
 	return $out;
     }
 
     // -- ADMIN WEB UI -- //
 
 }
-class VCRA_Title extends vcrShopTitle {
+class vcrAdminTitle extends vcrShopTitle implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLoggableRecord;
     use ftLinkableRecord;
+    use ftSaveableRecord;
+    use ftExecutableTwig;
 
-    // ++ SETUP ++ //
-
-//    protected function InitVars() {
-//	parent::InitVars();
-//    }
-
-    // -- SETUP -- //
     // ++ TRAIT HELPERS ++ //
 
     public function SelfLink_name() {
@@ -205,14 +224,31 @@ class VCRA_Title extends vcrShopTitle {
     }
 
     // -- TRAIT HELPERS -- //
-    // ++ CALLBACKS ++ //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sTitle = 'Title: '.$this->NameString();
 
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
+
+    // -- EVENTS -- //
+    // ++ FIELD VALUES -- // -- apparently everything useful is defined in the parent class
+    // ++ FIELD CALCULATIONS ++  //
+    
     // CALLBACK for dropdown list in non-edit mode
     public function ListItem_Link() {
 	return $this->SelfLink_name();
@@ -221,26 +257,8 @@ class VCRA_Title extends vcrShopTitle {
     public function ListItem_Text() {
 	return $this->NameFull();
     }
-
-    // -- CALLBACKS -- //
-    // ++ FIELD VALUES ++ //
-    
-    // apparently everything useful is defined in the parent class
-    
-    // -- FIELD VALUES -- //
-    // ++ FIELD CALCULATIONS ++  //
-    
     protected function HasSupplier() {
 	return !is_null($this->SupplierID());
-    }
-    /*----
-      RETURNS: Text suitable for use as a title for this Title
-      TODO: DEPRECATE
-      HISTORY:
-	2010-11-19 Created for AdminPage()
-    */
-    public function Title() {
-	return $this->NameFull();
     }
     public function NameFull() {
 	return $this->CatNum().' '.$this->NameString();
@@ -262,17 +280,17 @@ class VCRA_Title extends vcrShopTitle {
 	return KS_ADMIN_CLASS_LC_ITEMS;
     }
     protected function StockItemsClass() {
-	if (fcDropInManager::IsModuleLoaded('vbz.stock')) {
+	if (fcDropInManager::Me()->HasModule('vbz.stock')) {
 	    return KS_CLASS_STOCK_LINES;
 	} else {
 	    throw new exception('Cannot access stock functions: "vbz.stock" dropin not loaded.');
 	}
     }
     protected function ImagesClass() {
-	if (fcDropInManager::IsModuleLoaded('vbz.lcat')) {
+	if (fcDropInManager::Me()->HasModule('vbz.lcat')) {
 	    return KS_CLASS_CATALOG_IMAGES;
 	} else {
-	    return 'clsImages_StoreUI';
+	    return 'vctImages_StoreUI';
 	}
     }
     protected function TopicsClass() {
@@ -286,22 +304,22 @@ class VCRA_Title extends vcrShopTitle {
     // ++ TABLES ++ //
 
     protected function StockItemTable() {
-	return $this->Engine()->Make($this->StockItemsClass());
+	return $this->GetConnection()->MakeTableWrapper($this->StockItemsClass());
     }
     protected function SCatSourceTable() {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_SOURCES);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_SOURCES);
     }
     protected function SCatGroupTable() {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_GROUPS);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_GROUPS);
     }
     protected function SCatTitleTable() {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_TITLES);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_TITLES);
     }
     protected function TopicTable($id=NULL) {
-	return $this->Engine()->Make($this->TopicsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->TopicsClass(),$id);
     }
     protected function XTopicTable() {
-	return $this->Engine()->Make($this->XTopicsClass());
+	return $this->GetConnection()->MakeTableWrapper($this->XTopicsClass());
     }
 
     // -- TABLES -- //
@@ -309,8 +327,8 @@ class VCRA_Title extends vcrShopTitle {
 
     protected function TopicRecords() {
     	$tTxT = $this->XTopicTable();
-	$sqlXName = $tTxT->NameSQL();
-	$sqlTName = $this->TopicTable()->NameSQL();
+	$sqlXName = $tTxT->TableName_Cooked();
+	$sqlTName = $this->TopicTable()->TableName_Cooked();
 	$idTitle = $this->GetKeyValue();
 
 	$sql = "SELECT t.*"
@@ -319,7 +337,7 @@ class VCRA_Title extends vcrShopTitle {
 	  ." ON tt.ID_Topic=t.ID"
 	  ." WHERE tt.ID_Title=$idTitle"
 	  ." ORDER BY t.Sort,t.Name;";
-	$rs = $this->TopicTable()->DataSQL($sql);
+	$rs = $this->TopicTable()->FetchRecords($sql);
 	return $rs;
     }
 
@@ -347,13 +365,22 @@ class VCRA_Title extends vcrShopTitle {
     /*----
       HISTORY:
 	2011-02-23 Finally renamed from InfoPage() to AdminPage()
+	2017-03-17 This should be for displaying a single title, so changing the RenderImages_forRows() call
+	  to RenderImages_forRow(). (The distinction is important, because ...Rows() advances past the end
+	  of the recordset, which causes problems for everything that tries to use the record after that.)
     */
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+			  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit '.$this->NameString()));
+	    $doEdit = $ol->GetIsSelected();
 
-	$doEdit = $oPage->PathArg('edit');
-	$doSave = $oPage->ReqArgBool('btnSave')
-	  && ($oPage->ReqArgText('@form-for') == 'title')
+	//$doEdit = $oPathIn->GetBool('edit');
+	$doSave = $oFormIn->GetBool('btnSave')
+	  && ($oFormIn->GetString('@form-for') == 'title')
 	  ;
 
 	// save edits before showing events
@@ -385,18 +412,20 @@ class VCRA_Title extends vcrShopTitle {
 	      .$this->EventListing()
 	      ;
 	    
-	    $ftThumbs = $this->RenderImages_forRows($this->Title());
+	    $ftThumbs = $this->RenderImages_forRow($this->NameString());
 	    if (!is_null($ftThumbs)) {
 		$out .= ('<table align=right><tr><td>'.$ftThumbs.'</td></tr></table>');
 	    }
 
-	    $oPage->Skin()->SetPageTitle('Title: '.$this->Title());
+	    //fcApp::Me()->GetPageObject()->SetPageTitle('Title: '.$this->NameString());
 	}
 
+	/* 2017-03-17 old
 	$arActs = array(
 	  new clsActionLink_option(array(),'edit')
 	  );
 	$oPage->PageHeaderWidgets($arActs);
+	*/
 
 	// build and render the form:
 	
@@ -420,7 +449,7 @@ class VCRA_Title extends vcrShopTitle {
 	    $out .= "\n<form method=post>\n<input type=hidden name='@form-for' value='title'>";
 	}
 	    
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 	
 	if ($doEdit) {
@@ -435,7 +464,7 @@ class VCRA_Title extends vcrShopTitle {
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=content>
   <tr><td align=right><b>ID</b>:</td><td>[[!ID]]</td></tr>
   <tr><td align=right><b>Cat Key</b>:</td><td>[[CatKey]]</td></tr>
   <tr><td align=right title="supplier catalog #"><b>SC#</b>:</td><td>[[Supplier_CatNum]]</td></tr>
@@ -472,7 +501,7 @@ __END__;
 		
 	      $oField = new fcFormField_Num($oForm,'ID_Supp');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->SupplierTable()->AllRecords());
+		$oCtrl->SetRecords($this->SupplierTable()->SelectRecords());
 		
 	      $oField = new fcFormField_Num($oForm,'ID_Dept');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
@@ -481,7 +510,7 @@ __END__;
 		} else {
 		    $sqlFilt = 'ID_Supplier='.$this->SupplierID();
 		}
-		$oCtrl->Records($this->DepartmentTable()->GetData_forDropDown($sqlFilt));
+		$oCtrl->SetRecords($this->DepartmentTable()->GetData_forDropDown($sqlFilt));
 		
 	      $oField = new fcFormField_Text($oForm,'Name');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>40));
@@ -505,6 +534,7 @@ __END__;
 	return $this->frmPage;
     }
     public function AdminSave() {
+	throw new exception('2017-04-29 What calls this, anyway?');
 	$oPage = $this->Engine()->App()->Page();
 
 	// check input for problems
@@ -540,8 +570,8 @@ __END__;
 	    }
 	}
 	if ($ok) {
-	    $sNotes = $oPage->ReqArgText('EvNotes');
-	    $out .= $this->PageForm()->Save($sNotes);
+	    $this->PageForm()->Save();
+	    $this->SelfRedirect();
 	}
 	return $out;
     }
@@ -550,7 +580,7 @@ __END__;
     */
     public function AdminRows(array $arOpts=NULL) {
 	if ($this->HasRows()) {
-	    $sHdr = clsArray::Nz($arOpts,'disp.hdr');
+	    $sHdr = fcArray::Nz($arOpts,'disp.hdr');
 	    $htHdr = is_null($sHdr)?NULL:"<tr><td colspan=3>$sHdr</td></tr>";
 	    $out = "\n<table class=listing>$htHdr";
 	    $isOdd = TRUE;
@@ -565,30 +595,44 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $sNone = clsArray::Nz($arOpts,'disp.none','no titles found');
-	    $out = $sNone;
+	    $sNone = fcArray::Nz($arOpts,'disp.none','no titles found');
+	    $out = "<div class=content>$sNone</div>";
 	}
 	return $out;
     }
     public function ItemListing() {
 	$idTitle = $this->GetKeyValue();
+	
+	// set up the section header/menu
+	
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader('Items',$oMenu);
+	
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('add','item','add',NULL,'add an item'));
+	    $doAdd = $ol->GetIsSelected();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('upd','item','update',NULL,'update specs for selected items'));
+	    $doUpd = $ol->GetIsSelected();
     
 	// check for user input
-	$oPage = $this->Engine()->App()->Page();
-	$sAdd = $oPage->PathArg('add');
-	$doUpd = $oPage->PathArg('item') == 'upd';
+	
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
+	//$sAdd = $oPath->GetString('add');
+	//$doUpd = $oPath->GetString('item') == 'upd';
 	$doForm = $doUpd;	// might be other reasons we'd need a form
 	
-	if (clsHTTP::Request()->GetBool('btnUpd')) {
+	if ($oFormIn->GetBool('btnUpd')) {
 	    $rs = $this->ItemTable()->Records_forTitle($idTitle);
 	    // checkbox array name will be value of $arOpt['chkname']
-	    $arChkd = clsHTTP::Request()->GetArray('item');
+	    $arChkd = $oFormIn->GetArray('item');
 	    $out = $rs->UpdateCatSpecs($arChkd);
 	    $this->SelfRedirect(NULL,$out);
 	}
 	
-	if ($sAdd == 'item') {
-	    $rcItem = $this->ItemTable()->SpawnItem();
+	if ($doAdd) {
+	    $rcItem = $this->ItemTable()->SpawnRecordset();
 	    $rcItem->TitleID($this->GetKeyValue());
 	    $rcItem->SupplierID($this->SupplierID());
 	    $htForm = $rcItem->AdminPage(
@@ -604,8 +648,8 @@ __END__;
 		$htForm = NULL;
 	    }
 	}
-    
-	// set up the section menu
+    	
+	/* 2017-03-16 old
 	$arActs = array(
 	  new clsActionLink_option(array(),
 	    'item',		// link key
@@ -623,7 +667,10 @@ __END__;
 	    'update specs for selected items'	// description (shows as hover-over text)
 	    ),
 	  );
+	*/
+
 	// render the section header and listing
+	
 	if ($doUpd) {
 	  $arOpt = array(
 	    'dochk'=>TRUE,
@@ -632,7 +679,7 @@ __END__;
 	} else { $arOpt = NULL; }
 	$out =
 	  $htForm	// new item form, if any
-	  .$oPage->ActionHeader('Items',$arActs)
+	  .$oHdr->Render()
 	  .$this->ItemTable()->Listing_forTitle($idTitle,$arOpt)
 	  .($doUpd?"\n<input type=submit name=btnUpd value='Update'>":NULL)
 	  .($doForm?"\n</form>":NULL)
@@ -646,14 +693,39 @@ __END__;
     */
     public function StockListing() {
 	$rs = $this->StockItemTable()->Records_forTitle($this->GetKeyValue());
+	$oHdr = new fcSectionHeader('Stock');
 	$out =
-	  $this->Engine()->App()->Page()->ActionHeader('Stock')
-	  .$rs->AdminList(array('none'=>'There is no stock for this title.'));
+	  //$this->Engine()->App()->Page()->ActionHeader('Stock')
+	  $oHdr->Render()
+	  .$rs->AdminList(array('none'=>'There is no stock for this title.'))
+	  ;
 	return $out;
     }
     public function ImageListing() {
 	$tImg = $this->ImageTable();
 	$id = $this->GetKeyValue();
+	
+	// section header/menu
+/* 2017-03-18 Image table does its own header/menu
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader('Images',$oMenu);
+	
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('add',$tImg->GetActionKey(),'add','cancel','add an image'));
+
+	    $doAdd = $ol->GetIsSelected();
+*/
+	$arArgs = array(
+	  'filt'	=> 'ID_Title='.$id,
+	  'sort'	=> 'AttrSort,ID',
+	  'event.obj'	=> $this,
+	  'title.id'	=> $id,
+	  'new'		=> TRUE
+	  );
+	$out = $tImg->AdminPage($arArgs);
+
+	/* 2017-03-17 old
+	
 	$arActs = array(
 	  new clsActionLink_option(array(),
 	    $tImg->ActionKey(),	// link key
@@ -673,12 +745,17 @@ __END__;
 	$out = 
 	  $this->Engine()->App()->Page()->ActionHeader('Images',$arActs)
 	  .$tImg->AdminPage($arArgs);
+	  
+	*/
 	return $out;
     }
     /*----
       RETURNS: Editable listing of topics for this Title
     */
     protected function TopicListing() {
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
 	$tTxT = $this->XTopicTable();
 	$tTopics = $this->TopicTable();
 	$rsTopics = $this->TopicRecords();
@@ -723,18 +800,22 @@ __END__;
 	$ctrlList->Options($arOpts);
 	$htStatus = $ctrlList->HandleInput();
 
-	$doRmvTopics = clsHTTP::Request()->GetBool('btnRmvTopics');
+	$doRmvTopics = $oFormIn->GetBool('btnRmvTopics');
 
-	// begin output phase
-	$oPage = $this->Engine()->App()->Page();
-	$out = $oPage->ActionHeader('Topics');
+	// section header
+	
+	$oHdr = new fcSectionHeader('Topics');
+
+	// OUTPUT begins
+	
+	$out = $oHdr->Render();
 
 	if ($doRmvTopics) {
-	    $arTopics = $oPage->ReqArgArray('rmvTitle');
+	    $arTopics = $oFormIn->GetArray('rmvTitle');
 	    $cnt = $tTxT->DelTopics($this->GetKeyValue(),$arTopics);
 	    $out .= 'Removed '.$cnt.' topic'.fcString::Pluralize($cnt).':';
 	    foreach ($arTopics as $id => $on) {
-		$rcTopic = $tTopics->GetItem($id);
+		$rcTopic = $tTopics->GetRecord_forKey($id);
 		$out .= ' '.$rcTopic->SelfLink();
 	    }
 	    $this->SelfRedirect(NULL,$out);
@@ -749,7 +830,7 @@ __END__;
 	if ($rsTopics->HasRows()) {
 	    while ($rsTopics->NextRow()) {
 
-		$id = $rsTopics->KeyString();
+		$id = $rsTopics->GetKeyValue();
 		$ftName = $rsTopics->SelfLink_name();
 
 		$out .= "\n[<input type=checkbox name=\"rmvTitle[$id]\">$ftName ]";
@@ -766,7 +847,7 @@ __END__;
 	$out .= $ctrlList->RenderForm_Entry();
 
 	$out .= '</form>';
-	return $out;
+	return "<div class=content>$out</div>";
     }
     /*----
       RETURNS: Listing of CM (catalog management) groups for this title
@@ -774,29 +855,32 @@ __END__;
 	2011-02-06 added controls to allow deactivating/activating selected rows
     */
     protected function CMGrpListing() {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	$out = $this->Engine()->App()->Page()->ActionHeader('Catalog Groups');
+	$oHdr = new fcSectionHeader('Catalog Groups');
+	
+	$out = $oHdr->Render();
 
 	$tblCMT = $this->SCatTitleTable();	// catalog management titles
 	$tblCMS = $this->SCatSourceTable();	// catalog management sources
 	$tblCMG = $this->SCatGroupTable();	// catalog management groups
 
-	$doEnable = $oPage->ReqArgBool('btnCtgEnable');
-	$doDisable = $oPage->ReqArgBool('btnCtgDisable');
+	$doEnable = $oFormIn->GetBool('btnCtgEnable');
+	$doDisable = $oFormIn->GetBool('btnCtgDisable');
 	if ($doEnable || $doDisable) {
-	    $arChg = $oPage->ReqArgArray('ctg');
+	    $arChg = $oFormIn->GetArray('ctg');
 	    $out .= $doEnable?'Activating':'Deactivating';
 	    foreach ($arChg as $id => $on) {
 		$out .= ' '.$id;
 		$arUpd = array(
-		  'isActive'	=> SQLValue($doEnable)
+		  'isActive'	=> $doEnable?'TRUE':'FALSE'
 		  );
 		$tblCMT->Update($arUpd,'ID='.$id);
 	    }
 	}
 
-	$rsRows = $tblCMT->GetData('ID_Title='.$this->GetKeyValue());
+	$rsRows = $tblCMT->SelectRecords('ID_Title='.$this->GetKeyValue());
 	if ($rsRows->HasRows()) {
 	    $out .= <<<__END__
 <form method=post>
@@ -817,10 +901,10 @@ __END__;
 	    while ($rsRows->NextRow()) {
 		$isOdd = !$isOdd;
 		$isActive = $rsRows->IsActive();
-		$htActive = clsHTML::fromBool($isActive);
+		$htActive = fcHTML::fromBool($isActive);
 
-		$objCMSrce = $tblCMS->GetItem($rsRows->SourceID());
-		$objCMGrp = $tblCMG->GetItem($rsRows->GroupID());
+		$objCMSrce = $tblCMS->GetRecord_forKey($rsRows->SourceID());
+		$objCMGrp = $tblCMG->GetRecord_forKey($rsRows->GroupID());
 		if ($objCMSrce->HasRows()) {
 		    $htCMSrce = $objCMSrce->SelfLink_name();
 		} else {

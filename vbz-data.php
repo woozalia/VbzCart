@@ -171,11 +171,12 @@ class vcShopRecordset extends vcBasicRecordset {
 
 // ADMIN data types
 
-abstract class vcAdminTable extends vcBasicTable {
+abstract class vcAdminTable extends vcBasicTable implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 }
-class vcAdminRecordset extends vcBasicRecordset {
+class vcAdminRecordset extends vcBasicRecordset implements fiLinkableRecord, fiEditableRecord {
     use ftLinkableRecord;
+    use ftSaveableRecord;
 }
 
 

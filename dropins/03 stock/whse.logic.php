@@ -3,24 +3,23 @@
   PURPOSE: business logic for managing Warehouses
   HISTORY:
     2016-01-08 started
+    2017-03-27 now descending from vcBasic* classes instead of vcAdmin*
 */
 
-class vctlWarehouses extends vcAdminTable {
-    // CEMENT
-    protected function TableName() {
-	return 'stk_whse';
-    }
+class vctlWarehouses extends vcBasicTable {
+
     // CEMENT
     protected function SingularName() {
 	return 'vcrlWarehouse';
     }
     // CEMENT
-    public function GetActionKey() {
-	return KS_ACTION_STOCK_WAREHOUSE;
+    protected function TableName() {
+	return 'stk_whse';
     }
+
 }
 
-class vcrlWarehouse extends vcAdminRecordset {
+class vcrlWarehouse extends vcBasicRecordset {
 
     // PUBLIC so Restocks can display it
     public function NameString() {

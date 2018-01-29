@@ -6,7 +6,7 @@
 /*====
   CLASS: Catalog Management Items
 */
-class VCTA_SCItems extends vcAdminTable {
+class vctaSCItems extends vcAdminTable {
 
     // ++ SETUP ++ //
 
@@ -24,20 +24,24 @@ class VCTA_SCItems extends vcAdminTable {
     }
     
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
-    // -- CALLBACKS -- //
+    // -- EVENTS -- //
     // ++ RECORDS ++ //
     
     public function Data_forGroup($idGroup) {
-	return $this->GetData('ID_Group='.$idGroup,NULL,'Sort');
+	return $this->SelectRecords('ID_Group='.$idGroup,'Sort');
     }
     
     // -- RECORDS -- //
@@ -51,10 +55,51 @@ class VCTA_SCItems extends vcAdminTable {
 
     // -- WEB UI ++ //
 }
-class VCRA_SCItem extends vcAdminRecordset {
+class vcraSCItem extends vcAdminRecordset implements fiEventAware {
+    use vtAdminTableAccess_ItemType;
+    use vtAdminTableAccess_ItemOption;
+    use ftExecutableTwig;	// dispatch events
 
-    // ++ TRAIT HELPERS ++ //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$isNew = $this->IsNew();
+	if ($isNew) {
+	    $htTitle = 'New Supplier Catalog Item';
+	    $sTitle = '+SCI';
+	} else {
+	    $id = $this->GetKeyValue();;
+	    $htTitle = 'Supplier Catalog Item #'.$id;
+	    $sTitle = 'SCI#'.$id;
+	}
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
+    // -- EVENTS -- //
+    // ++ FIELD VALUES ++ //
+    
+    protected function GroupID($v=NULL) {
+	return $this->Value('ID_Group',$v);
+    }
+    
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+
+    // TRAIT HELPER
     public function SelfLink_descr() {
 	$out = $this->SelfLink($this->Description());
 	if (!$this->IsActive()) {
@@ -63,29 +108,14 @@ class VCRA_SCItem extends vcAdminRecordset {
 	return $out;
     }
     
-    // -- TRAIT HELPERS -- //
-    // ++ CALLBACKS ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
-	return $this->AdminPage();
-    }
-
-    // -- CALLBACKS -- //
-    // ++ FIELD VALUES ++ //
+    // -- FIELD CALCULATIONS -- //
+    // ++ CLASSES ++ //
     
-    protected function GroupID($v=NULL) {
-	return $this->Value('ID_Group',$v);
-    }
-    
-    // -- FIELD VALUES -- //
-    // ++ CLASS NAMES ++ //
-    
+    // OVERRIDE (admin)
     protected function ItemTypesClass() {
 	return KS_ADMIN_CLASS_LC_ITEM_TYPES;
     }
+    // OVERRIDE (admin)
     protected function ItemOptionsClass() {
 	return KS_ADMIN_CLASS_LC_ITEM_OPTIONS;
     }
@@ -93,11 +123,14 @@ class VCRA_SCItem extends vcAdminRecordset {
 	return KS_ADMIN_CLASS_SHIP_COSTS;
     }
 
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
 
+    protected function ShipCostTable($id=NULL) {
+	return $this->GetConnection()->MakeTableWrapper($this->ShipCostsClass(),$id);
+    }
     protected function SCGroupTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_GROUPS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_GROUPS,$id);
     }
     
     // -- TABLES -- //
@@ -142,20 +175,35 @@ class VCRA_SCItem extends vcAdminRecordset {
 	2016-02-02 rewritten to use Ferreteria forms - removed iContext and iLogger args for now
     */
 //    public function AdminRows(array $iContext, clsLogger_DataSet $iLogger=NULL) {
-    public function AdminRows(array $arFields = NULL, array $arOptions = NULL) {
-	$oPage = $this->Engine()->App()->Page();
-	
-	$arContext = clsArray::Nz($arOptions,'context');
-	$iLogger = clsArray::Nz($arOptions,'logger');
+    public function AdminRows(array $arFields = NULL, array $arContext = NULL) {
+    
+	$oMenu = new fcHeaderMenu();
+	// 2017-05-20 possibly $oHdr will need to be an optional input parameter, in case we're sometimes displaying ALL items.
+	$oHdr = new fcSectionHeader('Items',$oMenu);
+
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('id',KS_NEW_REC));
+	/* 2017-05-20 is this actually even necessary?
+	    $ol->AddLinkArray(
+	      array(
+		'page'	=> $this->SCItemTable()->GetActionKey(),
+		'group'	=> $this->GetKeyValue()
+		)	// extra link data
+	      ); */
+
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
+	//$arContext = clsArray::Nz($arOptions,'context');
+	//$iLogger = clsArray::Nz($arOptions,'logger');
     
 	// get URL input
-	$doSave = clsHTTP::Request()->getBool('btnSaveItems');
-	$doCopy = clsHTTP::Request()->getBool('btnCopyFrom');
+	$doSave = $oFormIn->GetBool('btnSaveItems');
+	$doCopy = $oFormIn->GetBool('btnCopyFrom');
 
 	// handle edit form input:
 	if ($doSave) {
-	    $arUpdate = clsHTTP::Request()->getArray('update');
-	    $arActive = clsHTTP::Request()->getArray('isActive');
+	    $arUpdate = $oFormIn->GetArray('update');
+	    $arActive = $oFormIn->GetArray('isActive');
 
 	    if (count($arActive > 0)) {
 		// add any reactivated rows to the update list
@@ -167,15 +215,17 @@ class VCRA_SCItem extends vcAdminRecordset {
 
 	$out = NULL;
 	$didEdit = FALSE;
-	$sqlMake = $this->sqlMake;
 
 	// handle copying request
 	if ($doCopy) {
-	    $idGrp = clsHTTP::Request()->GetIntOrNull('group_model');
-	    $rsItems = $this->Table()->Data_forGroup($idGrp);
+	    $idGrp = $oFormIn->GetIntOrNull('group_model');
+	    $rsItems = $this->GetWrapperTable()->Data_forGroup($idGrp);
 	    if ($rsItems->HasRows()) {
-		$objGrp = $this->CtgGrps($idGrp);
-		$out .= 'Copying from group ['.$objGrp->AdminLink_friendly().']: ';
+		$rcGrp = $this->CtgGrps($idGrp);
+		$out .= 'Copying from group ['.$rcGrp->AdminLink_friendly().']: ';
+		
+		// 2017-05-20 TODO: this will need updating
+		
 		if (!is_null($iLogger)) {
 		    $arEv = array(
 		      'descr'	=> 'Copying rows from group ID='.$idGrp,
@@ -185,10 +235,10 @@ class VCRA_SCItem extends vcAdminRecordset {
 		      );
 		    $iLogger->StartEvent($arEv);
 		}
-		$rc=0; $rtxt='';
-		$strKeyName = $rsItems->Table()->GetKeyName();
+		$nRows=0; $sRows='';
+		$tThis = $this->GetTableWrapper();
+		$strKeyName = $rsItems->GetTableWrapper()->GetKeyName();
 		while ($rsItems->NextRow()) {
-		    $rc++; $rtxt.='['.$rsItems->GetKeyValue();
 		    $arRow = $rsItems->Values();
 		    // unset row key
 		    unset($arRow[$strKeyName]);
@@ -201,15 +251,18 @@ class VCRA_SCItem extends vcAdminRecordset {
 		    // build insert array by iterating through row's fields
 		    $db = $this->GetConnection();
 		    foreach ($arRow as $key => $val) {
-			$arIns[$key] = $db->SanitizeAndQuote($val);
+			$arIns[$key] = $db->Sanitize_andQuote($val);
 		    }
 		    // do the update
-		    $idNew = $this->Table()->Insert($arIns);
-		    $out .= '<br><b>SQL</b>: '.$this->Table()->sql;
-		    $rtxt .= '->'.$idNew.']';
+		    $idNew = $tThis->Insert($arIns);
+		    $out .= '<br><b>SQL</b>: '.$tThis->sql;
+		    $nRows++; $sRows.='['.$rsItems->GetKeyValue()."->$idNew]";
 		}
-		$txtDescr = $rc.' item'.fcString::Pluralize($rc).' copied:'.$rtxt;
+		$txtDescr = $nRows.' item'.fcString::Pluralize($nRows).' copied:'.$sRows;
 		$out .= $txtDescr;
+		
+		// 2017-05-20 TODO: this will also need updating
+		
 		if (!is_null($iLogger)) {
 		    $arEv = array(
 		      'descrfin'	=> $txtDescr
@@ -222,12 +275,11 @@ class VCRA_SCItem extends vcAdminRecordset {
 
 	// save edits before showing events
 	if ($doSave) {
-	    $sqlLoad = $this->sqlCreate;
 	    $frm = $this->PageForm();
 	    $frm->Save();
-	    $out .= $frm->MessagesString();
+	    //$out .= $frm->MessagesString();
 	    $didEdit = TRUE;
-	    $this->SelfRedirect(NULL,$out);
+	    $this->SelfRedirect();
 	}
 
 	// display rows
@@ -243,13 +295,14 @@ class VCRA_SCItem extends vcAdminRecordset {
 	    }
 
 	} else {
+	    $doEdit = TRUE;	// 2017-05-20 KLUGE. TODO: Figure out where this is supposed to come from.
 	    $out .= '<tr><td colspan=10>No items found.</td></tr>';
 	    if ($doEdit && array_key_exists('ID_Supplier',$arContext)) {
 		$htAfter .= '<input type=submit name="btnCopyFrom" value="Copy items from:">';
 		$idSupp = $arContext['ID_Supplier'];
 
-		$objRows = $this->CtgGrps()->Active_forSupplier($idSupp,'Sort');
-		$htAfter .= $objRows->DropDown('group_model');
+		$rs = $this->CtgGrps()->Active_forSupplier($idSupp,'Sort');
+		$htAfter .= $rs->DropDown('group_model');
 	    }
 	}
 	
@@ -283,7 +336,7 @@ class VCRA_SCItem extends vcAdminRecordset {
 	$arCtrls['!ID'] = $this->SelfLink();
 	
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	/* 2016-02-02 old version (slightly updated for clarity)
@@ -363,15 +416,15 @@ __END__;
 
 	      $oField = new fcFormField_Num($oForm,'ID_Group');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->SCGroupTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->SCGroupTable()->ActiveRecords());
 
 	      $oField = new fcFormField_Num($oForm,'ID_ItTyp');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ItemTypeTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->ItemTypeTable()->ActiveRecords());
 
 	      $oField = new fcFormField_Num($oForm,'ID_ItOpt');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ItemOptionTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->ItemOptionTable()->ActiveRecords());
 		
 	      $oField = new fcFormField_Text($oForm,'Descr');
 	      
@@ -385,26 +438,8 @@ __END__;
 
 	      $oField = new fcFormField_Num($oForm,'ID_ShipCost');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ShipCostTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->ShipCostTable()->ActiveRecords());
 		
-/* 2016-02-02 old version	
-	    // create fields & controls
-	    $objForm = new clsForm_DataSet_indexed($this,$vgOut);
-	    $arNewVals = $iNewVals;
-	    $arNewVals['ID_ItTyp'] = NULL;	// required field for new records
-	    $objForm->NewVals($arNewVals);
-
-	    $objForm->AddField(new clsFieldBool_Int('isActive'),	new clsCtrlHTML_CheckBox());
-	    //$objForm->AddField(new clsFieldNum('ID_Group'),	new clsCtrlHTML());
-	    $objForm->AddField(new clsFieldNum('ID_ItTyp'),	new clsCtrlHTML());
-	    $objForm->AddField(new clsFieldNum('ID_ItOpt'),	new clsCtrlHTML());
-	    $objForm->AddField(new clsField('Descr'),		new clsCtrlHTML(array('size'=>25)));
-	    $objForm->AddField(new clsField('Sort'),		new clsCtrlHTML(array('size'=>3)));
-	    $objForm->AddField(new clsFieldNum('PriceBuy'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsFieldNum('PriceSell'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsFieldNum('PriceList'),	new clsCtrlHTML(array('size'=>5)));
-	    $objForm->AddField(new clsFieldNum('ID_ShipCost'),	new clsCtrlHTML());
-*/
 	    $this->oForm = $oForm;
 	}
 	return $this->oForm;
@@ -456,18 +491,22 @@ __END__;
     //++single++//
 
     protected function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-	
-	$doEdit = $oPage->PathArg('edit');
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
-	$isNew = $this->IsNew();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit current record'));
+	    $doEdit = $ol->GetIsSelected();
+
+	$doSave = $oFormIn->GetBool('btnSave');
+	$isNew = $this->IsNew();
+/*
 	if ($isNew) {
 	    $sTitle = 'New SCM Item';
 	} else {
 	    $sTitle = 'SCMI#'.$this->GetKeyValue();
 	}
-
 	$arMenu = array(
 	    // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
 	  new clsActionLink_option(array(),
@@ -480,6 +519,7 @@ __END__;
 	  );
 	$oPage->TitleString($sTitle);
 	$oPage->PageHeaderWidgets($arMenu);
+*/
 
 	$frm = $this->RecordForm();
 
@@ -506,7 +546,7 @@ __END__;
 	}
 
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -522,7 +562,7 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpLine)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=record-block>
   <tr><td align=right><b>ID</b>:</td>		<td>[[!ID]]</td></tr>
   <tr><td align=right><b>Active?</b></td>	<td>[[isActive]]</td></tr>
   <tr><td align=right><b>Group</b>:</td>	<td>[[ID_Group]]</td></tr>

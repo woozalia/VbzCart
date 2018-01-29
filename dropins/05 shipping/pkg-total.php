@@ -6,7 +6,7 @@
     2014-05-14
 */
 
-class clsPackageTotal {
+class vcPackageTotal {
     private $dlrSale,$dlrPerItem,$dlrPerPkg;
 
     public function __construct() {

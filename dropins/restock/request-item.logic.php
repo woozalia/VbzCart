@@ -24,6 +24,10 @@ class vctlRstkReqItems extends fcTable_keyed_multi {
     protected function SingularName() {
 	return 'clsRstkReqItem';
     }
+    // CEMENT
+    public function GetKeyNames() {
+	return array('ID_Parent','ID_Item');
+    }
 
     // -- SETUP -- //
     // ++ CLASS NAMES ++ //
@@ -37,9 +41,6 @@ class vctlRstkReqItems extends fcTable_keyed_multi {
     }
 
     // -- CLASS NAMES -- //
-    // ++ TABLES ++ //
-
-    // -- TABLES -- //
     // ++ ACTIONS ++ //
 
     /*----
@@ -51,7 +52,7 @@ class vctlRstkReqItems extends fcTable_keyed_multi {
 	QtyOrd: quantity we'll actually order -- for now, assume same as QtyNeed
       NOTE: Not sure if these take supplier restock minimum into account
     */
-    public function AddItem($idRequest,clsItem $rcItem,$qtyNeed,$qtySold) {
+    public function AddItem($idRequest,vcrItem $rcItem,$qtyNeed,$qtySold) {
 	$idItem = $rcItem->GetKeyValue();
 	$sDesc = $rcItem->Description_forRestock();
 	$prcCost = $rcItem->PriceBuy();	// cost to us
@@ -86,7 +87,7 @@ class vctlRstkReqItems extends fcTable_keyed_multi {
 	2016-02-?? Re-commented out because it will need updating.
     */
     /* to be adapted
-    public function AddLine(clsItem $iItem,$iQtyNeed,$iQtyCust,$iQtyOrd) {
+    public function AddLine(vcrItem $iItem,$iQtyNeed,$iQtyCust,$iQtyOrd) {
 	assert('!$iItem->IsNew();');
 	$arIns = array(
 	  'ID_Request'	=> $this->ID,
@@ -109,9 +110,6 @@ class clsRstkReqItem extends fcRecord_keyed_multi {
 
     // ++ FIELD KEYS ++ //
 
-    protected function GetKeyNames() {
-	return array('ID_Parent','ID_Item');
-    }
     protected function KeyNeedsQuote($sKey) {
 	return FALSE;	// both keys are integer
     }
@@ -119,33 +117,21 @@ class clsRstkReqItem extends fcRecord_keyed_multi {
     // -- FIELD KEYS -- //
     // ++ FIELD VALUES ++ //
 
-    protected function ParentID() {
-	return $this->Value('ID_Parent');
+    protected function GetParentID() {
+	return $this->GetFieldValue('ID_Parent');
     }
     protected function ItemID() {
-	return $this->Value('ID_Item');
+	return $this->GetFieldValue('ID_Item');
     }
 
     // -- FIELD VALUES -- //
-    // ++ FIELD LOOKUP ++ //
-    
-    protected function ParentAdminLink() {
-	$rc = $this->ParentRecord();
-	return $rc->SelfLink_name();
-    }
-    protected function ItemAdminLink() {
-	$rc = $this->LCItemRecord();
-	return $rc->SelfLink_name();
-    }
-    
-    // -- FIELD LOOKUP -- //
     // ++ CLASS NAMES ++ //
 
     protected function RequestsClass() {
 	return KS_LOGIC_CLASS_RESTOCK_REQUESTS;
     }
     protected function LCItemsClass() {
-	if (fcDropInManager::IsModuleLoaded('vbz.lcat')) {
+	if (fcApp::Me()->GetDropinManager()->HasModule('vbz.lcat')) {
 	    return KS_ADMIN_CLASS_LC_ITEMS;
 	} else {
 	    return KS_LOGIC_CLASS_LC_ITEMS;
@@ -159,17 +145,17 @@ class clsRstkReqItem extends fcRecord_keyed_multi {
 	return $this->RestockRequestTable($id);
     }
     protected function RestockRequestTable($id=NULL) {
-	return $this->Engine()->Make($this->RequestsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->RequestsClass(),$id);
     }
     protected function LCItemTable($id=NULL) {
-	return $this->Engine()->Make($this->LCItemsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->LCItemsClass(),$id);
     }
 
     // -- DATA TABLE ACCESS -- //
     // ++ DATA RECORDS ACCESS ++ //
 
     protected function ParentRecord() {
-	$id = $this->ParentID();
+	$id = $this->GetParentID();
 	$rc = $this->ParentTable($id);
 	//$rcItem = $tReqs->GetItem('ID='.$this->ItemID());	// ALERT: shouldn't this also filter for request ID?
 	return $rc;

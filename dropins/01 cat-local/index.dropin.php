@@ -13,24 +13,23 @@
 
 // -- tables
 define('KS_CLASS_CATALOG_SUPPLIERS','vctAdminSuppliers');
-define('KS_CLASS_CATALOG_DEPARTMENTS','VCTA_Depts');
-define('KS_CLASS_CATALOG_TITLES','VCTA_Titles');
-define('KS_CLASS_CATALOG_TITLE','VCRA_Title');
-define('KS_LOGIC_CLASS_LC_ITEMS','clsItems');
-define('KS_ADMIN_CLASS_LC_ITEMS','VCA_Items');
-define('KS_LOGIC_CLASS_LC_ITEM_TYPES','vctItTyps');
+define('KS_CLASS_CATALOG_DEPARTMENTS','vctAdminDepts');
+define('KS_CLASS_CATALOG_TITLES','vctAdminTitles');
+define('KS_CLASS_CATALOG_TITLE','vcrAdminTitle');
+define('KS_LOGIC_CLASS_LC_ITEMS','vctItems');
+define('KS_ADMIN_CLASS_LC_ITEMS','vctAdminItems');
 define('KS_ADMIN_CLASS_LC_ITEM_TYPES','vctaItemTypes');
-define('KS_LOGIC_CLASS_LC_ITEM_OPTIONS','clsItOpts');
 define('KS_ADMIN_CLASS_LC_ITEM_OPTIONS','vtItemOpts_admin');
-define('KS_CLASS_CATALOG_IMAGES','VCTA_Images');
-define('KS_CLASS_CATALOG_IMAGE','VCRA_Image');
-define('KS_CLASS_FOLDERS','vctaFolders');
+define('KS_CLASS_CATALOG_IMAGES','vctAdminImages');
+define('KS_CLASS_CATALOG_IMAGE','vcrAdminImage');
+define('KS_CLASS_FOLDERS_ADMIN','vctaFolders');
+define('KS_CLASS_FOLDERS_ADMIN_INFO','vctaFoldersInfo');
 define('KS_ADMIN_CLASS_SHIP_COSTS','vctaShipCosts');
 
 //define('KS_CLASS_CATALOG_MAINTENANCE','vcCatalogMaintenance');
 define('KS_CLASS_CATALOG_TITLES_TOPICS','vctTitlesTopics_admin');
-define('KS_CLASS_CATALOG_TOPICS','VCTA_Topics');
-define('KS_CLASS_CATALOG_TOPIC','VCRA_Topic');
+define('KS_CLASS_CATALOG_TOPICS','vctAdminTopics');
+define('KS_CLASS_CATALOG_TOPIC','vcrAdminTopic');
 define('KS_CLASS_SUPPCAT_PRICES','vctaPriceFx');
   define('KS_CLASS_SUPPCAT_PRICE','vcraPriceFx');
 // -- JOIN queries
@@ -55,99 +54,86 @@ define('KS_ACTION_SHIPCOST','shpcst');
 
 $om = $oRoot->SetNode(new fcMenuFolder('Our Catalog'));
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_SUPPLIER,'Suppliers','suppliers for the stuff we buy'));
-    $omi->SetPageTitle('Catalog Suppliers');
-    $omi->SetActionClass(KS_CLASS_CATALOG_SUPPLIERS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_SUPPLIER,
+    KS_CLASS_CATALOG_SUPPLIERS,
+    'Suppliers','suppliers for the stuff we buy'));
+
+    //$omi->SetPageTitle('Catalog Suppliers');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_DEPARTMENT,'Departments','sections in supplier catalogs'));
-    $omi->SetPageTitle('Local Catalog Departments');
-    $omi->SetActionClass(KS_CLASS_CATALOG_DEPARTMENTS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_DEPARTMENT,
+    KS_CLASS_CATALOG_DEPARTMENTS,
+    'Departments','sections in supplier catalogs'));
+
+    //$omi->SetPageTitle('Local Catalog Departments');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_TITLE,'Titles'));
-    $omi->SetPageTitle('Local Catalog Titles');
-    $omi->SetActionClass(KS_CLASS_CATALOG_TITLES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_TITLE,
+    KS_CLASS_CATALOG_TITLES,
+    'Titles'));
+
+    //$omi->SetPageTitle('Local Catalog Titles');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_ITEM,'Items'));
-    $omi->SetPageTitle('Local Catalog Items');
-    $omi->SetActionClass(KS_ADMIN_CLASS_LC_ITEMS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_ITEM,
+    KS_ADMIN_CLASS_LC_ITEMS,
+    'Items'));
+
+    //$omi->SetPageTitle('Local Catalog Items');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_ITEM_TYPE,'Item Types'));
-    $omi->SetPageTitle('Local Catalog Item Types');
-    $omi->SetActionClass(KS_ADMIN_CLASS_LC_ITEM_TYPES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_ITEM_TYPE,
+    KS_ADMIN_CLASS_LC_ITEM_TYPES,
+    'Item Types'));
+
+    //$omi->SetPageTitle('Local Catalog Item Types');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_ITEM_OPTION,'Item Options'));
-    $omi->SetPageTitle('Local Catalog Item Options');
-    $omi->SetActionClass(KS_ADMIN_CLASS_LC_ITEM_OPTIONS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_ITEM_OPTION,
+    KS_ADMIN_CLASS_LC_ITEM_OPTIONS,
+    'Item Options'));
+
+    //$omi->SetPageTitle('Local Catalog Item Options');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_IMAGE,'Images'));
-    $omi->SetPageTitle('Catalog Images');
-    $omi->SetActionClass(KS_CLASS_CATALOG_IMAGES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_IMAGE,
+    KS_CLASS_CATALOG_IMAGES,
+    'Images'));
+
+    //$omi->SetPageTitle('Catalog Images');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
     
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_FOLDER,'Folders'));
-    $omi->SetPageTitle('Image Folders');
-    $omi->SetActionClass(KS_CLASS_FOLDERS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_FOLDER,
+    KS_CLASS_FOLDERS_ADMIN_INFO,
+    'Folders'));
+
+    //$omi->SetPageTitle('Image Folders');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_CATALOG_TOPIC,'Topics'));
-    $omi->SetPageTitle('Catalog Topics');
-    $omi->SetActionClass(KS_CLASS_CATALOG_TOPICS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_CATALOG_TOPIC,
+    KS_CLASS_CATALOG_TOPICS,
+    'Topics'));
+
+    //$omi->SetPageTitle('Catalog Topics');
     $omi->SetRequiredPrivilege(KS_PERM_LCAT_ADMIN);
     
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_PRICE,'Price Fx','functions for setting retail prices'));
-    $omi->SetPageTitle('Price Functions');
-    $omi->SetActionClass(KS_CLASS_SUPPCAT_PRICES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_PRICE,
+    KS_CLASS_SUPPCAT_PRICES,
+    'Price Fx','functions for setting retail prices'));
+
+    //$omi->SetPageTitle('Price Functions');
     $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
 
-/* 2016-12-07 old dropin menu system
-$om = new fcMenuFolder($oRoot, '*lcat','Our Catalog','Local Catalog','local catalog maintenance functions');
-  $om->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,'supp','Suppliers','Catalog Suppliers');
-    $omi->Controller(KS_CLASS_CATALOG_SUPPLIERS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,'dept','Departments','Catalog Departments');
-    $omi->Controller(KS_CLASS_CATALOG_DEPARTMENTS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_TITLE,'Titles','Catalog Titles');
-    $omi->Controller(KS_CLASS_CATALOG_TITLES);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_ITEM,'Items','Catalog Items');
-    $omi->Controller(KS_ADMIN_CLASS_LC_ITEMS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_ITEM_TYPE,'Item Types','Catalog Item Types');
-    $omi->Controller(KS_ADMIN_CLASS_LC_ITEM_TYPES);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_ITEM_OPTION,'Item Options','Catalog Item Options');
-    $omi->Controller(KS_ADMIN_CLASS_LC_ITEM_OPTIONS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_IMAGE,'Images','Catalog Images');
-    $omi->Controller(KS_CLASS_CATALOG_IMAGES);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-    
-  $omi = new fcMenuLink($om,KS_ACTION_FOLDER,'Folders','Image Folders');
-    $omi->Controller(KS_CLASS_FOLDERS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-
-  $omi = new fcMenuLink($om,KS_ACTION_CATALOG_TOPIC,'Topics','Catalog Topics');
-    $omi->Controller(KS_CLASS_CATALOG_TOPICS);
-    $omi->NeedPermission(KS_PERM_LCAT_ADMIN);
-    
-  $omi = new fcMenuLink($om,KS_ACTION_SUPPCAT_PRICE,'Prices','Price Functions','functions for setting retail prices');
-    $omi->Controller(KS_CLASS_SUPPCAT_PRICES);
-    $omi->NeedPermission(KS_PERM_SCAT_ADMIN);
 /*
   $omi = new fcMenuLink($om,'maint','Maintenance','Catalog Maintenance');
     $omi->Controller(KS_CLASS_CATALOG_MAINTENANCE);
@@ -158,20 +144,21 @@ $om = new fcMenuFolder($oRoot, '*lcat','Our Catalog','Local Catalog','local cata
 $arDropin = array(
   'name'	=> 'vbz.lcat',
   'descr'	=> 'local catalog maintenance functions',
-  'version'	=> '0.2',
-  'date'	=> '2016-03-05',
+  'version'	=> '0.3',
+  'date'	=> '2017-03-24',
   'URL'		=> NULL,	// nothing yet
   'classes'	=> array(	// list of files and the classes they contain
     'dept.php'		=> array(KS_CLASS_CATALOG_DEPARTMENTS),
-    'folder.php'	=> KS_CLASS_FOLDERS,
+    'folder.php'	=> KS_CLASS_FOLDERS_ADMIN,
+    'folder-info.php'	=> KS_CLASS_FOLDERS_ADMIN_INFO,
     'image.php'		=> array(KS_CLASS_CATALOG_IMAGES),
     'item.php'		=> array(KS_ADMIN_CLASS_LC_ITEMS),
-    'item-opt.php'	=> array(KS_ADMIN_CLASS_LC_ITEM_OPTIONS),
-    'item-type.php'	=> array(KS_ADMIN_CLASS_LC_ITEM_TYPES),
+    'item-opt.php'	=> array(KS_ADMIN_CLASS_LC_ITEM_OPTIONS,'vtAdminTableAccess_ItemOption'),
+    'item-type.php'	=> array(KS_ADMIN_CLASS_LC_ITEM_TYPES,'vtAdminTableAccess_ItemType'),
     //'maint.php'		=> array(KS_CLASS_CATALOG_MAINTENANCE),
     'price.php'		=> KS_CLASS_SUPPCAT_PRICES,
     'item-ord.info.php'	=> array(KS_CLASS_JOIN_LCITEM_ORDERS),
-    'supp.php'		=> array(KS_CLASS_CATALOG_SUPPLIERS),
+    'supp.php'		=> array(KS_CLASS_CATALOG_SUPPLIERS,'vtTableAccess_Supplier_admin'),
     'title.php'		=> array(KS_CLASS_CATALOG_TITLES,KS_CLASS_CATALOG_TITLE),
     'title-topic.php'	=> array(KS_CLASS_CATALOG_TITLES_TOPICS),
     'title.info.php'	=> array(KS_CLASS_JOIN_TITLES,KS_CLASS_JOIN_TITLE),

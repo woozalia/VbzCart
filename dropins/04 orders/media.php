@@ -11,6 +11,7 @@
 */
 
 class vctaOrderMessageMedia extends vcAdminTable {
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
 
@@ -25,6 +26,20 @@ class vctaOrderMessageMedia extends vcAdminTable {
     }
 
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Message Media');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
+	return $this->AdminPage();	// TODO: to be written
+    }
+
+    // -- EVENTS -- //
 
 }
 class vcraOrderMessageMedium extends vcAdminRecordset {
@@ -42,7 +57,7 @@ class vcraOrderMessageMedium extends vcAdminRecordset {
     // ++ FIELD VALUES ++ //
     
     protected function DescriptionText() {
-	return $this->Value('Descr');
+	return $this->GetFieldValue('Descr');
     }
     
     // -- FIELD VALUES -- //

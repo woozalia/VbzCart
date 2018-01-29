@@ -16,47 +16,71 @@ define('KS_ACTION_STOCK_WAREHOUSE','whse');
 define('KS_ACTION_STOCK_PLACE','plc');
 define('KS_ACTION_STOCK_BIN','bin');
 define('KS_ACTION_STOCK_LINE','sitem');
-define('KS_ACTION_STOCK_LINE_LOG','sllog');
 
-define('KS_CLASS_STOCK_LINES','VCT_StkLines');
-define('KS_CLASS_STOCK_LINES_INFO','vctqaStockLinesInfo');
-define('KS_CLASS_STOCK_LINE_INFO','vcrqaStockLineInfo');
-define('KS_CLASS_STOCK_BINS','VCM_StockBins');
-define('KS_CLASS_STOCK_LINE_LOG','clsStkLog');
-define('KS_CLASS_STOCK_BIN_LOG','VbzStockBinLog');
-define('KS_CLASS_STOCK_PLACES','VCM_StockPlaces');
 define('KS_LOGIC_CLASS_STOCK_WAREHOUSES','vctlWarehouses');
 define('KS_ADMIN_CLASS_STOCK_WAREHOUSES','vctaWarehouses');
+define('KS_CLASS_STOCK_PLACES','vctAdminStockPlaces');
+define('KS_CLASS_STOCK_BINS','vctAdminStockBins');
+define('KS_CLASS_STOCK_BINS_INFO','vcqtAdminStockBinsInfo');
+define('KS_CLASS_STOCK_BIN_INFO','vcqrAdminStockBinInfo');
+define('KS_CLASS_STOCK_LINES','vctAdminStockLines');
+define('KS_CLASS_STOCK_LINES_INFO','vctqaStockLinesInfo');
+define('KS_CLASS_STOCK_LINE_INFO','vcrqaStockLineInfo');
 
-define('KS_TBL_STOCK_LINES','stk_items');
+// 2017-04-19 should be obsolete (soon if not already):
+define('KS_ACTION_STOCK_LINE_LOG','sllog');
+define('KS_CLASS_STOCK_LINE_LOG','vctStockLineLog');
+define('KS_CLASS_STOCK_BIN_LOG','vctStockBinLog');
+
+define('KS_TBL_STOCK_LINES','stk_lines');
 
 // MENU
 
 $om = $oRoot->SetNode(new fcMenuFolder('Stock'));
   
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_STOCK_WAREHOUSE,'Warehouses','buildings containing stock'));
-    $omi->SetPageTitle('Stock Warehouses');
-    $omi->SetActionClass(KS_ADMIN_CLASS_STOCK_WAREHOUSES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_STOCK_WAREHOUSE,
+    KS_ADMIN_CLASS_STOCK_WAREHOUSES,
+    'Warehouses',
+    'buildings containing stock'));
+
+    //$omi->SetPageTitle('Stock Warehouses');
     $omi->SetRequiredPrivilege(KS_PERM_STOCK_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_STOCK_PLACE,'Places','places where bins may be found'));
-    $omi->SetPageTitle('Stock Places');
-    $omi->SetActionClass(KS_CLASS_STOCK_PLACES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_STOCK_PLACE,
+    KS_CLASS_STOCK_PLACES,
+    'Places',
+    'places where bins may be found'));
+
+    //$omi->SetPageTitle('Stock Places');
     $omi->SetRequiredPrivilege(KS_PERM_STOCK_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_STOCK_BIN,'Bins','boxes for stock'));
-    $omi->SetPageTitle('Stock Bins');
-    $omi->SetActionClass(KS_CLASS_STOCK_BINS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_STOCK_BIN,
+    KS_CLASS_STOCK_BINS,
+    'Bins',
+    'boxes for stock'));
+
+    //$omi->SetPageTitle('Stock Bins');
     $omi->SetRequiredPrivilege(KS_PERM_STOCK_VIEW);
 
   // maybe this should be hidden?
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_STOCK_LINE,'Stock Lines','individual stock entries'));
-    $omi->SetActionClass(KS_CLASS_STOCK_LINES);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_STOCK_LINE,
+    KS_CLASS_STOCK_LINES,
+    'Stock Lines',
+    'individual stock entries'));
+
     $omi->SetRequiredPrivilege(KS_PERM_STOCK_VIEW);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_STOCK_LINE_LOG,'Line Log','stock line log'));
-    $omi->SetPageTitle('Stock Line event log');
-    $omi->SetActionClass(KS_CLASS_STOCK_LINE_LOG);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_STOCK_LINE_LOG,
+    KS_CLASS_STOCK_LINE_LOG,
+    'Line Log',
+    'stock line log'));
+
+    //$omi->SetPageTitle('Stock Line event log');
     $omi->SetRequiredPrivilege(KS_PERM_STOCK_VIEW);
 
 /* 2016-12-11 old dropin system
@@ -89,7 +113,8 @@ $arDropin = array(
   'URL'		=> NULL,	// nothing yet
   'classes'	=> array(	// list of files and the classes they contain
     'bin.php'		=> array(KS_CLASS_STOCK_BINS),
-    'bin.form.php'	=> 'fcForm_Bin',
+    'bin.form.php'	=> array('vcForm_Bin','vtAdminStockBin'),
+    'bin.info.php'	=> array(KS_CLASS_STOCK_BINS_INFO,KS_CLASS_STOCK_BIN_INFO),
     'line.php'		=> array(KS_CLASS_STOCK_LINES),
     'line.form.php'	=> 'fcForm_StockLine',
     'line-info.php'	=> array(KS_CLASS_STOCK_LINES_INFO,KS_CLASS_STOCK_LINE_INFO),

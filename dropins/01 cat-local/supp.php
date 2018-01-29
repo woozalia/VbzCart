@@ -12,50 +12,61 @@ trait vtTableAccess_Supplier_admin {
 	return 'vctAdminSuppliers';
     }
 }
-class vctAdminSuppliers extends vctSuppliers {
+class vctAdminSuppliers extends vctSuppliers implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use ftLoggableTable;
-    use vtLoggableAdminObject;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
 
     protected function SingularName() {
-	return 'VC_Supplier';
+	return 'vcrAdminSupplier';
     }
     public function GetActionKey() {
 	return KS_ACTION_CATALOG_SUPPLIER;
     }
 
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Suppliers');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
     */
+    /*
     public function MenuExec(array $arArgs=NULL) {
 	return $this->AdminPage();
+    }*/
+
+    // -- EVENTS -- //
+    // ++ INTERNAL VALUES ++ //
+
+    private $doShowInact;
+    protected function SetOption_ShowInact($b) {
+	$this->doShowInact = $b;
     }
-
-    // -- CALLBACKS -- //
-    // ++ TABLES ++ //
-    
-    // REQUIRED BY ftLoggableTable
-    /*
-    protected function SystemEventsClass() {
-	return KS_CLASS_EVENT_LOG;
-    }  */
-
-    // -- TABLES -- //
-    
-    protected function EventTable() {
-	return $this->GetConnection()->MakeTableWrapper($this->SystemEventsClass());
+    protected function GetOption_ShowInact() {
+	return $this->doShowInact;
     }
     
-    // -- TABLES -- //
+    // -- INTERNAL VALUES -- //
     // ++ RECORDS ++ //
     
     protected function GetAdminRecords() {
-	$sqlFilt = NULL;	// get all records
+	if ($this->GetOption_ShowInact()) {
+	    $sqlFilt = NULL;		// get all records
+	} else {
+	    $sqlFilt = 'isActive';	// get only active records
+	}
 	$sqlSort = 'Name';
 	$rs = $this->SelectRecords($sqlFilt,$sqlSort);
 	return $rs;
@@ -93,13 +104,13 @@ class vctAdminSuppliers extends vctSuppliers {
 	$oLinker: calling object's LinkBuilder() object
 	$idSuppCurr: ID of Supplier currently selected (NULL = show all)
       HISTORY:
-	2016-01-10 Adapted from VCM_RstksNeeded::RenderSupplierMenu()
+	2016-01-10 Adapted from vctAdminRstksNeeded::RenderSupplierMenu()
     */
     public function RenderLineMenu(array $arSupps,fcLinkBuilder $oLinker,$idSuppCurr,$sSep=':') {
 	$htLink = $oLinker->LinkHTML('*all*','show items for all suppliers');
 	$htCtrl = "[$htLink]";
 
-	$out = clsHTML::FlagToFormat($htCtrl,empty($idSuppCurr));
+	$out = fcHTML::FlagToFormat($htCtrl,empty($idSuppCurr));
 	$rcSupp = $this->SpawnItem();
 	foreach ($arSupps as $key => $arSupp) {	// key = supplier catkey
 	    $rcSupp->Values($arSupp['vals']);
@@ -109,7 +120,7 @@ class vctAdminSuppliers extends vctSuppliers {
 	    $sText = $arSupp['text'];
 	    $htCtrl = "[$htLink$sSep$sText]";
 
-	    $out .= ' '.clsHTML::FlagToFormat($htCtrl,($idSuppCurr == $idSupp));
+	    $out .= ' '.fcHTML::FlagToFormat($htCtrl,($idSuppCurr == $idSupp));
 	}
 	return $out;
     }
@@ -118,8 +129,18 @@ class vctAdminSuppliers extends vctSuppliers {
     //++listing++//
     
     protected function AdminPage() {
-	$out = NULL;
+    
+	$oMenu = fcApp::Me()->GetHeaderMenu();
 	
+	  $oMenu->SetNode($oGrp = new fcHeaderMenuGroup('show'));
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	    $oGrp->SetNode($ol = new fcMenuOptionLink('inactive',TRUE,NULL,NULL,'show inactive suppliers'));
+	      $this->SetOption_ShowInact($ol->GetIsSelected());
+    
+    
+	$out = NULL;
+
+	// TODO: filter for ACTIVE records only if $doShowInact is FALSE
 	$rs = $this->GetAdminRecords();	// get all applicable Supplier table records
 	if ($rs->HasRows()) {
 	    $out .= "\n<table class=listing>"
@@ -170,11 +191,13 @@ __END__;
     // -- ADMIN WEB UI -- //
 
 }
-class VC_Supplier extends vcrSupplier {
+class vcrAdminSupplier extends vcrSupplier implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
-    use ftLoggableRecord;
-    use vtLoggableAdminObject;
     use vtrSupplierShop;
+    use ftExecutableTwig;	// dispatch events
+    use ftLoggableRecord;	// for EventListing()
+    use ftLoggedRecord;		// automatically log edits
+    use ftSaveableRecord;
     
     // ++ TRAIT HELPERS ++ //
     
@@ -183,25 +206,24 @@ class VC_Supplier extends vcrSupplier {
     }
     
     // -- TRAIT HELPERS -- //
-    // ++ CALLBACKS ++ //
-    
-    public function MenuExec(array $arArgs=NULL) {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sCatKey = $this->CatKey();
+	$sName = $this->NameString();
+	$sTitle = $sName." ($sCatKey)";
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle($sTitle);
+	//$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
-    // CALLBACK for dropdown Control
-    public function ListItem_Text() {
-	if ($this->HasValue('Text')) {
-	    return $this->Value('Text');
-	} else {
-	    return $this->CatKey().' '.$this->NameString();
-	}
-    }
-    // CALLBACK for dropdown Control
-    public function ListItem_Link() {
-	return $this->SelfLink_name();
-    }
 
-    // -- CALLBACKS -- //
+    // -- EVENTS -- //
     // ++ CLASSES ++ //
 
     protected function ItemsClass() {
@@ -233,10 +255,7 @@ class VC_Supplier extends vcrSupplier {
     }
     // TODO: fail gracefully when Supplier Catalogs dropin is not available
     protected function SupplierCatalogGroupTable($id=NULL) {
-	return $this->Engine()->Make($this->SCGroupsClass(),$id);
-    }
-    protected function SCSourceTable($id=NULL) {
-	return $this->Engine()->Make($this->SCSourcesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->SCGroupsClass(),$id);
     }
     protected function PriceFxTable($id=NULL) {
     	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_PRICES,$id);
@@ -252,10 +271,8 @@ class VC_Supplier extends vcrSupplier {
       RETURNS: record for Supplier's Topic
       HISTORY:
 	2011-10-01 written -- replacing Departments with Topics
+	2017-05-21 well... maybe eventually.
     */
-    public function TopicObj() {
-	throw new exception('TopicObj() is deprecated; call TopicRecord().');
-    }
     protected function TopicRecord() {
 	$id = $this->Value('ID_Topic');
 	if (is_null($id)) {
@@ -284,6 +301,18 @@ class VC_Supplier extends vcrSupplier {
     // -- FIELD VALUES -- //
     // ++ FIELD CALCULATIONS ++ //
 
+    // CALLBACK for dropdown Control
+    public function ListItem_Text() {
+	if ($this->FieldIsNonBlank('Text')) {
+	    return $this->GetFieldValue('Text');
+	} else {
+	    return $this->CatKey().' '.$this->NameString();
+	}
+    }
+    // CALLBACK for dropdown Control
+    public function ListItem_Link() {
+	return $this->SelfLink_name();
+    }
     /*----
       CALLED BY: vctAdminSuppliers::AdminPage()
       HISTORY:
@@ -292,7 +321,9 @@ class VC_Supplier extends vcrSupplier {
 	2014-03-22 re-enabled to replace code in table's AdminPage()
     */
     public function ShopLink($sShow=NULL) {
-	return '<a href="'.KWP_CAT.strtolower($this->CatKey()).'">'.$sShow.'</a>';
+	$fpCat = vcGlobals::Me()->GetWebPath_forCatalogPages();
+	$fpKey = strtolower($this->CatKey());
+	return "<a href='$fpCat$fpKey'>$sShow</a>";
     }
     /*----
       RETURNS: Supplier Catalog Management link for this Supplier
@@ -310,14 +341,14 @@ class VC_Supplier extends vcrSupplier {
     protected function PublicWikiLink($sShow) {
 	$sName = $this->NameString();
 	$wpWiki = str_replace(' ','_',$sName);
-	$url = KURL_WIKI_PUBLIC.$wpWiki;
+	$url = vcGlobals::Me()->GetWebPath_forPublicWikiPage($wpWiki);
 	return "<a href=\"$url\">$sShow</a>";
     }
     // this is a bit of a kluge
     protected function AdminWikiLink($sShow) {
 	$sName = $this->NameString();
 	$wpWiki = str_replace(' ','_',$sName);
-	$url = KURL_WIKI_PRIVATE.$wpWiki;
+	$url = vcGlobals::Me()->GetWebPath_forPrivateWikiPage($wpWiki);
 	return "<a href=\"$url\">$sShow</a>";
     }
     /*----
@@ -384,7 +415,7 @@ class VC_Supplier extends vcrSupplier {
 	$wtActions = "<b>[$htManage]</b>[$htShop] info:[$htWikiPub][$htWikiPvt]";
 
 	$wtName = $this->NameString();
-	$ftActive = clsHTML::fromBool($this->isActive());
+	$ftActive = fcHTML::fromBool($this->isActive());
 
 	$out = <<<__END__
     <td>$id</td>
@@ -400,17 +431,16 @@ __END__;
     //++single++//
 
     protected function AdminPage() {
-	$oApp = fcApp::Me();
-	$oPage = $oApp->GetPageObject();
-	$oInput = $oApp->GetKioskObject()->GetInputObject();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	//$oApp = fcApp::Me();
+	//$oPage = $oApp->GetPageObject();
+	//$oInput = $oApp->GetKioskObject()->GetInputObject();
 
 	$out = NULL;
 
-	$sDo = $oInput->GetString('do');
-	$doEdit = ($sDo == 'edit');
-	$sShow = $oInput->GetString('show');	// subpage to show
-
-	$doSave = fcHTTP::Request()->GetBool('btnSave');
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	// save edits before showing events
 	if ($doSave) {
@@ -419,59 +449,27 @@ __END__;
 	    $ftSaveMsg = $frm->MessagesString();
 	    $this->SelfRedirect(NULL,$ftSaveMsg);
 	}
-
-	$sCatKey = $this->CatKey();
-	$sName = $this->NameString();
-	$sTitle = $sName." ($sCatKey)";
-	$oPage->SetPageTitle($sTitle);
 	
 	//$sHdr = 'Current Record (ID '.$this->GetKeyValue().')';
+	
 	// set up header action-links
+	$sName = $this->NameString();
 	$oMenu = fcApp::Me()->GetHeaderMenu();
 	//$oMenu = new fcHeaderMenu();	// for putting menu in a section header
-	  // $sLinkKey,$sGroupKey=NULL,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL
-	  $oMenu->SetNode($ol = new fcMenuOptionLink('edit','do',NULL,'cancel','edit this supplier'));
-	    $ol->SetBasePath($this->SelfURL());
-	  $oMenu->SetNode($oGrp = new fcHeaderMenuGroup('Manage'));
-	    $oGrp->SetNode($ol = new fcMenuOptionLink('dept','show','departments',NULL,$sName.' departments'));
-	      $ol->SetBasePath($this->SelfURL());
-	    $oGrp->SetNode($ol = new fcMenuOptionLink('rreq','show','restocks',NULL,$sName.' restock requests'));
-	      $ol->SetBasePath($this->SelfURL());
-	    $oGrp->SetNode($ol = new fcMenuOptionLink('events','show','events',NULL,$sName.' system events'));
-	      $ol->SetBasePath($this->SelfURL());
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit '.$sName));
 
-	$doDeptAdd = $oInput->GetBool('add.dept');	// shouldn't this be a possible value of 'do'?
-	
-	// set up titlebar menu
-	
-	/* 2017-01-15 old menu system
-	$arActs = array(
-	  new clsActionLink_option(array(),
-	    'edit',			// $iLinkKey
-	    'do',			// $iGroupKey
-	    NULL,			// $iDispOff
-	    'cancel',			// $iDispOn
-	    'edit this supplier'	// $iDescr
-	    ),
-	  new clsAction_section('Manage'),	// menu divider
-	  new clsActionLink_option(array(),
-	    'dept',
-	    'show',
-	    'departments',
-	    NULL,
-	    $strName.' departments'
-	    ),
-	  new clsActionLink_option(array(),
-	    'rreq',
-	    'show',
-	    'restocks',
-	    NULL,
-	    $strName.' restock requests'
-	  ),
-	);
-	$oPage->PageHeaderWidgets($arActs);
-	$oSkin->SetPageTitle($sTitle);
-	*/
+	    $doEdit = $ol->GetIsSelected();
+	    
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Manage'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('dept',$sName.' departments','departments'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('rreq',$sName.' restock requests','restocks'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('events',$sName.' system events'));
+
+	    $sShow = $oGrp->GetChoiceValue();
+
+	$doDeptAdd = $oPathIn->GetBool('add.dept');	// shouldn't this be a possible value of 'do'?
 	
 	$frmEdit = $this->PageForm();
 	if ($this->IsNew()) {
@@ -488,16 +486,21 @@ __END__;
 	}
 	$arCtrls['!ID'] = $this->SelfLink().$htSCLink;	
 
-
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
+	    $arCtrls['!extra'] = '<tr>	<td colspan=2><b>Edit notes</b>: <input type=text name="'
+	      .KS_FERRETERIA_FIELD_EDIT_NOTES
+	      .'" size=60></td></tr>'
+	      ;
+	} else {
+	    $arCtrls['!extra'] = NULL;
 	}
-	$oTplt->VariableValues($arCtrls);
+
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 	
-	if ($doEdit) {
+	if ($doEdit) {	    
 	    $out .= <<<__END__
-<b>Edit notes</b>: <input type=text name="EvNotes" size=40><br>
 <input type=submit name="btnSave" value="Save">
 <input type=reset value="Reset">
 </form>
@@ -550,6 +553,7 @@ __END__;
 	$out .= 
 	  $oHdr->Render()
 	  .$sContent
+	  .$this->EventListing()
 	  ;
 	return $out;
     }
@@ -569,7 +573,7 @@ __END__;
 
 	      $oField = new fcFormField_Num($oForm,'ID_Topic');
 		$oField->ControlObject($oCtrl = new fcFormControl_HTML_DropDown($oField));
-		$oCtrl->Records($this->TopicTable()->GetData_forDropDown());
+		$oCtrl->SetRecords($this->TopicTable()->GetData_forDropDown());
 		$oCtrl->AddChoice(NULL,'none (root)');
 
 	      $oField = new fcFormField_Text($oForm,'CatKey');
@@ -580,7 +584,7 @@ __END__;
 		
 	      $oField = new fcFormField_Num($oForm,'ID_PriceFunc');
 		$oField->ControlObject($oCtrl = new fcFormControl_HTML_DropDown($oField));
-		$oCtrl->Records($this->PriceFxTable()->AdminRecords());
+		$oCtrl->SetRecords($this->PriceFxTable()->AdminRecords());
 		$oCtrl->AddChoice(NULL,'(not set)');
 
 	      $oField = new fcFormField_Text($oForm,'Notes');
@@ -600,13 +604,15 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=record-block>
   <tr>	<td align=right><b>ID</b>:</td>		<td>[[!ID]]</td>	</tr>
   <tr>	<td align=right><b>Name</b>:</td>	<td>[[Name]]</td>	</tr>
   <tr>	<td align=right><b>CatKey</b>:</td>	<td>[[CatKey]]</td>	</tr>
   <tr>	<td align=right><b>Price Code</b>:</td>	<td>[[ID_PriceFunc]]</td></tr>
   <tr>	<td align=right><b>Topic</b>:</td>	<td>[[ID_Topic]]</td>	</tr>
   <tr>	<td align=right><b>Active</b>:</td>	<td>[[isActive]]</td>	</tr>
+  <tr>	<td colspan=2><b>Saved Notes</b>:<br>[[Notes]]</td>			</tr>
+  [[!extra]]
 </table>
 __END__;
 	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
@@ -900,6 +906,7 @@ __END__;
       INPUT: Array of items as returned by AdminItems_data_check()
       RETURNS: HTML to display (messages)
     */
+    /* 2017-06-19 This appears to be unused. Would need some rethinking anyway.
     public function AdminItems_data_add(array $iItems) {
 	$out = '';
 
@@ -941,7 +948,7 @@ __END__;
 	$out = $strEv;
 	$this->FinishEvent();
 	return $out;
-    }
+    } */
     /*----
       ACTION: Renders drop-down box of active departments for this supplier
       RETURNS: HTML code
@@ -1015,10 +1022,7 @@ __END__;
 	    $rcEv->Finish($arEv);
 	}
     }
-    
-    // -- ADMIN WEB UI -- //
-
-  /*%%%%
+  /*::::
     SECTION: Data Entry Management
     PROCESS:
       * User enters a list of Titles or Items in a textarea box, one per line.
@@ -1093,4 +1097,7 @@ __END__;
 	return $arOut;
     }
 */
+    
+    // -- ADMIN WEB UI -- //
+
 }

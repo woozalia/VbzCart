@@ -20,7 +20,7 @@
 // keys for retrieving cart form data & links
 //
 
-define('KSF_CART_BTN_ADD_ITEMS'	,'btnAddItems');
+//define('KSF_CART_BTN_ADD_ITEMS'	,'btnAddItems');
 define('KSF_CART_BTN_RECALC'	,'btnRecalc');
 define('KSF_CART_BTN_CKOUT'	,'btnCkOut');
 
@@ -34,9 +34,11 @@ define('KSF_CART_DELETE_ALL','all');
 //define('KSF_CART_EDIT_LINE_ID','line');
 define('KSF_CART_BTN_FINISH','finish');
 //define('KSF_CART_PFX_QTY','qty-');
+/* 2017-05-14 replacing these with vcGlobals fx()
 define('KSF_CART_ITEM_ARRAY_NAME','item');
 define('KSF_CART_ITEM_PFX',KSF_CART_ITEM_ARRAY_NAME.'[');
 define('KSF_CART_ITEM_SFX',']');
+*/
 
 define('KHT_CART_MSG','Please <a href="'.KWP_HELP_CONTACT.'">let us know</a> if you have any questions.');
 // cart footer when it's editable

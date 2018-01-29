@@ -52,15 +52,15 @@ __END__;
     }
     protected function AdminRows_forItem_Collate(array &$ar) {
 	// build sorting key
-	$idMain = $this->ParentID();
+	$idMain = $this->GetParentID();
 	$idItem = $this->ItemID();
 	$rcMain = $this->ParentTable($idMain);
 	//$dtCreated = $rcReq->Value('WhenCreated');
 	//$dtSumm = is_null($dtCreated)?($rcReq->Value('WhenOrdered')):$dtCreated;
 	$key = $rcMain->SortingKey().'.'.$idMain;
 	// stuff data into arrays
-	$arData['line'] = $this->Values();
-	$arData['main'] = $rcMain->Values();
+	$arData['line'] = $this->GetFieldValues();
+	$arData['main'] = $rcMain->GetFieldValues();
 	$ar[$key] = $arData;
     }
 }

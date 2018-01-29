@@ -6,7 +6,7 @@
     2017-01-06 partially updated
 */
 // order transactions
-class VCT_OrderTrxacts extends vcAdminTable {
+class vctOrderTrxacts extends vcAdminTable {
     use ftLinkableTable;
     
     // ++ SETUP ++ //
@@ -34,11 +34,19 @@ class VCT_OrderTrxacts extends vcAdminTable {
 	2011-03-24 created
     */
     public function SelfLink_toCreate($iText='new',$iPopup='edit a new transaction',array $iArgs=NULL) {
-	$rc = $this->SpawnItem();
+	$rc = $this->SpawnRecordset();
 	return $rc->SelfLink($iText,$iPopup,$iArgs);
     }
     
     // -- TRAIT HELPERS -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'No table admin functions written (yet?).';	// ability to search by amount might be useful, later
+    }
+
+    // -- EVENTS -- //
 
 }
 class VCR_OrderTrxact extends vcAdminRecordset {
@@ -69,9 +77,9 @@ class VCR_OrderTrxact extends vcAdminRecordset {
     // -- SETUP -- //
     // ++ CALLBACKS ++ //
 
-    // WARNING: This will ignore any previously set value for WhenDone.
-    protected function InsertArray() {
-	$ar = parent::InsertArray();
+    // WARNING: This will overwrite any previously set value for WhenDone.
+    protected function InsertArray($ar = NULL) {
+	$ar = parent::InsertArray($ar);
 	$ar['WhenDone']	= 'NOW()';
 	return $ar;
     }
@@ -79,43 +87,61 @@ class VCR_OrderTrxact extends vcAdminRecordset {
     // -- CALLBACKS -- //
     // ++ FIELD VALUES ++ //
 
-    // PUBLIC so Package objects can update their record of amounts charged
     public function TypeID($id=NULL) {
-	return $this->Value('ID_Type',$id);
+	throw new exception('2017-06-05 Call GetTypeID() or SetTypeID().');
+    }
+    protected function SetTypeID($id) {
+	return $this->SetFieldValue('ID_Type',$id);
+    }
+    // PUBLIC so Package objects can update their record of amounts charged
+    public function GetTypeID() {
+	return $this->GetFieldValue('ID_Type');
     }
     protected function SetOrderID($id) {
 	$this->SetValue('ID_Order',$id);
     }
     protected function GetOrderID() {
-	return $this->ValueNz('ID_Order');
+	return $this->GetFieldValueNz('ID_Order');
     }
     protected function SetPackageID($id) {
 	$this->SetValue('ID_Package',$id);
     }
     protected function GetPackageID() {
-	return $this->ValueNz('ID_Package');
+	return $this->GetFieldValueNz('ID_Package');
+    }
+    public function Amount($n=NULL) {
+	throw new exception('2017-06-05 Call GetAmount() or SetAmount() instead.');
+    }
+    protected function SetAmount($n) {
+	return $this->SetFieldValue('Amount',$n);
     }
     // PUBLIC so Package objects can update their record of amounts charged
-    public function Amount($n=NULL) {
-	return $this->Value('Amount',$n);
+    public function GetAmount() {
+	return $this->GetFieldValue('Amount');
     }
-    // PUBLIC so newly-created Transaction record objects can be listed without being in a recordset
     public function Description($s=NULL) {
-	return $this->Value('Descr',$s);
+	throw new exception('2017-06-05 Call GetAboutString() or SetAboutString() instead.');
+    }
+    // NOTE: Was "PUBLIC so newly-created Transaction record objects can be listed without being in a recordset" - but not sure if this is read or write
+    protected function SetAboutString($s) {
+	return $this->SetFieldValue('Descr',$s);
+    }
+    protected function GetAboutString() {
+	return $this->GetFieldValue('Descr');
     }
     // MEANS: When the transaction took place
     protected function WhenDone() {
-	return $this->GetValue('WhenDone');
+	return $this->GetFieldValue('WhenDone');
     }
     protected function WhenVoided() {
-	return $this->Value('WhenVoid');
+	return $this->GetFieldValue('WhenVoid');
     }
 
     // -- FIELD VALUES -- //
     // ++ FIELD CALCULATIONS ++ //
 
     // PUBLIC so Package objecs can finish provisioning unsaved Transactions
-    public function SetPackage(clsPackage $rcPkg) {
+    public function SetPackage(vcrAdminPackage $rcPkg) {
 	$this->SetPackageID($rcPkg->GetKeyValue());
 	$this->SetOrderID($rcPkg->GetOrderID());
     }
@@ -131,7 +157,7 @@ class VCR_OrderTrxact extends vcAdminRecordset {
 	$this->dlrBal = $this->dlrBalSale = $this->dlrBalShip = $this->dlrBalPaid = NULL;
     }
     protected function AddToBalances() {
-	$dlrAmt = $this->Amount();
+	$dlrAmt = $this->GetAmount();
 	
 	fcMoney::Sum($this->dlrBal,$dlrAmt);
 	
@@ -210,7 +236,7 @@ class VCR_OrderTrxact extends vcAdminRecordset {
 	return $this->Engine()->Make($this->PackagesClass(),$id);
     }
     protected function TypeTable($id=NULL) {
-	return $this->Engine()->Make($this->TypesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->TypesClass(),$id);
     }
 
     // -- TABLES -- //
@@ -235,7 +261,7 @@ class VCR_OrderTrxact extends vcAdminRecordset {
 	throw new exception('Call TypeRecord() instead of TypeObj().');
     }
     protected function TypeRecord() {
-	$rc = $this->TypeTable($this->Value('ID_Type'));
+	$rc = $this->TypeTable($this->GetTypeID());
 	return $rc;
     }
     
@@ -355,26 +381,28 @@ class VCR_OrderTrxact extends vcAdminRecordset {
 	This is due to Reload() advancing the pointer. We need some way to
 	prevent that action. (2010-10-25)
     */
-    public function AdminTable(clsDataSet $rcPage=NULL) {
-	$oPage = $this->PageObject();
+    public function AdminTable(fiLinkable $rcPage=NULL) {
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
 	if (is_null($rcPage)) {
 	    $rcPage = $this;
 	}
 
-	$strDo = $oPage->PathArg('trx.do');
+	$strDo = $oPathIn->GetString('trx.do');
 	if ($strDo == 'void') {
-	    $idVoid = $oPage->PathArg('trx.id');
-	    $rcTrx = $this->Table()->GetItem($idVoid);
+	    $idVoid = $oPathin->GetString('trx.id');
+	    $rcTrx = $this->GetTableWrapper()->GetRecord_forKey($idVoid);
 	    $rcOrd = $rcTrx->OrderRecord();
 	    $arEv = array(
 	      'descr'	=> 'voiding',
 	      'params'	=> ':trx='.$idVoid,
 	      'code'	=> 'TVOID'
 	      );
-	    $rcEv = $rcOrd->CreateEvent($arEv);
+	    $rcEv = $rcOrd->CreateEvent($arEv);		// TODO 2017-04-11: use EventPlex
 	    $rcTrx->Update(array('WhenVoid'=>'NOW()'));
 	    //$rcOrd->FinishEvent();
-	    $rcEv->Finish();
+	    $rcEv->Finish();				// TODO same
 
 	    $rcPage->SelfRedirect();
 	}
@@ -396,8 +424,7 @@ __END__;
 
 	    $isOdd = TRUE;
 	    $this->ClearBalances();
-	    $arVoidLink = $oPage->PathArgs(array('page','id'));
-	    $arVoidLink['trx.do'] = 'void';
+	    //$arVoidLink['trx.do'] = 'void';
 	    $this->RewindRows();
 	    while ($this->NextRow()) {
 		$cssClass = $isOdd?'odd':'even';
@@ -411,16 +438,17 @@ __END__;
 		$htType = $rcType->DocLink();
 		$strWhenDone = $this->WhenDone();
 		$strWhenVoid = $this->WhenVoided();
-		$dlrAmt = $this->Amount();
-		$strAmount = clsMoney::Format_withSymbol($dlrAmt);
-		$strDescr = $this->Description();
+		$dlrAmt = $this->GetAmount();
+		$strAmount = fcMoney::Format_withSymbol($dlrAmt);
+		$strDescr = $this->GetAboutString();
 
 		if ($this->IsActive()) {
 		    $this->AddToBalances();
 		    // make a link to void this transaction
 		    $arVoidLink['trx.id'] = $this->GetKeyValue();
-		    $url = $oPage->SelfURL($arVoidLink,FALSE);
-		    $htWhenVoid = '[ '.clsHTML::BuildLink($url,'void it','void this transaction').' ]';
+		    //$url = $oPage->SelfURL($arVoidLink,FALSE);
+		    //$htWhenVoid = '[ '.fcHTML::BuildLink($url,'void it','void this transaction').' ]';
+		    $htWhenVoid = $this->SelfLink('void it','void this transaction',array('trx.do' => 'void'));
 		} else {
 		    $cssClass = 'voided';
 		    // just show the void timestamp (later: link to un-void it)
@@ -444,13 +472,13 @@ __END__;
 	      );
 	    $dlrBal = $this->GetBalance_Final();
 	    
-	    $htNew = $this->Table()->SelfLink_toCreate('new','add a transaction',$arTrx);
+	    $htNew = $this->GetTableWrapper()->SelfLink_toCreate('new','add a transaction',$arTrx);
 	    $ftBalFinal	= $this->GetBalance_Final_string();
 	    $ftBalCatgs = $this->GetBalances_summary_string();
 	    
 	    // show additional action-options
-	    $arLink = $oPage->PathArgs(array('page','id'));
-	    $arLink['do'] = 'charge';
+	    //$arLink = $oPage->PathArgs(array('page','id'));
+	    //$arLink['do'] = 'charge';
 	    $prcChg = $dlrBal;
 	    if ($prcChg > 0) {
 		$ftChargeLink = $rcPage->SelfLink(
@@ -472,7 +500,7 @@ __END__;
 </table>
 __END__;
 	} else {
-	    $out = "\nNo transactions.";
+	    $out = "<div class=content>No transactions found.</div>";
 	}
 	return $out;
     }

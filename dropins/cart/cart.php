@@ -6,29 +6,32 @@
     2011-12-24 DataScripting brought closer to sanity; mostly working.
     2014-01-15 adapting as a drop-in module
 */
-class VC_Carts extends vctCarts_ShopUI {
+class vctAdminCarts extends vctShopCarts implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('vcraCart');
+    protected function SingularName() {
+	return 'vcrAdminCart';
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return $this->AdminPage();
+    }
     /*----
       PURPOSE: execution method called by dropin menu
-    */
+    */ /*
     public function MenuExec(array $arArgs=NULL) {
 	$this->arArgs = $arArgs;
 	$out = $this->AdminPage();
 	return $out;
-    }
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ ADMIN UI ++ //
 
     public function AdminPage() {
@@ -42,7 +45,7 @@ class VC_Carts extends vctCarts_ShopUI {
 
     // -- ADMIN UI -- //
 }
-class vcraCart extends vcrCart_ShopUI {
+class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     use ftLinkableRecord;
     use ftShowableRecord;
 
@@ -77,7 +80,7 @@ class vcraCart extends vcrCart_ShopUI {
 	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
 	    return KS_CLASS_ADMIN_USER_SESSIONS;
 	} else {
-	    return 'cVbzSession';
+	    return 'vcUserSession';
 	}
     }
     /*----
@@ -105,9 +108,6 @@ class vcraCart extends vcrCart_ShopUI {
 */
     protected function SessionTable($id=NULL) {
 	return $this->Engine()->Make($this->SessionsClass(),$id);
-    }
-    protected function EventTable($id=NULL) {
-	return $this->Engine()->Make($this->EventsClass(),$id);
     }
 
     // -- TABLES -- //
@@ -190,6 +190,9 @@ class vcraCart extends vcrCart_ShopUI {
     // -- FIELD CALCULATIONS -- //
     // ++ ADMIN UI COMPONENTS ++ //
 
+    protected function AdminRows_settings_columns() {
+	throw new exception('2017-04-16 Who actually ends up using this?');
+    }
     /*----
       PURPOSE: So shop-UI class can provide admin-related information
 	In the base class, this is stubbed off.
@@ -458,7 +461,7 @@ __END__;
 
 	    if (is_null($this->Value('ID_Order'))) {
 		$url = $oPage->SelfURL(array('do'=>'find-ord'));
-		$htOrd = clsHTML::BuildLink($url,'find order!');
+		$htOrd = fcHTML::BuildLink($url,'find order!');
 	    } else {
 		$rcOrder = $this->OrderRecord();
 		$htOrd = $rcOrder->SelfLink_name();

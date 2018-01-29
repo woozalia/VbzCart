@@ -47,8 +47,8 @@ define('KSQ_PAGE_PAY','pay');	// payment page
 define('KSQ_PAGE_CONF','conf');	// customer confirmation of order
 define('KSQ_PAGE_RCPT','rcpt');	// order receipt
 // -- optional pages
-define('KSQ_PAGE_LOGIN','login');	// user login/profile page
-define('KSQ_PAGE_USER','user');	// user login/profile page
+//define('KSQ_PAGE_LOGIN','login');	// user login/profile page
+//define('KSQ_PAGE_USER','user');	// user login/profile page
 
 // if no page specified, go to the shipping info page (first page after cart):
 define('KSQ_PAGE_DEFAULT',KSQ_PAGE_SHIP);
@@ -304,7 +304,7 @@ __END__;
     */
     public function RenderLogout_Controls() {
 	$rcUser = $this->UserRecord();
-	$sUser = $rcUser->UserName();
+	$sUser = $rcUser->LoginName();
 	$htLogout = $this->GetSkinObject()->RenderLogout();
 	$out = "You are logged in as <b>$sUser</b>. (You can $htLogout if you prefer.)";
 	return $out;

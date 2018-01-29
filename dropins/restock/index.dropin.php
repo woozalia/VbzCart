@@ -8,10 +8,10 @@
 // CONSTANTS
 
 // -- restocks needed
-define('KS_CLASS_RESTOCKS_NEEDED','VCM_RstksNeeded');
+define('KS_CLASS_RESTOCKS_NEEDED_ADMIN','vctAdminRstksNeeded');
 // -- restock requests
 define('KS_LOGIC_CLASS_RESTOCK_REQUESTS','vctRstkReqs');
-define('KS_ADMIN_CLASS_RESTOCK_REQUESTS','VCT_RstkReqs');
+define('KS_ADMIN_CLASS_RESTOCK_REQUESTS','vctAdminRstkReqs');
 define('KS_LOGIC_CLASS_RESTOCK_REQ_ITEMS','vctlRstkReqItems');
 define('KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS','vctaRstkReqItems');
 // -- restocks received
@@ -36,32 +36,51 @@ define('KS_TABLE_RESTOCK_RECEIVED','rstk_rcd');
 
 $om = $oRoot->SetNode(new fcMenuFolder('Restocks'));
   
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_RESTOCK_NEED,'Needed','items that we need to restock'));
-    $omi->SetPageTitle('Needed Restocks');
-    $omi->SetActionClass(KS_CLASS_RESTOCKS_NEEDED);
+  $omi = $om->SetNode(
+    new fcDropinLink(
+      KS_ACTION_RESTOCK_NEED,
+      KS_CLASS_RESTOCKS_NEEDED_ADMIN,
+      'Needed',
+      'items that we need to restock')
+    );
+    //$omi->SetPageTitle('Needed Restocks');
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
     
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_RESTOCK_REQUEST,'Requests','all restocks ever requested'));
-    $omi->SetPageTitle('Restock Requests');
-    $omi->SetActionClass(KS_ADMIN_CLASS_RESTOCK_REQUESTS);
+  $omi = $om->SetNode(
+    new fcDropinLink(
+      KS_ACTION_RESTOCK_REQUEST,
+      KS_ADMIN_CLASS_RESTOCK_REQUESTS,
+      'Requests',
+      'all restocks ever requested')
+    );
+    //$omi->SetPageTitle('Restock Requests');
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
     
-  $omi = $om->SetNode(new fcDropinAction(KS_ACTION_RESTOCK_REQUEST_ITEM));	// restock request items
+  $omi = $om->SetNode(new fcDropinAction(KS_ACTION_RESTOCK_REQUEST_ITEM,KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS));
     $omi->SetActionClass(KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS);
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
     
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_RESTOCK_RECEIVED,'Received','all restocks ever received'));
-    $omi->SetPageTitle('Restocks Received');
-    $omi->SetActionClass(KS_ADMIN_CLASS_RESTOCKS_RECEIVED);
+  $omi = $om->SetNode(
+    new fcDropinLink(
+      KS_ACTION_RESTOCK_RECEIVED,
+      KS_ADMIN_CLASS_RESTOCKS_RECEIVED,
+      'Received',
+      'all restocks ever received')
+    );
+    //$omi->SetPageTitle('Restocks Received');
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
 
-  $omi = $om->SetNode(new fcDropinAction(KS_ACTION_RESTOCK_RECEIVED_LINE));	// received restock lines
-    $omi->SetActionClass(KS_ADMIN_CLASS_RESTOCK_LINES_RECEIVED);
+  $omi = $om->SetNode(new fcDropinAction(KS_ACTION_RESTOCK_RECEIVED_LINE,KS_ADMIN_CLASS_RESTOCK_LINES_RECEIVED));
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
     
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_RESTOCK_EXPECTED,'Expected','open restock requests'));
-    $omi->SetPageTitle('Expected Restocks');
-    $omi->SetActionClass(KS_ADMIN_CLASS_RESTOCK_REQUESTS);
+  $omi = $om->SetNode(
+    new fcDropinLink(
+      KS_ACTION_RESTOCK_EXPECTED,
+      KS_ADMIN_CLASS_RESTOCK_REQUESTS,
+      'Expected',
+      'open restock requests')
+    );
+    //$omi->SetPageTitle('Expected Restocks');
     $omi->SetRequiredPrivilege(KS_PERM_RSTK_VIEW);
 
 /* 2016-12-11 old dropin version
@@ -69,7 +88,7 @@ $om = new fcMenuFolder($oRoot, 'rstk','Restocks','Restocking','managment of whol
   $om->NeedPermission(KS_PERM_RSTK_VIEW);
   
   $omi = new fcMenuLink($om,KS_ACTION_RESTOCK_NEED,'Needed','Needed Restocks','items that we need to restock');
-    $omi->Controller(KS_CLASS_RESTOCKS_NEEDED);
+    $omi->Controller(KS_CLASS_RESTOCKS_NEEDED_ADMIN);
     $omi->NeedPermission(KS_PERM_RSTK_VIEW);
     
   $omi = new fcMenuLink($om,KS_ACTION_RESTOCK_REQUEST,'Requests','Restock Requests','all restocks ever requested');
@@ -102,7 +121,7 @@ $arDropin = array(
   'date'	=> '2016-01-12',
   'URL'		=> NULL,	// nothing yet
   'classes'	=> array(	// list of files and the classes they contain
-    'needed.php'		=> array(KS_CLASS_RESTOCKS_NEEDED),
+    'needed.php'		=> array(KS_CLASS_RESTOCKS_NEEDED_ADMIN),
     'qry.rrqi-exp.php'		=> array(KS_QUERY_CLASS_RESTOCK_ITEMS_EXPECTED),
     'restock.traits.php'	=> array('vtRestockTable_admin','vtRestockTable_logic'),
     'restock-line.traits.php'	=> array('vtRestockLines'),

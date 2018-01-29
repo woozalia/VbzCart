@@ -11,10 +11,9 @@
  STOCK MANAGEMENT
 */
 
-/*%%%%
-  TODO: Add cacheing. This was originally descended from a cached-table class which is now deprecated.
-*/
-class VCM_StockPlaces extends vcAdminTable {
+class vctAdminStockPlaces extends vcAdminTable {
+    use ftExecutableTwig;
+    use ftLoggableTable;
 
     // ++ SETUP ++ //
 
@@ -24,7 +23,7 @@ class VCM_StockPlaces extends vcAdminTable {
     }
     // CEMENT
     protected function SingularName() {
-	return 'VCM_StockPlace';
+	return 'vcrAdminStockPlace';
     }
     // CEMENT
     public function GetActionKey() {
@@ -36,12 +35,12 @@ class VCM_StockPlaces extends vcAdminTable {
 
     /*----
       PURPOSE: intercepts the Update() function to update the cache timestamp
-    */
+    */ /* 2017-03-27 I don't think we're using cache tables anymore.
     public function Update(array $iSet,$iWhere=NULL) {
 	parent::Update($iSet,$iWhere);
 	//$this->CacheStamp();
 	$this->Touch();
-    }
+    } */
     /*----
       ACTION: update the cache record to show that this table has been changed
       NOTES:
@@ -49,51 +48,106 @@ class VCM_StockPlaces extends vcAdminTable {
       HISTORY:
 	2014-08-05 commented out as redundant
 	2014-08-09 ...but apparently it's not; does not seem to be defined anywhere else.
-    */
+    */ /* 2017-03-27 I don't think we're using cache tables anymore.
     public function CacheStamp() {
 	$objCache = $this->Engine()->CacheMgr();
 	$objCache->UpdateTime_byTable($this);
-    }
+    } */
 
     // -- BOILERPLATE: CACHE TABLES -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Stock Places');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminListing();
     }
-    protected function Arg($sName) {
-	throw new exception('Does anything call this?');
-	if (is_array($this->arArgs) && array_key_exists($sName,$this->arArgs)) {
-	    return $this->arArgs[$sName];
-	} else {
-	    return NULL;
-	}
-    }
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ RECORDS ++ //
 
-    protected function GetRecords_active() {
-	$sqlFilt = 'isActive';	// isEnabled is apparently not being set reliably
-	return $this->GetData($sqlFilt,NULL,'Name');	// sort by Name
+    protected function SelectRecords_active() {
+	return $this->SelectRecords('isActivated','Name');	// sort by Name
     }
-    protected function GetRecords_all() {
+    protected function SelectRecords_sorted() {
 	return $this->SelectRecords(NULL,'Name');	// sort by Name
     }
-    public function GetData_forDropDown($onlyActive) {
-	$sqlActv = $onlyActive?' WHERE isActive':NULL;
-	$sql = 'SELECT ID, Name, isActive, ID_Parent FROM '.$this->NameSQL().$sqlActv;	// refine later if needed
-	return $this->DataSQL($sql);
+    /*----
+      USED BY: Bin record admin page
+      HISTORY: 
+	2017-04-20 Renamed from GetData_forDropDown() -> SelectRecords_forDropDown()
+	2017-06-30 Changed field list to *, because fields have changed and this is more maintainable.
+    */
+    public function SelectRecords_forDropDown($onlyActive) {
+	$sqlActv = $onlyActive?' WHERE isActivated':NULL;	// "isActivated" = thisPlace + parentalPlaces
+	//$sql = 'SELECT ID, Name, isSelfActive, isActiveSpace, isActivated, ID_Parent FROM '.$this->TableName_cooked().$sqlActv;
+	// refine later if needed
+	$sql = 'SELECT * FROM '.$this->TableName_cooked().$sqlActv.' ORDER BY Name';
+	return $this->FetchRecords($sql);
     }
 
     // -- RECORDS -- //
+    // ++ INTERNAL STATES ++ //
+
+    private $arChg;
+    protected function ResetStatusUpdates() {
+	$this->arChg = array();
+    }
+    // PUBLIC so recordset can access it
+    public function RememberStatusUpdate(vcrAdminStockPlace $rc) {
+	$id = $rc->GetKeyValue();
+	$this->arChg[$id] = $rc->GetFieldValues();
+    }
+    protected function GetUpdateCount() {
+	return count($this->arChg);
+    }
+    protected function RenderUpdates() {
+	$rc = $this->SpawnRecordset();
+	$nChg = count($this->arChg);
+	if ($nChg > 0) {
+	    $out = $nChg.' status update'.fcString::Pluralize($nChg).':';
+	    $ht = NULL;
+	    $s = NULL;
+	    foreach ($this->arChg as $id => $arPlace) {
+		$rc->SetFieldValues($arPlace);
+		$ch = $rc->IsActivated()?'+':'-';
+		$ht .= ' '.$ch.$rc->SelfLink();
+		$s .= ' '.$ch.$rc->GetKeyValue();
+	    }
+	    $arOut = array(
+	      'html'	=> $ht,
+	      'text'	=> $out.$s
+	      );
+	} else {
+	    $out = 'There were no status updates.';
+	    $arOut = array(
+	      'html'	=> $out,
+	      'text'	=> $out
+	      );
+	}
+	return $arOut;
+    }
+    public function LogUpdateResults($idEvent) {
+	$arOut = $this->RenderUpdates();
+	if ($this->GetUpdateCount() > 0) {
+	    fcApp::Me()->FinishEvent($idEvent,KS_EVENT_SUCCESS,$arOut['text']);
+	} else {
+	    fcApp::Me()->FinishEvent($idEvent,KS_EVENT_NO_CHANGE,'no changes were needed');
+	}
+	return '<div class=content>'.$arOut['html'].'</div>';
+    }
+    
+    // -- INTERNAL STATES -- //
     // ++ WEB UI COMPONENTS ++ //
 
     //-----
     public function DropDown($iName,$iDefault=NULL,$iFilt=NULL,$iSort='Name') {
+	throw new exception('2017-04-20 Does anything still call this?');
 	$rsRows = $this->GetData($iFilt,NULL,$iSort);
 	return $rsRows->DropDown($iName,$iDefault);
     }
@@ -103,6 +157,7 @@ class VCM_StockPlaces extends vcAdminTable {
 
     //++forms++//
     
+    // 2017-04-22 This will need updating.
     private function AdminListing_handleAdd($idParent) {
 	$sName = $_REQUEST['plName'];
 	$sDesc = $_REQUEST['plDesc'];
@@ -154,85 +209,98 @@ class VCM_StockPlaces extends vcAdminTable {
     /*-----
       ACTION: Show list of all Places, optionally within the given parent Place
     */
-    public function AdminListing($idParent=0,$sHeader=NULL) {
-	
+    public function AdminListing($idParent=0) {
 	$isPage = ($idParent == 0);
-	
-	$oPage = $this->Engine()->App()->Page();
+	$oFormIn = fcHTTP::Request();	
 
-	$sDo = $oPage->PathArg('do');
-	$doAdd = ($sDo == 'new');
-	$doAddSave = $oPage->HTTP_RequestObject()->GetBool('btnAddPlace');
-	$sShow = $oPage->PathArg('show');
-	$doFlat = ($sShow == 'flat');
-	$doInact = ($sShow == 'inact');
+	// header/section & menu
+
+	if ($isPage) {
+	    $oMenu = fcApp::Me()->GetHeaderMenu();
+	} else {
+	    $oMenu = new fcHeaderMenu();
+	    $oHdr = new fcSectionHeader('Sub-Locations',$oMenu);
+	}
+	
+	// + menu
+	
+	// ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('do','Actions'));
+	  
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('new','create a new Place'));
+	      $doAdd = $ol->GetIsSelected();
+	      
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('recalc','recalculate activation status for all Places'));
+	      $doRecalc = $ol->GetIsSelected();
+	  
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Manage'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('flat','show as flat listing'));
+	      $doFlat = $ol->GetIsSelected();
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('inact','include inactive places','inactive'));
+	      $doInact = $ol->GetIsSelected();
+	    
+	// - menu
+	
+	if ($isPage) {
+	    $out = NULL;
+	} else {
+	    $out = $oHdr->Render();
+	}
+	    
+	// - header
+	
+	$doAddSave = $oFormIn->GetBool('btnAddPlace');
 	
 	// check for changes via form submission
-//	if (array_key_exists('btnAddPlace',$_REQUEST)) {
 	if ($doAddSave) {
 	    $sMsg = $this->AdminListing_handleAdd($idParent);
 	    $this->SelfRedirect(NULL,$sMsg);
 	}
-
-	$arMenu = array(
-	  new clsActionLink_option(
-	    array(),			// additional link data
-	    'new',			// link key
-	    'do',			// group key
-	    NULL,			// display when off
-	    NULL,			// display when on
-	    'create a new Place'	// popup description
-	    ),
-	  new clsAction_section('Show'),
-	  new clsActionLink_option(
-	    array(),			// additional link data
-	    'flat',			// link key
-	    'show',			// group key
-	    NULL,			// display when off
-	    NULL,			// display when on
-	    'show as flat listing'	// popup description
-	    ),
-	  new clsActionLink_option(
-	    array(),			// additional link data
-	    'inact',			// link key
-	    'show',			// group key
-	    'inactive',			// display when off
-	    NULL,			// display when on
-	    'include inactive places'	// popup description
-	    ),
-	  );
-	$out = NULL;
 	
-	if ($isPage) {
-	    $oPage->PageHeaderWidgets($arMenu);
-	} else {
-	    $out .= $oPage->ActionHeader($sHeader,$arMenu);
+	if ($doRecalc) {
+	    $idEv = fcApp::Me()->CreateEvent(KS_EVENT_VBZCART_CASCADE_UPDATE,'auto-updating activation for all Places');
+	
+	    // ASSUMES: There are records.
+	    $rs = $this->SelectRecords();
+	    $ar = $rs->FetchRows_asKeyedArray();
+	    $rc = $this->SpawnRecordset();
+	    $this->ResetStatusUpdates();
+	    
+	    foreach ($ar as $id => $arRow) {
+		$rc->SetFieldValues($arRow);
+		if (!$rc->HasParent()) {
+		    $rc->UpdateActivation();
+		}
+	    }
+
+	    $out .= $this->LogUpdateResults($idEvent);
 	}
 
 	// get a list of all the Places, so we can then organize it hierarchically:
 	if ($doInact) {
-	    $rsPlaces = $this->GetRecords_all();
+	    $rsPlaces = $this->SelectRecords_sorted();
 	} else {
-	    $rsPlaces = $this->GetRecords_active();
+	    $rsPlaces = $this->SelectRecords_active();
 	}
 
 	$gotSome = FALSE;
 
 	if ($doAdd) {
-	    $out .= $oPage->ActionHeader('Add New Place')
+	    $out .= (new fcSectionHeader('Add New Place'))->Render()
 	      . <<<__END__
 <form method=post>
-  <table>
+  <table class=content>
     <tr><td align=right><b>Name</b>:</td>	<td><input name=plName size=8></td></tr>
     <tr><td align=right><b>Description</b>:</td><td><input name=plDesc size=30></td></tr>
     <tr><td colspan=2 align=center><input type=submit name=btnAddPlace value="Add Place"></td></tr>
   </table>
 </form>
 __END__;
-	    $out .= $oPage->ActionHeader('Existing');
+	    $out .= (new fcSectionHeader('Existing'))->Render();
 	}
 	if ($doFlat) {
-	    $out .= $rsPlaces->AdminRows($this->AdminFields());
+	    $out .= $rsPlaces->AdminRows();
 	} else {
 	    $out .= $rsPlaces->AdminTree($idParent);
 	}
@@ -273,35 +341,71 @@ __END__;
 	if (!$gotSome) {
 	    $out .= 'none found';
 	} */
+	
+	if ($isPage) {
+	    $out .= $this->EventListing();
+	    // If this is a section of someone else's page, let them do the event listing appropriate for that context.
+	}
+	
 	return $out;
     }
     
     // -- WEB UI PAGES -- //
 }
-class VCM_StockPlace extends vcAdminRecordset {
-    protected $objParent;
+class vcrAdminStockPlace extends vcAdminRecordset implements fiEventAware {
+    use ftLoggableRecord;
+    use ftLoggedRecord;		// automatically log edits
+    use ftExecutableTwig;
+    use ftShowableRecord;
 
-    // ++ DROP-IN API ++ //
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$id = $this->GetKeyValue();
+	$sName = $this->NameString();
+	$sTitle = "plc$id: $sName";
+	$htTitle = "Place #$id: $sName";
 
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle('Suppliers');
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- DROP-IN API -- //
-    // ++ DATA FIELDS ++ //
+    // -- EVENTS -- //
+    // ++ FIELD VALUES ++ //
 
     public function ParentID() {
-	return $this->Value('ID_Parent');
+	return $this->GetFieldValue('ID_Parent');
     }
-    public function Name() {
-	return $this->Value('Name');
+    public function NameString() {
+	return $this->GetFieldValue('Name');
+    }
+    protected function IsSelfActive() {
+	return $this->GetFieldValue('isSelfActive');
+    }
+    /*----
+      PURPOSE: stored value of IsActiveSpace() && IsSelfActive()
+      PUBLIC so Bin admin UI can fetch it
+    */
+    public function IsActivated() {
+	//throw new exception('2017-06-30 This field no longer exists.'); Actually, it does. 2017-09-04
+	return $this->GetFieldValue('isActivated');
+    }
+    /*----
+      PUBLIC so Stock Bin can read it
+      NOTE: 2017-05-07 Very tempted to rename this IsSpaceActive(), for consistency with IsSelfActive().
+    */
+    public function IsActiveSpace() {
+	return $this->GetFieldValue('isActiveSpace');
     }
 
-    // -- DATA FIELD ACCESS -- //
-    // ++ DATA FIELD CALCULATIONS ++ //
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
     
     // CALLBACK for dropdown list
     public function ListItem_Link() {
@@ -309,16 +413,38 @@ class VCM_StockPlace extends vcAdminRecordset {
     }
     // CALLBACK for dropdown list
     public function ListItem_Text() {
-	return $this->Name();
+	if ($this->HasParent()) {
+	    $rcParent = $this->ParentRecord();
+	    $sParent = ' &larr; '.$rcParent->NameString();
+	} else {
+	    $sParent = '';
+	}
+	return $this->GetKeyValue().': '.$this->NameString().$sParent;
     }
     /*----
+      NOTES:
+	* Think of this as ShouldSelfBeMarkedAsBeingInsideActiveSpace().
+	* This should only be used by single-record admin fx().
+	  Normally, activation status flags should never go out of sync
+	  because contained spaces are updated whenever record is saved.
+    */
+    public function IsParentActive() {
+	if ($this->HasParent()) {
+	    return $this->ParentRecord()->IsSelfActive();
+	} else {
+	    return TRUE;	// root space is definitionally active
+	}
+    }
+    /*----
+      2017-04-22 This is now OBSOLETE.
       RETURNS; TRUE if this place AND all ancestors are marked active (isActive=TRUE).
 	If any ancestors are isActive=FALSE, then this one is not active even if it is
 	marked isActive=TRUE. This lets us control activation for an entire area and all its contents
 	with one change.
     */
     public function IsActive() {
-	if ($this->Value('isActive')) {
+	throw new exception('2017-04-22 Call IsSelfActive() or IsActiveSpace() instead.');
+	if ($this->GetFieldValue('isActive')) {
 	    if ($this->HasParent()) {
 		return $this->ParentRecord()->IsActive();
 	    } else {
@@ -329,62 +455,76 @@ class VCM_StockPlace extends vcAdminRecordset {
 	}
     }
     /*----
-      PURPOSE: This function is kind of overloaded. Maybe that's a bad idea, but the name
-	suggests two different things depending on whether you pass it something.
-      RETURNS:
-	if iObj is NULL: TRUE if this object has an ID_Parent, FALSE otherwise
-	if iObj is passed: TRUE if iObj is an ancestor of this object, FALSE otherwise
+      PURPOSE: determine whether this Place is inside another Place
+      RETURNS: TRUE if this object has a non-null ID_Parent, FALSE otherwise
+      HISTORY:
+	2017-04-22 Split off the descends-from overloaded functionality into IsInside(),
+	  and made both methods PROTECTED until need for PUBLIC is documented
     */
-    public function HasParent(VCM_StockPlace $iObj=NULL) {
-	if (is_object($iObj)) {
-	    if ($this->HasParent()) {
-		if ($this->ID_Parent == $iObj->GetKeyValue()) {
-		    return TRUE;
-		} else {
-		    $obj = $this->ParentRecord();
-		    return $obj->HasParent($iObj);
-		}
+    protected function HasParent() {
+	return !is_null($this->ParentID());
+    }
+    /*----
+      RETURNS: TRUE if $rcPlace is an ancestor of this object, FALSE otherwise
+    */
+    protected function IsInside(vcrAdminStockPlace $rcPlace) {
+	if ($this->HasParent()) {
+	    if ($this->ParentID() == $rcPlace->GetKeyValue()) {
+		return TRUE;
 	    } else {
-		return FALSE;
+		$rcParent = $this->ParentRecord();
+		return $rcParent->IsInside($rcPlace);
 	    }
 	} else {
-	    return !is_null($this->ParentID());
+	    return FALSE;
+	}
+    }
+    protected function GetParentLink() {
+	if ($this->HasParent()) {
+	    return $this->ParentRecord()->SelfLink_name();
+	} else {
+	    return '(root)';
 	}
     }
     /*----
       ACTION: Returns name plus some parental context
     */
     public function NameLong() {
-	$out = $this->Name();
+	throw new exception('2017-05-07 Is anything calling this?');
+	$out = $this->NameString();
 	if ($this->HasParent()) {
-	    $out .= ' &larr; '.$this->Table()->GetItem($this->ParentID())->Name();
+	    $out .= ' &larr; '.$this->Table()->GetItem($this->ParentID())->NameString();
 	}
 	return $out;
     }
     public function NameLong_text() {
-	$out = $this->Name();
+	throw new exception('2017-05-07 Is anything calling this?');
+	$out = $this->NameString();
 	if ($this->HasParent()) {
-	    $out .= ' < '.$this->Table()->GetItem($this->ParentID())->Name();
+	    $out .= ' < '.$this->Table()->GetItem($this->ParentID())->NameString();
 	}
 	return $out;
     }
     public function SelfLink_name() {
-	$ftLink = $this->SelfLink($this->Name());
-	if ($this->IsActive()) {
+	$ftLink = $this->SelfLink($this->NameString());
+	if ($this->IsSelfActive()) {
 	    $htStyleActv = '';
+	    $sStatus = 'self is active';
 	} else {
 	    $htStyleActv = 'text-decoration: line-through;';
+	    $sStatus = 'self is not active';
 	}
 	if ($this->HasParent()) {
-	    if (!$this->ParentRecord()->IsActive()) {
+	    if (!$this->ParentRecord()->IsSelfActive()) {
 		$htStyleActv .= ' background-color: #aaaaaa;';
+		$sStatus .= ', parent is not active';
 	    }
 	}
-	return '<span style="'.$htStyleActv.'">'.$ftLink.'</span>';
+	return "<span style='$htStyleActv' title='$sStatus'>$ftLink</span>";
     }
     
-    // -- DATA FIELD CALCULATIONS -- //
-    // ++ CLASS NAMES ++ //
+    // -- FIELD CALCULATIONS -- //
+    // ++ CLASSES ++ //
     
     protected function BinsClass() {
 	return KS_CLASS_STOCK_BINS;
@@ -393,11 +533,16 @@ class VCM_StockPlace extends vcAdminRecordset {
 	return KS_ADMIN_CLASS_LC_ITEMS;
     }
     
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
 
+    
+    // TODO: need a BinInfoTable fx()
     protected function BinTable($id=NULL) {
-	return $this->Engine()->Make($this->BinsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->BinsClass(),$id);
+    }
+    protected function BinInfoTable() {
+    	return $this->GetConnection()->MakeTableWrapper('vcqtAdminStockBinsInfo');
     }
     protected function LCItemTable($id=NULL) {
 	return $this->Engine()->Make($this->LCItemsClass(),$id);
@@ -406,6 +551,31 @@ class VCM_StockPlace extends vcAdminRecordset {
     // -- TABLES -- //
     // ++ RECORDS ++ //
 
+    /*----
+      HISTORY:
+	2010-11-30 Added object caching
+	2016-01-22 changed from public to protected
+	2017-09-03 rewrote so parent is properly fetched for new rows;
+	  $rcParent is now private.
+    */
+    private $rcParent=NULL;
+    protected function ParentRecord() {
+	if ($this->HasParent()) {
+	    $doFetch = FALSE;
+	    if (is_null($this->rcParent)) {
+		$doFetch = TRUE;
+	    } elseif ($this->ParentID() != $this->rcParent->GetKeyValue()) {
+		$doFetch = TRUE;
+	    }
+	    if ($doFetch) {
+		$tPlaces = $this->GetTableWrapper();
+		$this->rcParent = $tPlaces->GetRecord_forKey($this->ParentID());
+	    }
+	} else {
+	    $this->rcParent = NULL;
+	}
+	return $this->rcParent;
+    }
     /*----
       RETURNS: recorset of potential parent records for this record
 	We basically do as much filtering as possible without doing any JOINs:
@@ -417,27 +587,14 @@ class VCM_StockPlace extends vcAdminRecordset {
 	$id = $this->GetKeyValue();
 	// get records which aren't self and don't have self as parent
 	$sqlFilt = "(ID != $id) AND (IFNULL(ID_Parent,0) != $id)";
-	$rs = $this->Table()->SelectRecords($sqlFilt,'Name');
+	$rs = $this->GetTableWrapper()->SelectRecords($sqlFilt,'Name');
 	return $rs;
     }
     /*----
-      HISTORY:
-	2010-11-30 Added object caching
-	2016-01-22 changed from public to protected
+      RETURNS: recordset of Places directly contained by this one
     */
-    protected function ParentRecord() {
-	if ($this->HasParent()) {
-	    $obj = $this->objParent;
-	    if (!is_object($obj)) {
-		//$objPlaces = new VbzStockPlaces($this->objDB);
-		$tPlaces = $this->Table();
-		$obj = $tPlaces->GetItem($this->ParentID());
-	    }
-	    $this->objParent = $obj;
-	} else {
-	    $obj = NULL;
-	}
-	return $obj;
+    protected function SelectContainedRecords() {
+	return $this->GetTableWrapper()->SelectRecords('ID_Parent='.$this->GetKeyValue());
     }
     /*----
       RETURNS: dataset of Bins in the current Place
@@ -493,18 +650,61 @@ class VCM_StockPlace extends vcAdminRecordset {
 	return $this->ftNoStk;
     }
 
-    // -- CALCULATION RESULTS - //
+    // -- CALCULATION RESULTS -- //
+    // ++ DATA WRITE ++ //
+    
+    /*----
+      ACTION:
+	* Update isActiveSpace based on $doActive
+	* Update isActivated based on isActiveSpace and isActiveSelf
+	* For each contained Place, call UpdateActivation().
+      INPUT:
+	$doActive should be equal to $this->IsParentActive().
+	  It exists to minimize repeat lookups of parent records
+	  while we're recursing through the tree (we can pass down
+	  the value already known, rather than requiring each child
+	  to look it up). In other words, if you know the value,
+	  then pass it; otherwise, don't.
+    */
+    public function UpdateActivation($doActive=NULL) {
+	if (is_null($doActive)) {
+	    $doActive = $this->IsParentActive();
+	}
+	$doActivate = $doActive && $this->IsSelfActive();
+	$isChg = $this->IsActivated() != $doActivate;
+	if ($isChg) {
+	    $arOld = $this->GetFieldValues();
+	    $arUpd = array(
+	      'isActiveSpace'	=> $doActive,
+	      'isActivated'	=> $doActivate
+	      );
+	    $this->Update($arUpd);
+	    $arData = array(
+	      'before'	=> $arOld,
+	      'change'	=> $arUpd
+	      );
+	    fcApp::Me()->CreateEvent(KS_EVENT_VBZCART_CASCADE_UPDATE,'activation recalculated',$arData);
+	    $this->GetTableWrapper()->RememberStatusUpdate($this);
+	}
+	$rs = $this->SelectContainedRecords();
+	while ($rs->NextRow()) {
+	    $rs->UpdateActivation($doActivate);
+	}
+    }
+
+    // -- DATA WRITE -- //
     // ++ ACTIONS ++ //
 
     /*----
       ACTION: update the cache record to show that this table has been changed
     */
+    /*
     protected function CacheStamp() {
 	$this->Table()->CacheStamp();
     }
     /*----
       PURPOSE: intercepts the Update() function to update the cache timestamp
-    */
+    */ /*
     public function Update(array $iSet,$iWhere=NULL) {
 	parent::Update($iSet,$iWhere);
 	$this->CacheStamp(__METHOD__);
@@ -526,7 +726,7 @@ class VCM_StockPlace extends vcAdminRecordset {
 		$val = $this->NameLong_text();
 		$arRows[$key] = $val;
 	    }
-	    $out = clsHTML::DropDown_arr($sName,$arRows,$vDefault,$sChoose=NULL);
+	    $out = fcHTML::DropDown_arr($sName,$arRows,$vDefault,$sChoose=NULL);
 	} else {
 	    $out = 'No locations matching filter';
 	}
@@ -580,21 +780,22 @@ class VCM_StockPlace extends vcAdminRecordset {
 	Also, use ID_Parent as the default.
     */
     public function DropDown_meParent($iName) {
-	$objRows = $this->Table()->GetData('ID != '.$this->GetKeyValue(),NULL,'Name');
-	while ($objRows->NextRow()) {
-	    if (!$objRows->HasParent($this)) {
-		$arRows[$objRows->GetKeyValue()] = $objRows->NameLong_text();
+	throw new exception('2017-04-22 Is anything still calling this?');
+	$rs = $this->Table()->GetData('ID != '.$this->GetKeyValue(),NULL,'Name');
+	while ($rs->NextRow()) {
+	    if (!$rs->IsInside($this)) {
+		$arRows[$rs->GetKeyValue()] = $rs->NameLong_text();
 	    }
 	}
-	return clsHTML::DropDown_arr($iName,$arRows,$this->ParentID(),'--ROOT--');
+	return fcHTML::DropDown_arr($iName,$arRows,$this->ParentID(),'--ROOT--');
     }
     /*-----
       ACTION: Show table of all Places inside this Place (via Places->AdminListing())
       TODO: Rename to something that suggests rendered output rather than an array.
     */
     public function SubsList() {
-	$tPlaces = $this->Table;
-	$out = $tPlaces->AdminListing($this->GetKeyValue(),'Sub-Locations');
+	$tPlaces = $this->GetTableWrapper();
+	$out = $tPlaces->AdminListing($this->GetKeyValue());
 	return $out;
     }
     /*-----
@@ -602,7 +803,7 @@ class VCM_StockPlace extends vcAdminRecordset {
       TODO: Rename to something that suggests rendered output rather than an array.
     */
     public function BinsList() {
-	$tBins = $this->BinTable();
+	$tBins = $this->BinInfoTable();
 	$out = $tBins->List_forPlace($this->GetKeyValue());
 	return $out;
     }
@@ -614,31 +815,32 @@ class VCM_StockPlace extends vcAdminRecordset {
       ACTION: Display information about the current Place
     */
     public function AdminPage() {
-	$strName = $this->Value('Name');
-	$strTitle = 'Stock Location '.$this->GetKeyValue().': '.$strName;
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	//clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
-	$arActs = array(
-	  // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
-	  new clsActionLink_option(array(),'edit'),
-	  new clsActionLink_option(array(),'update'),
-	  new clsActionLink_option(array(),'inv',NULL,'inventory',NULL,'list all inventory of location '.$strName)
-	  );
+	$sName = $this->GetFieldValue('Name');
+	$sTitle = 'Stock Location '.$this->GetKeyValue().': '.$sName;
 
-	$oPage = $this->Engine()->App()->Page();
+	fcApp::Me()->GetPageObject()->SetPageTitle($sTitle);
 
-	$oPage->TitleString($strTitle);
-	$oPage->PageHeaderWidgets($arActs);
+	$oMenu = fcApp::Me()->GetHeaderMenu();
 
-	$doEdit = $oPage->PathArg('edit');
-	$doUpd = $oPage->PathArg('update');
-	$doInv = $oPage->PathArg('inv');
-	$doSave = $oPage->ReqArgBool('btnSave');
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit record for '.$sName));
+	    $doEdit = $ol->GetIsSelected();
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','update',NULL,NULL,'update calculated status flags (this and contents)'));
+	    $doUpd = $ol->GetIsSelected();
+	    $olUpd = $ol;
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','inv',NULL,NULL,'list all inventory in '.$sName));
+	    $doInv = $ol->GetIsSelected();
+
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	$out = NULL;
 	
 	$frm = $this->PageForm();
 	if ($doSave) {
+	    throw new exception('2017-04-22 Now we need to update status of all contained Places.');
 	    $id = $frm->Save();
 	    $sMsgs = $frm->MessagesString();
 	    if (!is_null($sMsgs)) {
@@ -649,18 +851,20 @@ class VCM_StockPlace extends vcAdminRecordset {
 	}
 
 	if ($doUpd) {
-	    // update any calculated fields
-	    $arUpd = array(
-	      'isEnabled' => ($this->ParentRecord()->IsActive())?'TRUE':'FALSE'
-	      );
-	    $this->Update($arUpd);
-	    $this->SelfRedirect(NULL,'Updated "enabled".');
+	    // update this and all contained spaces, with logging
+
+	    // - log that we're doing this
+	    $sName = $this->NameString();
+	    $idEv = fcApp::Me()->CreateEvent(KS_EVENT_VBZCART_CASCADE_UPDATE,"updating activations for Place '$sName'");
+	    $this->UpdateActivation();		// do the updates
+	    $out .= $this->GetTableWrapper()->LogUpdateResults($idEv);	// log the results
 	}
 	
 	if ($doInv) {
 	    // for now, this only looks at bins in the immediate location
 	    // later, we might want to allow for iterating through sub-locations too
-	    $out .= $oPage->ActionHeader('Inventory');
+	    $oHdr = new fcSectionHeader('Inventory');
+	    $out .= $oHdr->Render();
 
 	    $arStk = $this->CountStock();
 	    ksort($arStk);
@@ -671,7 +875,10 @@ class VCM_StockPlace extends vcAdminRecordset {
 	    }
 
 	    if (!is_null($this->ftNoStk)) {
-		$out .= '<br><b>No stock found</b> in: '.$this->ftNoStk;
+		$out .= '<div class=content><b>No stock found</b> in: '
+		  .$this->ftNoStk
+		  .'</div>'
+		  ;
 	    }
 	}
 
@@ -687,27 +894,17 @@ class VCM_StockPlace extends vcAdminRecordset {
 	$arCtrls = $frm->RenderControls($doEdit);
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
-	} else {
-	
-	    // check calculated "enabled" field:
-	
-	    if ($this->HasParent()) {
-		$isEnabled = $this->Value('isEnabled');		// enabled flag is set?
-		$doEnabled = $this->ParentRecord()->IsActive();	// enabled flag *should be* set?
-		//$ctrlActv .= ' <b>Enabled</b>: '.fcString::NoYes($isEnabled);
-		if ($isEnabled != $doEnabled) {
-		    /*
-		    $urlUpd = $oPage->SelfURL(array('update'=>TRUE),TRUE);
-		    $ctrlActv .= ' - <b><a href="'.$urlUpd.'">update</a></b> - should be '.fcString::NoYes($doEnabled);
-		    */
-		    $htUpd = $this->SelfLink('update','click to recalculate the status',array('update'=>TRUE));
-		    $arCtrls['isEnabled'] .= " - <b>$htUpd</b> - should be ".fcString::NoYes($doEnabled);
-		}
-	    }
 	}
 
+	if (!$this->isActiveSpace() && !$this->HasParent()) {
+	    // if we're root, then space is definitionally active - ask user to recalculate
+	    $arCtrls['!SpaceStatus'] = '<span class=error>= ERROR!</span> '.$olUpd->Render();
+	} else {
+	    $arCtrls['!SpaceStatus'] = '(calculated)';
+	}
+	
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -786,7 +983,6 @@ __END__;
 	$out .= 
 	  $this->BinsList()
 	  .$this->SubsList()
-	  .$oPage->ActionHeader('Events')
 	  .$this->EventListing()
 	  ;
 
@@ -796,12 +992,13 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=content>
   <tr><td align=right><b>Name</b>:</td><td>[#Name#]</td></tr>
   <tr><td align=right><b>Description</b>:</td><td>[#Descr#]</td></tr>
   <tr><td align=right><b>Parent</b>:</td><td>[#ID_Parent#]</td></tr>
-  <tr><td align=right><b>Active</b>:</td><td>[#isActive#]</td></tr>
-  <tr><td align=right><b>Enabled</b>:</td><td>[#isEnabled#]</td></tr>
+  <tr><td align=right><b>Active Self</b>:</td><td>[#isSelfActive#]</td></tr>
+  <tr><td align=right><b>+ Active Space</b>:</td><td>[#isActiveSpace#] [#!SpaceStatus#]</td></tr>
+  <tr><td align=right><b>= Activated</b>:</td><td>[#isActivated#] (calculated)</td></tr>
 </table>
 __END__;
 	    $this->tpPage = new fcTemplate_array('[#','#]',$sTplt);
@@ -821,11 +1018,12 @@ __END__;
 	    
 	      $oField = new fcFormField_Num($oForm,'ID_Parent');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->PotentialParentRecords());
+		$oCtrl->SetRecords($this->PotentialParentRecords());
 		$oCtrl->AddChoice(NULL,'(none)');
 	
-	      $oField = new fcFormField_BoolInt($oForm,'isActive');
-	      $oField = new fcFormField_BoolInt($oForm,'isEnabled');
+	      $oField = new fcFormField_BoolInt($oForm,'isSelfActive');
+	      $oField = new fcFormField_BoolInt($oForm,'isActiveSpace');
+	      $oField = new fcFormField_BoolInt($oForm,'isActivated');
 	      $oField = new fcFormField_Text($oForm,'Name');
 	      $oField = new fcFormField_Text($oForm,'Descr');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>50));
@@ -848,7 +1046,7 @@ __END__;
 	    while ($this->NextRow()) {
 		$idParent = $this->ParentID();
 		$id = $this->GetKeyValue();
-		$arData[$id] = $this->Values();
+		$arData[$id] = $this->GetFieldValues();
 		if (is_null($idParent)) {
 		    $arTree[0][] = $id;
 		} else {
@@ -859,7 +1057,7 @@ __END__;
 	    $hasRows = array_key_exists($idStart,$arTree);
 	    $doTable = $hasRows;
 	    if ($doTable) {
-		$out .= "\n<table><tr><th>ID</th><th>name</th><th>description</tr>";
+		$out .= "\n<table class=listing><tr><th>ID</th><th>name</th><th>description</tr>";
 
 		// render the listing
 		$out .= $this->AdminTree_sub($arData,$arTree,$idStart);
@@ -868,23 +1066,26 @@ __END__;
 	    }
 	}
 	if (is_null($out)) {
-	    $out .= 'none found';
+	    $out .= '<div class=content>none found</div>';
 	}
 	return $out;
     }
+    private $isOdd = FALSE;
     protected function AdminTree_sub(array $arData, array $arTree, $idBranch=0, $nInd=0) {
 	$out = '';
 
 	if (array_key_exists($idBranch,$arTree)) {
 	    foreach($arTree[$idBranch] AS $key => $id) {
 		$arPlace = $arData[$id];
-		$this->Values($arPlace);
+		$this->SetFieldValues($arPlace);
 		$htPlace = $this->SelfLink_name();
 		$sInd = str_repeat('&ndash;&nbsp;',$nInd);
-		$sDesc = $this->Value('Descr');
+		$sDesc = $this->GetFieldValue('Descr');
+		$this->isOdd = !($isOdd = $this->isOdd);
+		$css = $isOdd?'odd':'even';
 		$out .= <<<__END__
 		
-<tr>
+<tr class=$css>
   <td>$id</td>
   <td><font style="color: grey;">$sInd</font>$htPlace</td>
   <td>$sDesc</td>
@@ -894,6 +1095,32 @@ __END__;
 	    }
 	}
 	return $out;
+    }
+    protected function AdminRows_settings_columns() {
+	$arCols = array(
+	  'ID'		=> 'ID',
+	  'ID_Parent'	=> 'Parent',
+	  'isActive'	=> 'Active?',
+	  'Name'	=> 'Name',
+	  'Descr'	=> 'Description'
+	  );
+	return $arCols;
+    }
+    protected function AdminField($sField) {
+	switch($sField) {
+	  case 'ID':
+	    $ht = $this->SelfLink();
+	    break;
+	  case 'ID_Parent':
+	    $ht = $this->GetParentLink();
+	    break;
+	  case 'isActive':
+	    $ht = $this->Render_ActiveStatus();
+	    break;
+	  default:
+	    $ht = $this->GetFieldValue($sField);
+	}
+	return "<td>$ht</td>";
     }
 
     // -- ADMIN WEB UI -- //

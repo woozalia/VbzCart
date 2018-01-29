@@ -2,6 +2,7 @@
 /*
   HISTORY:
     2016-02-06 Extracting title entry code from source.php
+    2017-04-24 Updated for Ferreteria compatibility... but why is this a separate class? It's only used in one place.
 */
 
 // I wanted these to be class constants, but you can't concatenate values there.
@@ -20,8 +21,6 @@ class vcTitleEntryManager {
     
     public function __construct(vcraSCSource $rcSource) {
 	$this->SourceRecord($rcSource);
-	$this->EngineObject($rcSource->Engine());
-	$this->PageObject($this->EngineObject()->App()->Page());
     }
     private $rcSource;
     protected function SourceRecord(vcraSCSource $rcSource=NULL) {
@@ -30,38 +29,43 @@ class vcTitleEntryManager {
 	}
 	return $this->rcSource;
     }
+    protected function EngineObject() {
+	return fcApp::Me()->GetDatabase();
+    }
+    /*
     private $oDB;
-    protected function EngineObject(clsDatabase $oDB=NULL) {
+    protected function EngineObject(fcDataConn_CliSrv $oDB=NULL) {
 	if (!is_null($oDB)) {
 	    $this->oDB = $oDB;
 	}
 	return $this->oDB;
-    }
+    }*/
+    /*
     private $oPage;
     protected function PageObject(clsPageBasic $oPage=NULL) {
 	if (!is_null($oPage)) {
 	    $this->oPage = $oPage;
 	}
 	return $this->oPage;
-    }
+    }*/
     
     // -- SETUP -- //
     // ++ TABLES ++ //
     
     protected function SCGroupTable($id=NULL) {
-	return $this->EngineObject()->Make(KS_CLASS_SUPPCAT_GROUPS,$id);
+	return $this->EngineObject()->MakeTableWrapper(KS_CLASS_SUPPCAT_GROUPS,$id);
     }
     protected function SCTitleTable($id=NULL) {
-	return $this->EngineObject()->Make(KS_CLASS_SUPPCAT_TITLES,$id);
+	return $this->EngineObject()->MakeTableWrapper(KS_CLASS_SUPPCAT_TITLES,$id);
     }
     protected function LCTitleTable($id=NULL) {
-	return $this->EngineObject()->Make(KS_CLASS_CATALOG_TITLES,$id);
+	return $this->EngineObject()->MakeTableWrapper(KS_CLASS_CATALOG_TITLES,$id);
     }
     protected function TopicTable($id=NULL) {
-	return $this->EngineObject()->Make(KS_CLASS_CATALOG_TOPICS,$id);
+	return $this->EngineObject()->MakeTableWrapper(KS_CLASS_CATALOG_TOPICS,$id);
     }
     protected function TitleTopicTable() {
-	return $this->EngineObject()->Make('vctTitlesTopics');
+	return $this->EngineObject()->MakeTableWrapper('vctTitlesTopics');
     }
     
     // -- TABLES -- //
@@ -90,16 +94,41 @@ class vcTitleEntryManager {
     // -- FIELD VALUES -- //
     // ++ MAIN API ++ //
     
+    public function DoEnter() {
+	$out = NULL;
+    
+	if ($this->DidRequestChange()) {
+	    $out .= $this->DoMakeChanges();
+	}
+	
+	$out .= "\n<form method=post>"
+	  ."\n<table><tr><td valign=top>"
+	  .$this->DoParseTitles()		// parse text entry input, if any
+	  .$this->Render_ActionOptions()	// things that can be done (depends on DoParseTitles())
+	  ."\n</td><td valign=top>"
+	  .$this->Render_ParsedTitles()		// parsing results, if any
+	  ."\n</td></tr></table>"
+	  ."\n<table style='float: right;'><tr><td>"
+	  .$this->Render_TextForm()		// show the text entry form
+	  ."\n</td></tr></table>"
+	  ."\n</form>"
+	  ;
+
+	return $out;
+    }
+    
+    /* 2017-05-29 rewriting this
     public function DoMain() {
-	$oPage = $this->PageObject();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 	
 	$out = NULL;
-	$isReqEnter = $oPage->PathArg('enter');
-	$isReqDone = $oPage->ReqArgBool('btnDone');
+	$isReqEnter = $oPathIn->GetBool('enter');
+	$isReqDone = $oFormIn->GetBool('btnDone');
 	$doEnter = $isReqEnter && !$isReqDone;
 	if ($doEnter) {	// if not in entry mode, do nothing
 	
-	    $isReqParse = $oPage->ReqArgBool('btnParse');	
+	    $isReqParse = $oFormIn->GetBool('btnParse');	
 	    // wait, maybe we don't need this if we always parse unless we're done
 	    //$sTopicBtnCheck = $this->TopicControl()->CtrlName_Btn_Check();
 	    //$isReqTopic = $oPage->ReqArgBool($sTopicBtnCheck);
@@ -118,7 +147,7 @@ class vcTitleEntryManager {
 	    $out .= "\n</form>";
 	}
 	return $out;
-    }
+    } */
     
     // -- MAIN API -- //
     // ++ PROCESSING ++ //
@@ -180,11 +209,13 @@ class vcTitleEntryManager {
     // ++ RENDERING ++ //
     
     protected function Render_TextForm() {
-	$oPage = $this->PageObject();
 	$htnText = KS_SOURCE_ENTRY_HTNAME_TITLES_ENTRY_TEXT;
 	$htnBtn = KS_SOURCE_ENTRY_HTNAME_TITLES_ENTRY_BUTTON;
 	$htTitles = $this->Received_TitlesText();
-	$out = $oPage->ActionHeader('Enter Titles')
+	
+	$oHdr = new fcSectionHeader('Enter Titles');
+	
+	$out = $oHdr->Render()
 	  . <<<__END__
 
 <input type=submit name="$htnBtn" value="Check These Titles:">
@@ -200,11 +231,11 @@ __END__;
 	* Assign them to Topics
     */
     protected function Render_ActionOptions() {
-	$oPage = $this->PageObject();
 	$out = NULL;
 
 	if (!is_null($this->Parsed_TitlesArray())) {
-	    $out .= $oPage->ActionHeader('Action Options',array(),'section-header-sub');
+	
+	    $out .= (new fcSectionHeader('Action Options'))->Render();
 
 	    // -- department chooser
 	    $idDept = $this->Received_DepartmentID();
@@ -216,7 +247,7 @@ __END__;
 	      );
 
 	    // -- CT groups chooser
-	    $out .= $oPage->ActionHeader('Groups',array(),'section-header-subsub');
+	    $out .= (new fcSectionHeader('Groups'))->Render();
 	    $rs = $this->SCGroupTable()->Active_forSupplier($this->SupplierID(),'Sort');
 	    $out .= $rs->MultiSelect(
 	      KS_SOURCE_ENTRY_HTNAME_GROUPS_CHOSEN,
@@ -231,12 +262,10 @@ __END__;
 	return $out;
     }
     protected function Render_ParsedTitles() {
-	$oPage = $this->PageObject();
-    
 
 	$arTitles = $this->Parsed_TitlesArray();
 	if (is_array($arTitles)) {
-	    $out = $oPage->ActionHeader('Titles Entered',array(),'section-header-sub');
+	    $out .= (new fcSectionHeader('Titles Entered'))->Render();
 	
 	    // 2011-02-06 allow restriction to selected dept
 	    if (empty($idDept)) {
@@ -268,7 +297,7 @@ __END__;
 		$isOdd = !$isOdd;
 
 		// is this line already entered as a title record?
-		$sqlCatKey = $db->SanitizeAndQuote($sCatKey);
+		$sqlCatKey = $db->Sanitize_andQuote($sCatKey);
 		$sqlFilt = "$sqlBase AND (CatKey=$sqlCatKey)";
 		$rcLCTitle = $this->LCTitleTable()->SelectRecords($sqlFilt);
 		$isInLC = $rcLCTitle->HasRows();
@@ -378,7 +407,8 @@ __END__;
 	$ctrlList = $this->TopicControl();
 	$doExpect = $this->DidRequestTopics() || $this->DidRequestChange();
 
-	$out = $this->PageObject()->ActionHeader('Topics',array(),'section-header-subsub');
+	$out = (new fcSectionHeader('Topics'))->Render();
+
 	$out .= $ctrlList->HandleInput($doExpect);
 	$out .= "\n<br>";
 	$out .= $ctrlList->RenderForm_Entry(TRUE);
@@ -441,25 +471,25 @@ __END__;
 	return $this->TopicControl()->DidRequestCheck();
     }
     protected function DidRequestChange() {
-	return $this->PageObject()->ReqArgBool('btnChange');		// the "make changes" button
+	return fcHTTP::Request()->GetBool('btnChange');		// the "make changes" button
     }
     protected function Received_TitlesText() {
-	return clsHTTP::Request()->getText(KS_SOURCE_ENTRY_HTNAME_TITLES_ENTRY_TEXT);
+	return fcHTTP::Request()->GetString(KS_SOURCE_ENTRY_HTNAME_TITLES_ENTRY_TEXT);
     }
     protected function Received_DepartmentID() {
-    	return clsHTTP::Request()->GetInt(KS_SOURCE_ENTRY_HTNAME_DEPT_CHOSEN);
+    	return fcHTTP::Request()->GetInt(KS_SOURCE_ENTRY_HTNAME_DEPT_CHOSEN);
     }
     protected function Received_GroupsChosen() {
-	return clsHTTP::Request()->GetArray(KS_SOURCE_ENTRY_HTNAME_GROUPS_CHOSEN);
+	return fcHTTP::Request()->GetArray(KS_SOURCE_ENTRY_HTNAME_GROUPS_CHOSEN);
     }
     protected function Received_TopicsChosen() {
 	return $this->TopicControl()->Data_toChange();
     }
     protected function Received_TitlesChosen() {
-	return clsHTTP::Request()->GetArray(KS_SOURCE_ENTRY_HTNAME_CHECK_CHANGE_TITLE);
+	return fcHTTP::Request()->GetArray(KS_SOURCE_ENTRY_HTNAME_CHECK_CHANGE_TITLE);
     }
     protected function Received_ChangeNotes() {
-	return clsHTTP::Request()->GetText(KS_SOURCE_ENTRY_HTNAME_CHANGE_NOTES);
+	return fcHTTP::Request()->GetString(KS_SOURCE_ENTRY_HTNAME_CHANGE_NOTES);
     }
     
     // -- FORM INPUTS -- //

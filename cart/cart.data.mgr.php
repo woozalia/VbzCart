@@ -9,12 +9,12 @@ class vcCartDataManager {
 
     // ++ SETUP ++ //
 
-    public function __construct(vcrShopCart $rcCart, vcShipCountry $oZone) {
+    public function __construct(vcrCart $rcCart, vcShipCountry $oZone) {
 	$this->SetCartRecord($rcCart);
 	$this->SetShipZone($oZone);
     }
     private $rcCart;
-    protected function SetCartRecord(vcrShopCart $rcCart) {
+    protected function SetCartRecord(vcrCart $rcCart) {
 	$this->rcCart = $rcCart;
     }
     protected function GetCartRecord() {

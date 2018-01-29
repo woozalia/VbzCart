@@ -7,11 +7,8 @@
     2016-03-07 Renamed from cart.php to cart.logic.php; extracted some stuff to cart.shop.php.
 */
 
-require_once(KFP_LIB_VBZ.'/const/vbz-const-cart.php');
-require_once(KFP_LIB_VBZ.'/const/vbz-const-ckout.php');
-
 // ShopCart
-class vctShopCarts extends vcShopTable {
+class vctCarts extends vcShopTable {
     use ftFrameworkAccess;
 
     // ++ SETUP ++ //
@@ -22,7 +19,7 @@ class vctShopCarts extends vcShopTable {
     }
     // CEMENT
     protected function SingularName() {
-	return 'vcrShopCart';
+	return 'vcrCart';
     }
 
     // -- SETUP -- //
@@ -80,7 +77,7 @@ class vctShopCarts extends vcShopTable {
       ACTION: creates a new Cart record
       INPUT: $idSess = value for ID_Sess
       RETURNS: ID of new record
-      USAGE: called from Session object (cVbzSession)
+      USAGE: called from Session object (vcUserSession)
 	because all requests for carts ultimately go through there
       HISTORY:
 	2013-11-09 significant redesign of initialization process for carts and sessions
@@ -99,21 +96,18 @@ class vctShopCarts extends vcShopTable {
 
     // -- ACTIONS -- //
 }
-class vcrShopCart extends vcShopRecordset {
+class vcrCart extends vcShopRecordset {
     use ftLoggableRecord;
-    use ftFrameworkAccess;
+    //use ftFrameworkAccess;
 
-    protected $rcOrder;
-    private $rsLines;
-
-    protected $hasDetails;	// customer details have been loaded?
+    //protected $hasDetails;	// customer details have been loaded?
 
     // ++ SETUP ++ //
 
     protected function InitVars() {
 	parent::InitVars();
 	$this->ClearShipZone();
-	$this->hasDetails = FALSE;
+	//$this->hasDetails = FALSE;
     }
 	
     // -- SETUP -- //
@@ -230,19 +224,19 @@ class vcrShopCart extends vcShopRecordset {
 	return 'vctOrders';
     }
     protected function CustomersClass() {
-	return 'clsCusts';
+	return 'vctCusts';
     }
     protected function CustomerEmailsClass() {
-	return 'clsCustEmails';
+	return 'vctCustEmails';
     }
     protected function CustomerPhonesClass() {
-	return 'clsCustPhones';
+	return 'vctCustPhones';
     }
     protected function CustomerCardsClass() {
-	return 'clsCustCards_dyn';
+	return 'vctCustCards_dyn';
     }
     protected function CustomerAddressesClass() {
-	return 'vctCustAddrs';
+	return 'vctMailAddrs';
     }
     protected function CartLogClass() {
 	return 'clsCartLog';
@@ -316,6 +310,7 @@ class vcrShopCart extends vcShopRecordset {
       TODO: Run tests to see if caching is necessary.
 	Maybe log accesses temporarily to see if cache is being used or not.
     */
+    private $rcOrder;
     public function OrderRecord() {
 	$doGet = TRUE;
 	$idOrder = $this->GetOrderID();
@@ -369,6 +364,7 @@ class vcrShopCart extends vcShopRecordset {
 	    return $rcOrd;
 	}
     }
+    private $rsLines;
     public function LineRecords() {
 	if (is_null($this->rsLines)) {
 	    $this->rsLines = $this->LineTable()->SelectRecords('(ID_Cart='.$this->GetKeyValue().') AND (Qty>0)');
@@ -409,7 +405,7 @@ class vcrShopCart extends vcShopRecordset {
 	$this->CheckForDBError('update timestamp');
     }
     /*----
-      USAGE: called by vctShopCarts->CheckData() when items are found in _POST input
+      USAGE: called by vctCarts->CheckData() when items are found in _POST input
       HISTORY:
 	2013-11-10 Removed call to Make(), since we're now assuming that there is a record if we're here.
     */

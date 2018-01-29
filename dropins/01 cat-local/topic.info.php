@@ -7,7 +7,7 @@
     2016-03-23 moved to dropins/cat-local and added methods to get titles-with-no-topics
 */
 
-class vcqtTopicsInfo extends clsTopics_StoreUI {
+class vcqtTopicsInfo extends vctShopTopics {
 
     // ++ SETUP ++ //
 
@@ -29,7 +29,11 @@ class vcqtTopicsInfo extends clsTopics_StoreUI {
     // -- TABLES -- //
     // ++ SQL ++ //
     
-    // TODO: draw pieces of this from other places in order to standardize; eventually build with SQO
+    /*----
+      TODO:
+	* This may need some fixing after stk_items->stk_lines rename.
+	* draw pieces of this from other places in order to standardize; eventually build with SQO
+    */
     public function SQL_Titles_active_noTopic() {
 	return <<<__END__
 SELECT 
@@ -57,17 +61,21 @@ FROM
     FROM
         cat_items AS i
     LEFT JOIN cat_title_x_topic AS tt ON i.ID_Title = tt.ID_Title
-    LEFT JOIN (SELECT 
-        si.ID_Item, SUM(si.Qty) AS QtyInStock
-    FROM
-        `stk_items` AS si
-    LEFT JOIN `stk_bins` AS sb ON si.ID_Bin = sb.ID
-    WHERE
-        (si.WhenRemoved IS NULL)
-            AND (sb.isForSale)
-            AND (sb.isEnabled)
-            AND (sb.WhenVoided IS NULL)
-    GROUP BY ID_Item) AS si ON si.ID_Item = i.ID
+    LEFT JOIN (
+
+	SELECT 
+	    sl.ID_Item, SUM(sl.Qty) AS QtyInStock
+	FROM
+	    `stk_lines` AS sl
+	LEFT JOIN `stk_bins` AS sb ON sl.ID_Bin = sb.ID
+	WHERE
+	    (sl.Qty > 0)
+		AND (sb.isForSale)
+		AND (sb.isEnabled)
+		AND (sb.WhenVoided IS NULL)
+	GROUP BY ID_Item
+
+    ) AS si ON si.ID_Item = i.ID
     WHERE
         tt.ID_Topic IS NULL
     GROUP BY i.ID_Title) AS ti ON ti.ID_Title = t.ID
@@ -87,5 +95,5 @@ __END__;
     
     // -- RECORDS -- //
 }
-class vcqrTopicInfo extends clsTopic_StoreUI {
+class vcqrTopicInfo extends vcrShopTopic {
 }

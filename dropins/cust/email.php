@@ -2,19 +2,32 @@
 /*
   HISTORY:
     2014-02-13 split email classes off from cust.php
+    2017-03-28 y2017 remediation
 */
-class VCT_EmailAddrs extends clsCustEmails {
-    /*----
-      HISTORY:
-	2011-04-17 added ActionKey()
-    */
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_EmailAddr');
-	  $this->ActionKey('cust.email');
+class vctAdminEmailAddrs extends vctCustEmails implements fiEventAware, fiLinkableTable {
+    use ftLinkableTable;
+
+    // ++ SETUP ++ //
+
+    protected function SingularName() {
+	return 'vcrAdminEmailAddr';
     }
+    public function GetActionKey() {
+	return KS_ACTION_CUST_EMAIL;
+    }
+
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'Nothing written yet.';	// should probably be a search function
+    }
+
+    // -- EVENTS -- //
+
 }
-class VCR_EmailAddr extends clsCustEmail {
+class vcrAdminEmailAddr extends vcrCustEmail {
     /*----
       HISTORY:
 	2010-10-11 Replaced existing code with call to static function

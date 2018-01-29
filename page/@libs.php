@@ -27,10 +27,10 @@ $om = new fcCodeModule(__FILE__, 'vbz-page-ckout.php');
 $om = new fcCodeModule(__FILE__, 'vbz-page-login.php');
   $om->AddClass('clsVbzPageLogin'); */
 $om = new fcCodeModule(__FILE__, 'vbz-page-search.php');
-  $om->AddClass('clsPageSearch');
+  $om->AddClass('vcPageSearch');
 $om = new fcCodeModule(__FILE__, 'vbz-page-shop.php');
   $om->AddClass('vcPage_shop');
   $om->AddClass('vcTag_body_shop');
   $om->AddClass('vcPageContent_shop');
 $om = new fcCodeModule(__FILE__, 'vbz-page-topic.php');
-  $om->AddClass('clsPageTopic');
+  $om->AddClass('vcPageTopic');

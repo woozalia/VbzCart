@@ -5,7 +5,7 @@
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
 */
-class VCT_Shipments extends vcAdminTable {
+class vctAdminShipments extends vcAdminTable {
 
     // ++ SETUP ++ //
 
@@ -23,24 +23,28 @@ class VCT_Shipments extends vcAdminTable {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
-    // ++ DATA RECORDS ACCESS ++ //
+    // -- EVENTS -- //
+    // ++ RECORDS ++ //
 
     public function ActiveRecords($sqlSort=NULL) {
 	$rs = $this->SelectRecords('WhenClosed IS NULL',$sqlSort);
 	return $rs;
     }
 
-    // -- DATA RECORDS ACCESS -- //
+    // -- RECORDS -- //
     // ++ ADMIN WEB UI ++ //
 
     public function AdminPage() {
@@ -178,7 +182,7 @@ __END__;
     }
 }
 class VCR_Shipment extends vcAdminRecordset {
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
     use ftFrameworkAccess;
 
     private $frmPage;
@@ -214,7 +218,7 @@ class VCR_Shipment extends vcAdminRecordset {
 
     // PUBLIC so Package objects can use it
     public function ShortName() {
-	return $this->Value('Abbr');
+	return $this->GetFieldValue('Abbr');
     }
     protected function DescriptionText() {
 	return $this->Value('Descr');

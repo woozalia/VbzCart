@@ -24,15 +24,18 @@ class vcrlRstkRcdLine extends vcBasicRecordset {
       PUBLIC for stock movement fx
       WRITABLE so stock movement fx know where to redirect back to
     */
-    public function ParentID($id=NULL) {
-	return $this->Value('ID_Parent',$id);
+    protected function SetParentID($id) {
+	return $this->SetFieldValue('ID_Parent',$id);
+    }
+    public function GetParentID() {
+	return $this->GetFieldValue('ID_Parent');
     }
     /*----
       USED BY: ItemRecord() and stock movement functions
       PUBLIC for stock movement fx
     */
     public function ItemID() {
-	return $this->Value('ID_Item');
+	return $this->GetFieldValue('ID_Item');
     }
     // USED BY: admin rows display
     protected function InvoiceLineNumber() {
@@ -40,11 +43,11 @@ class vcrlRstkRcdLine extends vcBasicRecordset {
     }
     // USED BY: admin rows display
     protected function QtyReceived() {
-	return $this->Value('QtyRecd');
+	return $this->GetFieldValue('QtyRecd');
     }
     // USED BY: admin rows display
     protected function QtyFiled() {
-	return $this->Value('QtyFiled');
+	return $this->GetFieldValue('QtyFiled');
     }
     
     // -- FIELD VALUES -- //
@@ -104,14 +107,14 @@ class vcrlRstkRcdLine extends vcBasicRecordset {
     // ++ CLASS NAMES ++ //
     
     protected function ItemsClass() {
-	return 'clsItems';
+	return 'vctItems';
     }
     
     // -- CLASS NAMES -- //
     // ++ TABLES ++ //
     
     protected function ItemTable($id=NULL) {
-	return $this->Engine()->Make($this->ItemsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ItemsClass(),$id);
     }
 
     // -- TABLES -- //

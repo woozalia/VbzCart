@@ -13,15 +13,15 @@ define('KS_CLASS_SUPPCAT_SUPPLIERS','vctaSCSuppliers');
   define('KS_CLASS_SUPPCAT_SUPPLIER','vcraSCSupplier');
 define('KS_CLASS_SUPPCAT_SOURCES','vctaSCSources');
   define('KS_CLASS_SUPPCAT_SOURCE','vcraSCSource');
-define('KS_CLASS_SUPPCAT_GROUPS','VCTA_SCGroups');
-  define('KS_CLASS_SUPPCAT_GROUP','VCRA_SCGroup');
-define('KS_CLASS_SUPPCAT_TITLES','VCTA_SCTitles');
-  define('KS_CLASS_SUPPCAT_TITLE','VCRA_SCTitle');
-define('KS_CLASS_SUPPCAT_ITEMS','VCTA_SCItems');
-  define('KS_CLASS_SUPPCAT_ITEM','VCRA_SCItem');
+define('KS_CLASS_SUPPCAT_GROUPS','vctaSCGroups');
+  define('KS_CLASS_SUPPCAT_GROUP','vcraSCGroup');
+define('KS_CLASS_SUPPCAT_TITLES','vctaSCTitles');
+  define('KS_CLASS_SUPPCAT_TITLE','vcraSCTitle');
+define('KS_CLASS_SUPPCAT_ITEMS','vctaSCItems');
+  define('KS_CLASS_SUPPCAT_ITEM','vcraSCItem');
 // -- queries
 define('KS_QUERY_CLASS_SUPPCAT_SOURCES_WITH_SUPPLIERS','vcqtaSCSources_wSupplier');
-define('KS_QUERY_CLASS_SUPPCAT_BUILDER','vcCatalogBuilder');
+define('KS_QUERY_CLASS_SUPPCAT_BUILDER','vctCatalogBuilder');
 // -- managers
 define('KS_CLASS_TITLE_ENTRY_MANAGER','vcTitleEntryManager');
 
@@ -36,29 +36,55 @@ define('KS_ACTION_SUPPCAT_BUILD','scbuild');
 
 $om = $oRoot->SetNode(new fcMenuFolder('Their Catalogs'));
   
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_SUPPLIER,'Suppliers','suppliers who provide catalogs'));
-    $omi->SetPageTitle('Catalog Suppliers');
-    $omi->SetActionClass(KS_CLASS_SUPPCAT_SUPPLIERS);
-    $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
-  
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_SOURCE,'Sources','catalogs provided by suppliers'));
-    $omi->SetPageTitle('Source Catalogs');
-    $omi->SetActionClass(KS_CLASS_SUPPCAT_SOURCES);
-    $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
-    
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_GROUP,'Groups','collections of common item feature-sets'));
-    $omi->SetPageTitle('SCM Groups');
-    $omi->SetActionClass(KS_CLASS_SUPPCAT_GROUPS);
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_SUPPLIER,
+    KS_CLASS_SUPPCAT_SUPPLIERS,
+    'Suppliers',
+    'suppliers who provide catalogs'));
+
+    //$omi->SetPageTitle('Catalog Suppliers');
     $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
 
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_ITEM,'Items','sets of item features'));
-    $omi->SetPageTitle('SCM Group Items');
-    $omi->SetActionClass(KS_CLASS_SUPPCAT_ITEMS);
+  // SC SOURCES (catalogs)
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_SOURCE,
+    KS_CLASS_SUPPCAT_SOURCES,
+    'Sources',
+    'catalogs provided by suppliers'));
     $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
-    
-  $omi = $om->SetNode(new fcDropinLink(KS_ACTION_SUPPCAT_BUILD,'Build','build the local catalog from supplier catalogs'));
-    $omi->SetPageTitle('SCM build process');
-    $omi->SetActionClass(KS_QUERY_CLASS_SUPPCAT_BUILDER);
+
+  // SC GROUPS
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_GROUP,
+    KS_CLASS_SUPPCAT_GROUPS,
+    'Groups',
+    'collections of common item feature-sets'));
+    $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
+
+  // SC TITLES
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_TITLE,
+    KS_CLASS_SUPPCAT_TITLES,
+    'Titles',
+    'titles listed in supplier catalogs'));
+    $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
+  
+  // SC ITEMS
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_ITEM,
+    KS_CLASS_SUPPCAT_ITEMS,
+    'Items',
+    'sets of item features'));
+    $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
+
+  // BUILDER
+  $omi = $om->SetNode(new fcDropinLink(
+    KS_ACTION_SUPPCAT_BUILD,
+    KS_QUERY_CLASS_SUPPCAT_BUILDER,
+    'Build',
+    'build the local catalog from supplier catalogs'));
+
+    //$omi->SetPageTitle('SCM build process');
     $omi->SetRequiredPrivilege(KS_PERM_SCAT_ADMIN);
 
 /* 2016-12-11 old dropin system
@@ -95,14 +121,14 @@ $arDropin = array(
   'name'	=> 'vbz.scat',
   'descr'	=> 'supplier catalog entry functions',
   'version'	=> '0.0',
-  'date'	=> '2016-02-03',
+  'date'	=> '2017-06-12',
   'URL'		=> NULL,	// nothing yet
   'classes'	=> array(	// list of files and the classes they contain
       'build.php'	=> KS_QUERY_CLASS_SUPPCAT_BUILDER,
       'group.php'	=> KS_CLASS_SUPPCAT_GROUPS,
       'item.php'	=> KS_CLASS_SUPPCAT_ITEMS,
       'qry.source-info.php'	=> KS_QUERY_CLASS_SUPPCAT_SOURCES_WITH_SUPPLIERS,
-      'source.php'	=> KS_CLASS_SUPPCAT_SOURCES,
+      'source.php'	=> array(KS_CLASS_SUPPCAT_SOURCES,'vctaSCSources_base'),
       'source.entry.php'=> KS_CLASS_TITLE_ENTRY_MANAGER,
       'supp.php'	=> KS_CLASS_SUPPCAT_SUPPLIERS,
       'title.php'	=> KS_CLASS_SUPPCAT_TITLES,

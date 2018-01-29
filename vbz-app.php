@@ -42,6 +42,11 @@ abstract class vcApp extends fcAppStandard {
     protected function SettingsClass() {
 	return 'vctSettings';
     }
+    // TODO: Replace old-clunky fctEvents_standard with fctEventPlex
+    /* 2017-03-15 Sort of have to now...
+    protected function GetEventsClass() {
+	return 'fctEvents_standard';
+    }*/
     
     // -- CLASS NAMES -- //
     // ++ TABLES ++ //
@@ -57,7 +62,10 @@ abstract class vcApp extends fcAppStandard {
     // -- TABLES -- //
 
 }
-// NOTE: This originally added EventTable(), but I moved that back into ftFrameworkAccess_standard.
+/*----
+  NOTE: This originally added EventTable(), but I moved that back into ftFrameworkAccess_standard
+    and then into ftFrameworkAccess and then removed it. For now, go to fcApp::Me()->EventTable().
+*/
 trait vtFrameworkAccess {
-    use ftFrameworkAccess_standard;
+    use ftFrameworkAccess;
 }

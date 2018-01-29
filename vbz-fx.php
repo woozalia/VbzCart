@@ -6,14 +6,6 @@
     2013-12-01 moved http_redirect() here from cart.php
 */
 
-// the PECL library for this function might not be installed
-if (!function_exists('http_redirect')) {
-    function http_redirect($iURL,$iMsg='Redirecting') {
-	//header('Status: 301 Moved Permanently',TRUE);
-	header('Status: 303 '.$iMsg);
-	header('Location: '.$iURL,TRUE);
-    }
-}
 
 /*
   TODO: Replace all of these with static methods of appropriate classes

@@ -5,7 +5,9 @@
     2016-01-09 started
 */
 
-class vctaWarehouses extends vctlWarehouses {
+class vctaWarehouses extends vctlWarehouses implements fiEventAware, fiLinkableTable {
+    use ftLinkableTable;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
 
@@ -13,18 +15,32 @@ class vctaWarehouses extends vctlWarehouses {
     protected function SingularName() {
 	return 'vcraWarehouse';
     }
+    // CEMENT
+    public function GetActionKey() {
+	return KS_ACTION_STOCK_WAREHOUSE;
+    }
     
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Warehouses');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ RECORDS ++ //
     
     public function ActiveRecords() {
@@ -35,37 +51,40 @@ class vctaWarehouses extends vctlWarehouses {
     // ++ ADMIN WEB UI ++ //
 
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-	$oSkin = $oPage->Skin();
-
-	$out = $oPage->SectionHeader('Suppliers');
-
-	$rs = $this->GetData();		// get all records, active or not
-	$out = $rs->AdminRows($this->AdminFields());
+	$rs = $this->SelectRecords();		// get all records, active or not
+	$out = $rs->AdminRows();
 	return $out;
-    }
-    protected function AdminFields() {
-	return array(
-	  'ID'		=> 'ID',
-	  'Name'	=> 'Name',
-	  'isActive'	=> 'A?',
-	  'Notes'	=> 'Notes'
-	  );
     }
     
     // -- ADMIN WEB UI -- //
 
 }
 
-class vcraWarehouse extends vcrlWarehouse {
+class vcraWarehouse extends vcrlWarehouse implements fiLinkableRecord, fiEventAware, fiEditableRecord {
+    use ftLinkableRecord;
+    use ftShowableRecord;
+    use ftExecutableTwig;
+    use ftSaveableRecord;
 
-    // ++ CALLBACK ++ //
-
-    public function MenuExec(array $arArgs=NULL) {
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$id = $this->GetKeyValue();
+	$sName = $this->NameString();
+	$sTitle = "wh$id: $sName";
+	$htTitle = "Warehouse #$id: $sName";
+    
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle('Suppliers');
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- CALLBACK -- //
+    // -- EVENTS -- //
     // ++ TRAIT HELPER ++ //
     
     public function SelfLink_name() {
@@ -85,6 +104,14 @@ class vcraWarehouse extends vcrlWarehouse {
     // -- CALLBACKS -- //
     // ++ ADMIN UI: ROWS ++ //
 
+    protected function AdminRows_settings_columns() {
+	return array(
+	  'ID'		=> 'ID',
+	  'Name'	=> 'Name',
+	  'isActive'	=> 'A?',
+	  'Notes'	=> 'Notes'
+	  );
+    }
     protected function AdminRows_start(array $arOptions=NULL) {
 	return "\n<table class=listing>";
     }
@@ -92,7 +119,7 @@ class vcraWarehouse extends vcrlWarehouse {
 	if ($sField == 'ID') {
 	    $val = $this->SelfLink();
 	} else {
-	    $val = $this->Value($sField);
+	    $val = $this->GetFieldValue($sField);
 	}
 	return "<td>$val</td>";
     }
@@ -101,10 +128,11 @@ class vcraWarehouse extends vcrlWarehouse {
     // ++ ADMIN UI: RECORD ++ //
     
     protected function AdminPage() {
-    	$oPage = $this->Engine()->App()->Page();
+	$oFormIn = fcHTTP::Request();
+//	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
 
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
-    	$doEdit = $oPage->PathArg('edit');
+	$doSave = $oFormIn->GetBool('btnSave');
+//    	$doEdit = $oPathIn->GetBool('edit');
 
 	// save edits before showing events
 	if ($doSave) {
@@ -112,6 +140,11 @@ class vcraWarehouse extends vcrlWarehouse {
 	    $this->SelfRedirect($ftSaveMsg);
 	}
 	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit this warehouse'));
+	    $doEdit = $ol->GetIsSelected();
+ 
+	/*
 	$arActs = array(
 	  new clsActionLink_option(array(),
 	    'edit',			// $iLinkKey
@@ -122,6 +155,7 @@ class vcraWarehouse extends vcrlWarehouse {
 	    ),
 	  );
 	$oPage->PageHeaderWidgets($arActs);
+	*/
     
 	$frmEdit = $this->PageForm();
 	if ($this->IsNew()) {
@@ -137,13 +171,12 @@ class vcraWarehouse extends vcrlWarehouse {
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
 	}
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 	if ($doEdit) {
 	    $out .=
 	      '<input type=submit name=btnSave value="Save">'
 	      .'<input type=reset value="Revert">'
-	      .'<input type=submit name=btnCancel value="Cancel">'
 	      .'</form>'
 	      ;
 	}

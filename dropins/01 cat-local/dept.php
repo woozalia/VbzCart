@@ -6,20 +6,38 @@
     2013-11-06 split off from SpecialVbzAdmin.main.php
     2014-03-25 I was trying to make Departments obsolete, but I'm not sure this is doable. Needs more research.
 */
-class VCTA_Depts extends clsDepts {
+
+define('KS_EVENT_VBZCART_ADD_TITLES','vc.add.titles');
+
+class vctAdminDepts extends vctDepts implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use vtTableAccess_Supplier;
+    use ftExecutableTwig;
     
     // ++ SETUP ++ //
 
     protected function SingularName() {
-	return 'VCRA_Dept';
+	return 'vcrAdminDept';
     }
     public function GetActionKey() {
 	return KS_ACTION_CATALOG_DEPARTMENT;
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+ 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Departments');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
+	return '<div class=content>There is no admin function for all Departments yet.</div>';
+    }
+
+    // -- EVENTS -- //
     // ++ RECORDS ++ //
     
     public function Data_forSupp($idSupp,$iFilt=NULL) {
@@ -31,8 +49,8 @@ class VCTA_Depts extends clsDepts {
     }
     // CALLBACK for form display
     public function GetData_forDropDown($sqlFiltX=NULL) {
-	$sqlDept = $this->NameSQL();
-	$sqlSupp = $this->SupplierTable()->NameSQL();
+	$sqlDept = $this->TableName_Cooked();
+	$sqlSupp = $this->SupplierTable()->TableName_Cooked();
 	$sqlFilt = is_null($sqlFiltX)?NULL:" AND ($sqlFiltX)";
 	$sql =
 	  "SELECT"
@@ -46,7 +64,7 @@ class VCTA_Depts extends clsDepts {
 	  ." WHERE (d.isActive AND s.isActive)"
 	  .$sqlFilt
 	  ." ORDER BY s.CatKey, Sort, Name";
-	$rs = $this->DataSQL($sql);
+	$rs = $this->FetchRecords($sql);
 	return $rs;
     }  
     
@@ -101,7 +119,7 @@ __END__;
 		} else {
 		    $cssClass = 'state-inactive';
 		}
-		$ftActive = clsHTML::fromBool($isActive);
+		$ftActive = fcHTML::fromBool($isActive);
 		$sCatKey = $rs->CatKey();
 		$sSort = $rs->SortKey();
 		$sName = $rs->NameString();
@@ -129,31 +147,45 @@ __END__;
     // -- WEB UI -- //
     
 }
-class VCRA_Dept extends vcrDept_shop {
+class vcrAdminDept extends vcrDept_shop implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
+    use ftExecutableTwig;
     use ftLoggableRecord;
-    use vtLoggableAdminObject;
+    use ftSaveableRecord;	// implements ChangeFieldValues()
+    //use vtLoggableAdminObject;
     
     // ++ TRAIT HELPERS ++ //
     
     public function SelfLink_name() {
-	$strPgKey = strtoupper($this->Value('PageKey'));
-	$out = (is_null($strPgKey))?'':($strPgKey.' ');
-	$out .= $this->Value('Name');
-	return $this->SelfLink($out);
+	$sKey = strtoupper($this->PageKey_asSet());
+	$sName = $this->NameString();
+	$sShow = fcString::Concat(' ',$sKey,$sName);
+	return $this->SelfLink($sShow);
     }
     
     // -- TRAIT HELPERS -- //
-    // ++ DROP-IN API ++ //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sTitle = 'Department: '.$this->NameString();
 
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ CLASSES ++ //
     
     protected function SuppliersClass() {
@@ -173,8 +205,8 @@ class VCRA_Dept extends vcrDept_shop {
     
     // CALLBACK for dropdown Control
     public function ListItem_Text() {
-	if ($this->HasValue('Text')) {
-	    return $this->Value('Text');
+	if ($this->FieldIsNonBlank('Text')) {
+	    return $this->GetFieldValue('Text');
 	} else {
 	    return $this->NameString();
 	}
@@ -183,19 +215,6 @@ class VCRA_Dept extends vcrDept_shop {
     public function ListItem_Link() {
 	return $this->SelfLink_name();
     }
-    /*----
-      RETURNS: PageKey as shopping link. If NULL, returns NULL.
-	(CatKey_admin() will show a shopping link when PageKey is NULL.)
-    *//* 2016-03-28 Ended up not needing these.
-    public function PageKey_admin() {
-	$sKey = $this->PageKey_asSet();
-	return is_null($sKey)?$this->ShopLink($sKey):NULL;
-    }
-    public function CatKey_admin() {
-	$sKey = $this->CatKey();
-	return $this->PageKey_isSet()?$this->ShopLink($sKey):$sKey;
-    }//*/
-    
     
     // -- FIELD CALCULATIONS -- //
     // ++ ACTIONS ++ //
@@ -297,7 +316,7 @@ class VCRA_Dept extends vcrDept_shop {
 		$ar[$id] = $htShow;
 	    }
 	    
-	    $out = clsHTML::DropDown_arr($sCtrlName,$ar,$idDefault,$sNone) 	    ;
+	    $out = fcHTML::DropDown_arr($sCtrlName,$ar,$idDefault,$sNone) 	    ;
 	    
 	    return $out;
 	} else {
@@ -313,13 +332,15 @@ class VCRA_Dept extends vcrDept_shop {
 	2011-09-25 renamed from InfoPage() to AdminPage()
     */
     public function AdminPage() {
-	$db = $this->Engine();
-	$oPage = $db->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 	
+	/*
 	$sAction = $oPage->PathArg('do');
 	$doEdit = ($sAction == 'edit');
 	$doEnter = ($sAction == 'enter');
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	*/
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	$frm = $this->RecordForm();
 	
@@ -330,9 +351,18 @@ class VCRA_Dept extends vcrDept_shop {
 	    $this->SelfRedirect(NULL,$ftSaveMsg);
 	}
 	
+	// header/menu
 	$sTitle = '&ldquo;'.$this->NameString().'&rdquo; Department';
-	$oPage->Skin()->SetPageTitle($sTitle);
+	fcApp::Me()->GetPageObject()->SetPageTitle($sTitle);
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit department record'));
+	    $doEdit = $ol->GetIsSelected();
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','enter',NULL,NULL,'enter... something (new titles?)'));
+	    $doEnter = $ol->GetIsSelected();
 
+	/* 2017-03-18 old
 	$arActs = array(
 	  new clsActionLink_option(array(),    // an "edit" link
 	    'edit',			// $iLinkKey
@@ -343,16 +373,15 @@ class VCRA_Dept extends vcrDept_shop {
 	    ),
 	  );
 	$oPage->PageHeaderWidgets($arActs);
-	
+	*/
 	$frm->LoadRecord();
 	
 	$oTplt = $this->PageTemplate();
 	$arCtrls = $frm->RenderControls($doEdit);
 	
 	// some more output calculations
-	$urlRel = $this->ShopURL();
-	$urlAbs = KWP_ROOT.$urlRel;
-	$htShopLink = " [<a href='$urlAbs' title='$urlRel'>shop</a>]";
+	$url = $this->ShopURL();
+	$htShopLink = " [<a href='$url' title='shopping page'>shop</a>]";
 
 	$arCtrls['!ID'] = $this->SelfLink().$htShopLink;
 	
@@ -386,7 +415,7 @@ __END__;
 	    }
 	}
 
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -429,7 +458,7 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=content>
   <tr>	<td align=right><b>ID</b>:</td>		<td>[[!ID]] - Active: [[isActive]]</td>		</tr>
   <tr>	<td align=right><b>Name</b>:</td>	<td>[[Name]]</td>		</tr>
   <tr>	<td align=right><b>Description</b>:</td><td>[[Descr]]</td>		</tr>
@@ -458,7 +487,7 @@ __END__;
 	} else {
 	    $cssClass = 'state-inactive';
 	}
-	$ftActive = clsHTML::fromBool($isActive);
+	$ftActive = fcHTML::fromBool($isActive);
 	$sCatKey = $this->CatKey();
 	$sSort = $this->SortKey();
 	//$sName = $this->NameString();
@@ -512,19 +541,23 @@ __END__;
 	stuff. The output from this routine will be stuffed into the right-hand cell of a table.
     */
     protected function DoTitleEntryForm($doEnter) {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 	
-	if ($oPage->ReqArgBool('btnCheck')) {
+	$doCheck = FALSE;
+	if ($oFormIn->GetBool('btnCheck')) {
+	    $doCheck = TRUE;
 	    $nStage = 2;
-	} elseif ($oPage->ReqArgBool('btnAdd')) {
+	} elseif ($oFormIn->GetBool('btnAdd')) {
 	    $nStage = 3;
 	} else {
 	    $nStage = 1;
 	}
-	
-	//$doEntryBox = !($doTitleCheck || $doTitleAdd);
-	//$doEnterBox = $doEnter || $doTitleCheck || $doTitleAdd;
-	
+
+	/* 2017-03-18 actually, is this necessary?
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader('Enter Titles',$oMenu);	
+
 	$out = NULL;
 	
 	// build section header
@@ -541,12 +574,14 @@ __END__;
 	  //'<table align=right><tr><td>'
 	  $oPage->ActionHeader('Enter Titles',$arActs,'section-header-sub')
 	  ;
-    
-	$doShowForm = $doEnter || $doTitleCheck;
+*/    
+	$out = NULL;
+
+	$doShowForm = $doEnter || $doCheck;
 	if ($doShowForm) {
 	    $out .= "\n<form method=post>";
 	}
-	$txtNotes = $oPage->ReqArgText('notes');
+	$txtNotes = $oFormIn->GetString('notes');
 	$htNotes = 'Notes: <input type=text name=notes size=25 value="'.fcString::EncodeForHTML($txtNotes).'">';
 	
 	switch ($nStage) {
@@ -558,8 +593,7 @@ __END__;
 	      ;
 	    break;
 	  case 2:	// STAGE 2: check entered titles, allow user to fix problems & confirm
-	    $sTitles = $oPage->ReqArgText('titles');
-	    //$arTitles = fcStringBlock_static::ParseTextLines($sTitles);
+	    $sTitles = $oPathIn->GetString('titles');
 	    $arTitles = fcsStringBlock::ParseTextLines(
 	      $sTitles,
 	      array(
@@ -569,18 +603,17 @@ __END__;
 	      );
 	    if (is_array($arTitles)) {
 		$doDeptOnly = $this->AffectsCatNum();
-		$out .= '<table>';
-		$db = $this->Table()->Engine();
+		$out .= '<table class=content>';
+		$db = $this->GetConnection();
 		foreach ($arTitles as $sCatKey => $sName) {
 		    $sqlFilt = '';
 		    if ($doDeptOnly) {
 			$sqlFilt = '(ID_Dept='.$this->GetKeyValue().') AND ';
 		    }
-		    $sqlCatKey = $db->SanitizeAndQuote(strtoupper($sCatKey));
+		    $sqlCatKey = $db->Sanitize_andQuote(strtoupper($sCatKey));
 		    $idSupp = $this->SupplierID();
 		    $sqlFilt .= "(UPPER(CatKey)=$sqlCatKey) AND (ID_Supp=$idSupp)";
-		    $rsTitles = $this->TitleTable()->GetData($sqlFilt);
-		    //$out .= 'SQL: ['.$rsTitles->sqlMake.']<br>';
+		    $rsTitles = $this->TitleTable()->SelectRecords($sqlFilt);
 		    if ($rsTitles->HasRows()) {
 			$htStatus = '';
 			$htMatches = '';
@@ -602,12 +635,23 @@ __END__;
 	    $out .= '<input type=submit name="btnAdd" value="Add Titles">';
 	    break;
 	  case 3:	// STAGE 3; process entered titles -- add them to the data:
-	    $sTitles = $oPage->ReqArgText('titles');
+	    $sTitles = $oPathIn->GetString('titles');
 	    //$arTitles = $this->ParseSubmittedTitles($sTitles);
 	    $arTitles = fcStringBlock_static::ParseTextLines($sTitles);
 	    $cntTitles = count($arTitles);
 	    $sAddText = 'Add '.$cntTitles.' title'.fcString::Pluralize($cntTitles);
+
+	    // start event
 	    
+	    $oApp = fcApp::Me();
+	    $sDescr = "adding $cntTitles title".fcString::Pluralize($cntTitles)." to '".$this->NameString().' department.';
+	    $arData = array(
+	      'text'	=> $sTitles
+	      );
+	    $idEvent = $oApp->EventPlexTable()->CreateEvent(KS_EVENT_VBZCART_ADD_TITLES,$sDescr,$arData);
+	    $oApp->EventPlexTable_inTable()->CreateEvent($idEvent,$this->GetTableWrapper()->GetActionKey(),$this->GetKeyValue());
+	    
+	    /*
 	    // log the event start:
 	    // fcrEvent::TYPE_DESCR_START
 	    // fcrEvent::TYPE_DESCR_FINISH
@@ -631,12 +675,13 @@ __END__;
 	      fcrEvent::TYPE_IS_SEVERE => FALSE,
 	      );
 	    $rcEv = $this->CreateEvent($arEv);
+	    */
 	    
-	    $out .= '<table>';
+	    $out .= '<table class=content>';
 	    $tTitles = $this->TitleTable();
 	    foreach ($arTitles as $sCatKey=>$sName) {
 		$idTitle = $this->AddTitle($sCatKey,$sName,$txtNotes);
-		$rcTitle = $tTitles->GetItem($idTitle);
+		$rcTitle = $tTitles->GetRecord_forKey($idTitle);
 		$out .= '<tr><td>'
 		  .$rcTitle->SelfLink($rcTitle->CatNum())
 		  .'</td><td>'
@@ -645,6 +690,9 @@ __END__;
 		  ;
 	    }
 	    $out .= '</table>';
+
+	    // TODO: finish event
+	    $oApp->EventPlexTable_Finish()->CreateEvent($idEvent);
 	    
 	    // log completion of event:
 	    //$this->FinishEvent();
@@ -665,10 +713,19 @@ __END__;
     /*----
       NOTE: $doEnter is just so we can suppress the "enter" menu entry if
 	we're already doing it. There ought to be a better way to signal this...
+      HISTORY:
+	2017-03-18 Revised for current Ferreteria API, but didn't try to untangle weirdness.
     */
     protected function TitleListing($doEnter) {
-	$oPage = $this->Engine()->App()->Page(); 
 
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader('Titles',$oMenu);
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','enter',NULL,'cancel','enter titles for this department'));
+          
+	$htHdr = $oHdr->Render();
+    
+    /* 2017-03-18 old
 	// build section header
 	$arActs = array();
 	if (!$doEnter) {
@@ -680,9 +737,9 @@ __END__;
 	      'enter titles for this department'	// $iDescr - shows as hover-over text
 	      );
 	}
-
+*/
 	$out = $this->TitleRecords()->AdminRows(
-	    array('disp.hdr' => $oPage->ActionHeader('Titles',$arActs))
+	    array('disp.hdr' => $htHdr)
 	  );
 	return $out;
     }

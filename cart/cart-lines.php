@@ -4,7 +4,7 @@
     2012-04-17 extracting from shop.php
 */
 
-require_once(KFP_LIB_VBZ.'/const/vbz-const-cart.php');
+//require_once(KFP_LIB_VBZ.'/const/vbz-const-cart.php');
 
 class vctShopCartLines extends vcShopTable {
     use ftLoggableTable;
@@ -132,7 +132,7 @@ class vcrShopCartLine extends vcrShopCartLine_base {
     // ++ CLASS NAMES ++ //
 
     protected function CartsClass() {
-	return 'vctCarts_ShopUI';
+	return 'vctShopCarts';
     }
     protected function ItemsClass() {
 	return 'clsItems';
@@ -358,7 +358,7 @@ class vcrShopCartLine extends vcrShopCartLine_base {
     // ++ ACTIONS ++ //
 
     /*----
-      USAGE: called from vcrShopCart::AddItem() when an item needs to be saved to the cart
+      USAGE: called from vcrCart::AddItem() when an item needs to be saved to the cart
       HISTORY:
 	2013-11-10 written to replace Build()
     */ /* 2016-11-01 moved to InsertArray()
@@ -464,7 +464,7 @@ __END__;
     /*----
       ACTION: Render the current cart line as part of an interactive HTML form
     */
-    public function RenderForm(vcrShopCart $iCart) {
+    public function RenderForm(vcrCart $iCart) {
 // calculate display fields:
 	if ($this->Qty) {
 	    $oLine = $this->GetRenderObject_editable();

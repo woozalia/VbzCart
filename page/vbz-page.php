@@ -107,6 +107,7 @@ abstract class vcPageContent extends fcPageContent {
     
       //++classes++//
 
+/* 2017-02-09 Apparently this isn't how it works anymore.
     protected function Class_forErrorMessage() {
 	return 'vcpeMessage_error';
     }
@@ -116,9 +117,9 @@ abstract class vcPageContent extends fcPageContent {
     protected function Class_forSuccessMessage() {
 	return 'vcpeMessage_success';
     }
-    
+*/    
       //--classes--//
-    // -- INPUT-TO-OUTPUT STATES -- //
+    // -- NEW PAGE ELEMENTS -- //
 
 }
 abstract class vcPageHeader extends fcContentHeader {
@@ -145,10 +146,10 @@ abstract class vcPageHeader extends fcContentHeader {
 abstract class vcPage extends fcPage_login {
     
     // ++ INTERNAL VALUES ++ //
-
+/*
     protected function GetStyleFolder() {
 	return KWP_STYLE_SHEETS;
-    }
+    }*/
     /* 2017-01-14 This is if you want the browser title to be prefixed by the site name.
       I think in the long run, this should be a user-preference; some users may end up
       with very narrow tabs, so a clue about what page they're on may be more important
@@ -182,9 +183,6 @@ abstract class vcPage extends fcPage_login {
     // PUBLIC so other elements can write to the page content
     public function GetElement_PageContent() {
 	return $this->GetTagNode_body()->GetElement_PageContent();
-    }
-    public function GetElement_HeaderMenu() {
-	return $this->GetElement_PageHeader()->GetElement_Menu();
     }
 
       //--objects--//
@@ -229,6 +227,7 @@ abstract class vcPage extends fcPage_login {
 
     // PUBLIC so figuring code can call it:
     public function RenderSectionHeader($sText,$nLevel=2) {
+	throw new exception('2017-02-07 RenderSectionHeader() is obsolete; use the fcSectionHeader class instead.');
 	return "<h$nLevel class='section-header'>$sText</h$nLevel>";
     }
 

@@ -5,7 +5,7 @@
     2014-03-09 split off from request.php
 */
 
-class vctaRstkReqItems extends vctlRstkReqItems {
+class vctaRstkReqItems extends vctlRstkReqItems implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
@@ -20,6 +20,14 @@ class vctaRstkReqItems extends vctlRstkReqItems {
     }
 
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'Nothing written for this yet; should possibly show all items currently expected?';
+    }
+
+    // -- EVENTS -- //
     // ++ CLASSES ++ //
     
     protected function ParentTableClass() {
@@ -235,7 +243,7 @@ __END__;
 		$qtyCust = $rcLine->Value('QtyCust');
 		$qtyOrd = $rcLine->Value('QtyOrd');
 		$qtyExp = $rcLine->Value('QtyExp');
-		$ftIsGone = clsHTML::fromBool($rcLine->Value('isGone'));
+		$ftIsGone = fcHTML::fromBool($rcLine->Value('isGone'));
 		$ftCostExp = cCartLine_form::FormatMoney($rcLine->Value('CostExpPer'));
 		$strNotes = $rcLine->Value('Notes');
 
@@ -262,27 +270,53 @@ __END__;
 
     // -- ADMIN UI -- //
 }
-class vcraRstkReqItem extends clsRstkReqItem {
+class vcraRstkReqItem extends clsRstkReqItem implements fiLinkableRecord, fiEditableRecord, fiEventAware {
     use ftLinkableRecord;
+    use ftSaveableRecord;
     use ftFrameworkAccess;
     use vtRestockLines;
 
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
-    // ++ CLASS NAMES ++ //
+    // -- EVENTS -- //
+    // ++ CLASSES ++ //
     
     protected function RequestsClass() {
 	return KS_ADMIN_CLASS_RESTOCK_REQUESTS;
     }
     
+    // -- CLASSES -- //
+    // ++ FIELD LOOKUP ++ //
+    
+    protected function ParentAdminLink() {
+	if ($this->IsNew()) {
+	    return 'n/a';
+	} else {
+	    $rc = $this->ParentRecord();
+	    return $rc->SelfLink_name();
+	}
+    }
+    protected function ItemAdminLink() {
+	if ($this->IsNew()) {
+	    return 'n/a';
+	} else {
+	    $rc = $this->LCItemRecord();
+	    return $rc->SelfLink_name();
+	}
+    }
+    
+    // -- FIELD LOOKUP -- //
     // ++ ACTIONS ++ //
 
     public function AddItem() {
@@ -295,6 +329,22 @@ class vcraRstkReqItem extends clsRstkReqItem {
     //+page+//
     
     protected function AdminPage() {
+	$oFormIn = fcHTTP::Request();
+
+	$frm = $this->PageForm();
+	$doSave = $oFormIn->GetBool('btnSave');
+	if ($doSave) {
+	    $out .= $frm->Save();
+	    $sMsgs = $frm->MessagesString();
+	    $this->SelfRedirect(NULL,$sMsgs);
+	}
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit request-item record'));
+ 
+	    $doEdit = $ol->GetIsSelected();
+ 
+ /*
 	//clsActionLink_option::UseRelativeURL_default(TRUE);
 	$arActs = array(
 	  new clsActionLink_option(array(),'edit'),
@@ -302,23 +352,17 @@ class vcraRstkReqItem extends clsRstkReqItem {
 	$oPage = $this->Engine()->App()->Page();
 
 	$out = $oPage->ActionHeader('Record',$arActs);
-
 	$doEdit = $oPage->PathArg('edit');
-	$doSave = $oPage->ReqArgBool('btnSave');
+*/
 	
-	$frm = $this->PageForm();
-
-	if ($doEdit || $doSave) {
-	    if ($doSave) {
-		$out .= $frm->Save();
-		$sMsgs = $frm->MessagesString();
-		$this->SelfRedirect(NULL,$sMsgs);
-	    }
-	}
-
 	// render values/form
 	$oTplt = $this->PageTemplate();
-	$frm->LoadRecord();
+	if ($this->IsNew()) {
+	    $frm->ClearValues();
+	    $doEdit = TRUE;
+	} else {
+	    $frm->LoadRecord();
+	}
 	$arCtrls = $frm->RenderControls($doEdit);
 	$arCtrls['!ID'] = $this->SelfLink();
 	$arCtrls['ID_Parent'] = $this->ParentAdminLink();
@@ -326,15 +370,17 @@ class vcraRstkReqItem extends clsRstkReqItem {
 	    $arCtrls['ID_Item'] = $this->ItemAdminLink();
 	}
 
+	$out = NULL;
+	
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
 	} else {
 	  // use if needed
-	    //$ctIsGone = clsHTML::fromBool($vIsGone);
-	    //$ctCostExp = clsMoney::Format_withSymbol($this->Value('CostExpPer'));
+	    //$ctIsGone = fcHTML::fromBool($vIsGone);
+	    //$ctCostExp = fcMoney::Format_withSymbol($this->Value('CostExpPer'));
 	}
 
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -350,7 +396,7 @@ class vcraRstkReqItem extends clsRstkReqItem {
 	
 	    $frm = new fcForm_DB($this);
 
-	      if ($this->UserRecord()->CanDo(KS_PERM_DATA_ADMIN)) {
+	      if ($this->UserRecord()->CanDo(KS_PERM_RAW_DATA_EDIT)) {
 		  // allow editing Item ID
 		  $oField = new fcFormField_Num($frm,'ID_Item');
 	      }
@@ -428,7 +474,7 @@ __END__;
     //+rows+//
 
     protected function AdminRows_forItem_NoDataText() {
-	return 'No restock requests found for this item.';
+	return '<div class=content>No restock requests found for this item.</div>';
     }
     protected function AdminRows_forItem_Header() {
 	// links to documentation
@@ -473,44 +519,46 @@ __END__;
 __END__;
     }
     protected function AdminRow_forItem(array $arRow) {
-	$rcReq = $this->ParentTable()->SpawnItem();
+	$rcReq = $this->ParentTable()->SpawnRecordset();
 	
 	$arItem = $arRow['line'];
 	$arReq = $arRow['main'];
-	$this->Values($arItem);
-	$rcReq->Values($arReq);
+	$this->SetFieldValues($arItem);
+	$rcReq->SetFieldValues($arReq);
 
 	// Request fields
 
-	$ftReqID = $rcReq->SelfLink();
-	$txtOurPO = $rcReq->Value('PurchOrdNum');
-	$txtTheirPO = $rcReq->Value('SuppOrdNum');
-	
-	$txtWhenCre = $rcReq->Value('WhenCreated');
-	$dtCre = strtotime($txtWhenCre);
-	$yrCre = date('Y',$dtCre);
+	//if ($rcReq->HasRow()) {
+	    $ftReqID = $rcReq->SelfLink();
+	    $txtOurPO = $rcReq->GetFieldValue('PurchOrdNum');
+	    $txtTheirPO = $rcReq->GetFieldValue('SuppOrdNum');
+	    
+	    $txtWhenCre = $rcReq->GetFieldValue('WhenCreated');
+	    $dtCre = strtotime($txtWhenCre);
+	    $yrCre = date('Y',$dtCre);
 
-	$txtWhenOrd = $rcReq->Value('WhenOrdered');
-	$ftWhenOrd = clsDate::DefaultYear($txtWhenOrd,$yrCre);
+	    $txtWhenOrd = $rcReq->GetFieldValue('WhenOrdered');
+	    $ftWhenOrd = fcDate::DefaultYear($txtWhenOrd,$yrCre);
 
-	$txtWhenKld = $rcReq->Value('WhenKilled');
-	$ftWhenKld = clsDate::DefaultYear($txtWhenKld,$yrCre);
+	    $txtWhenKld = $rcReq->GetFieldValue('WhenKilled');
+	    $ftWhenKld = fcDate::DefaultYear($txtWhenKld,$yrCre);
 
-	$txtWhenClo = $rcReq->Value('WhenClosed');
-	$ftWhenClo = clsDate::DefaultYear($txtWhenClo,$yrCre);
+	    $txtWhenClo = $rcReq->GetFieldValue('WhenClosed');
+	    $ftWhenClo = fcDate::DefaultYear($txtWhenClo,$yrCre);
 
-	$txtWhenOrph = $rcReq->Value('WhenOrphaned');
-	$ftWhenOrph = clsDate::DefaultYear($txtWhenOrph,$yrCre);
+	    $txtWhenOrph = $rcReq->GetFieldValue('WhenOrphaned');
+	    $ftWhenOrph = fcDate::DefaultYear($txtWhenOrph,$yrCre);
+	//}
 	
 	// Line-item fields
 	
 	$ftLineID = $this->SelfLink();
-	$qtyNeed = $this->Value('QtyNeed');
-	$qtyCust = $this->Value('QtyCust');
-	$qtyOrd = $this->Value('QtyOrd');
-	$qtyExp = $this->Value('QtyExp');
+	$qtyNeed = $this->GetFieldValue('QtyNeed');
+	$qtyCust = $this->GetFieldValue('QtyCust');
+	$qtyOrd = $this->GetFieldValue('QtyOrd');
+	$qtyExp = $this->GetFieldValue('QtyExp');
 
-	$txtNotes = $this->Value('Notes');
+	$txtNotes = $this->GetFieldValue('Notes');
 
 	return <<<__END__
     <td>$ftReqID</td>
@@ -537,6 +585,7 @@ __END__;
 	  It iterates through a list of items, but shows mostly information from the Request.
 	2016-01-09 renamed from AdminRows_weird() to AdminRows_forLCItem(), because that is
 	  what it's for: restock information for a given local catalog item
+	2017-03-21 This was renamed as *_HIDE some time ago, not sure when. May or may not still be in use.
     */
     public function AdminRows_forLCItem_HIDE($iNoneTxt='No restock requests found') {
 

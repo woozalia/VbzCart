@@ -3,7 +3,7 @@
   PURPOSE: classes for displaying Order data for a LCItem
   HISTORY:
     2016-01-09 started - existing code gives some incorrect numbers, and seems unnecessarily complicated
-    2017-01-05 I'm now trying to do a prelim reconstruction og how this was actually supposed to work.
+    2017-01-05 I'm now trying to do a prelim reconstruction of how this was actually supposed to work.
       Evidence would indicate some kind of JOIN query, but what happened to the SQL? Maybe that needs
       to be written. Or maybe that's not the way to do it. For now, leaving TableName() blank. Hopefully
       clues will emerge. (Also, what happened to the original code? This file doesn't currently exist in GitHub.)
@@ -25,13 +25,21 @@ class vctaLCItemOrders extends vcAdminTable {
     }
 
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'No page written. Not sure what it would do.';
+    }
+
+    // -- EVENTS -- //
     // ++ TABLES ++ //
     
     protected function OrderLineTable() {
-	return $this->Engine()->Make(KS_CLASS_ORDER_LINES);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_ORDER_LINES);
     }
     protected function PackageLineTable() {
-	return $this->Engine()->Make(KS_CLASS_PACKAGE_LINES);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_PACKAGE_LINES);
     }
     
     // -- TABLES -- //
@@ -70,7 +78,7 @@ class vctaLCItemOrders extends vcAdminTable {
 	    while ($rs->NextRow()) {
 		$id = $rs->GetKeyValue();
 		$sKey = 'o'.$id;
-		$ar[$sKey]['ol'] = $rs->Values();
+		$ar[$sKey]['ol'] = $rs->GetFieldValues();
 	    }
 	}
 
@@ -84,7 +92,7 @@ class vctaLCItemOrders extends vcAdminTable {
 		} else {
 		    $sKey = 'p'.$id;
 		}
-		$ar[$sKey]['pl'] = $rs->Values();
+		$ar[$sKey]['pl'] = $rs->GetFieldValues();
 	    }
 	}
 	
@@ -99,7 +107,7 @@ class vctaLCItemOrders extends vcAdminTable {
 	if (is_null($ar)) {
 	    $out = '<i>no orders for this item</i>';
 	} else {
-	    $rs = $this->SpawnItem();
+	    $rs = $this->SpawnRecordset();
 	    $out = $rs->AdminArray_forLCItem($ar);
 	}
 	return $out;
@@ -148,10 +156,10 @@ class vcraLCItemOrder extends vcAdminRecordset {
 	return $this->Engine()->Make(KS_CLASS_ORDERS,$id);
     }
     protected function OrderLineTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_ORDER_LINES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_ORDER_LINES,$id);
     }
     protected function PackageLineTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_PACKAGE_LINES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_PACKAGE_LINES,$id);
     }
     
     // -- TABLES -- //
@@ -173,8 +181,7 @@ class vcraLCItemOrder extends vcAdminRecordset {
     public function AdminRows_forLCItem() {
 	throw new exception('2016-03-06 Does anyone call this? Where does the data come from?');
 	if ($this->HasRows()) {
-	    $out = $this->AdminRows(
-	    );
+	    $out = $this->AdminRows();
 	} else {
 	    $out = 'No order data found.';
 	}
@@ -183,8 +190,8 @@ class vcraLCItemOrder extends vcAdminRecordset {
     // INPUT: output from Table.Array_forLCItem()
     public function AdminArray_forLCItem(array $ar) {
 	if (count($ar) > 0) {
-	    $rcOrdLine = $this->OrderLineTable()->SpawnItem();
-	    $rcPkgLine = $this->PackageLineTable()->SpawnItem();
+	    $rcOrdLine = $this->OrderLineTable()->SpawnRecordset();
+	    $rcPkgLine = $this->PackageLineTable()->SpawnRecordset();
 	    $out = <<<__END__
 
 <table class=listing>
@@ -223,7 +230,7 @@ __END__;
 		$sNotesPL = NULL;
 		
 		if ($hasOL) {
-		    $rcOrdLine->Values($arPair['ol']);
+		    $rcOrdLine->SetFieldValues($arPair['ol']);
 		    $htIDOL = $rcOrdLine->SelfLink_name();
 		    
 		    $rcOrd = $rcOrdLine->OrderRecord();
@@ -255,7 +262,7 @@ __END__;
 		}
 		    
 		if ($hasPL) {
-		    $rcPkgLine->Values($arPair['pl']);
+		    $rcPkgLine->SetFieldValues($arPair['pl']);
 		    $htIDPL = $rcPkgLine->SelfLink_name();
 		
 		    $rcPkg = $rcPkgLine->PackageRecord();

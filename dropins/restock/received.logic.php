@@ -40,7 +40,7 @@ class vctRstksRcvd extends vcBasicTable {
     
     // PUBLIC so Records object can use it
     public function RequestTable($id=NULL) {
-	return $this->Engine()->Make($this->RequestsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->RequestsClass(),$id);
     }
     
     // -- TABLES -- //
@@ -59,8 +59,11 @@ class vcrRstkRcvd extends vcBasicRecordset {
     // some of these need to be set when creating a received restock from a request.
     
     // PUBLIC so Request can set it
-    public function RequestID($id=NULL) {
-	return $this->Value('ID_Request',$id);
+    public function SetRequestID($id) {
+	return $this->SetFieldValue('ID_Request',$id);
+    }
+    protected function GetRequestID() {
+	return $this->GetFieldValue('ID_Request');
     }
     
     // -- FIELD ACCESS -- //
@@ -77,7 +80,7 @@ class vcrRstkRcvd extends vcBasicRecordset {
 	return $this->Engine()->Make($this->LinesClass(),$id);
     }
     protected function RequestTable($id=NULL) {
-	return $this->Table()->RequestTable($id);
+	return $this->GetTableWrapper()->RequestTable($id);
     }
     
     // -- TABLES -- //
@@ -101,7 +104,7 @@ class vcrRstkRcvd extends vcBasicRecordset {
     // PUBLIC so line records can access it
     public function RequestRecord() {
 	if ($this->HasRequest()) {
-	    return $this->RequestTable($this->RequestID());
+	    return $this->RequestTable($this->GetRequestID());
 	} else {
 	    return NULL;
 	}

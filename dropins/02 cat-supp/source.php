@@ -3,11 +3,13 @@
   FILE: dropins/cat-supp/source.php -- catalog sources for VbzCart Supplier Catalog dropin
   HISTORY:
     2010-10-15 Extracted catalog maintenance classes from SpecialVbzAdmin.php
+    2017-
 */
 
-// common class for table and query
-class vctaSCSources_base extends vcAdminTable {
+// PURPOSE: common class for table and query
+abstract class vctaSCSources_base extends vcAdminTable {
 //   use ftLinkableTable;
+    use ftExecutableTwig;	// dispatch events
    
    // ++ SETUP ++ //
    
@@ -25,6 +27,26 @@ class vctaSCSources_base extends vcAdminTable {
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sTitle = 'SCats';
+	$htTitle = 'Supplier Catalogs';
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+
+    // -- EVENTS -- //
+    // ++ ADMIN UI ++ //
+    
+    abstract protected function AdminPage();
 }
 
 class vctaSCSources extends vctaSCSources_base {
@@ -34,23 +56,27 @@ class vctaSCSources extends vctaSCSources_base {
     /*----
       PURPOSE: execution method called by dropin menu
     */
-    public function MenuExec(array $arArgs=NULL) {
+/*    public function MenuExec(array $arArgs=NULL) {
 	return $this->AdminPage();
-    }
+    } */
 
     // -- DROP-IN API -- //
     // ++ TABLES ++ //
     
     protected function WithSuppliersQuery() {
-	return $this->Engine()->Make(KS_QUERY_CLASS_SUPPCAT_SOURCES_WITH_SUPPLIERS);
+	return $this->GetConnection()->MakeTableWrapper(KS_QUERY_CLASS_SUPPCAT_SOURCES_WITH_SUPPLIERS);
     }
     
     // -- TABLES -- //
     // ++ RECORDS ++ //
     
-    // NOTE: We could also filter for DateAvail, but so far that has only been used to indicate when the catalog arrived, for sorting and reference purposes.
+    /*----
+      NOTE: We could also filter for DateActive, but so far that has never been needed as a way to indicate that a catalog is not yet available. If it's in hand, then it's either valid or expired.
+      HISTORY:
+	2017-06-20 Added filtering for DateExpires
+    */
     public function ActiveRecords() {
-	return $this->SelectRecords('ID_Supercede IS NULL');
+	return $this->SelectRecords('(ID_Supercede IS NULL) AND (DateExpires > NOW())');
     }
     
     // -- RECORDS -- //
@@ -84,11 +110,10 @@ class vctaSCSources extends vctaSCSources_base {
     // -- ADMIN UI PAGES -- //
 
 }
-class vcraSCSource extends clsDataSet {
+class vcraSCSource extends vcAdminRecordset implements fiEventAware {
     use ftLinkableRecord;
     use ftLoggableRecord;
-
-    protected $objForm, $objCtrls;
+    use ftExecutableTwig;	// dispatch events
 
     // ++ TRAIT HELPERS ++ //
 
@@ -100,29 +125,87 @@ class vcraSCSource extends clsDataSet {
     }
 
     // -- TRAIT HELPERS -- //
-    // ++ FRAMEWORK ++ //
-    
-    protected function PageObject() {
-	return 	$this->Engine()->App()->Page();
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	if ($this->IsNew()) {
+	    $htTitle = 'New Supplier Catalog';
+	    $sTitle = 'new SC';
+	} else {
+	    $sAbbr = $this->Abbreviation();
+	    $id = $this->GetKeyValue();
+	    $htTitle = "Supplier Catalog $id: '$sAbbr'";
+	    $sTitle = "SC $id: ".$sAbbr;
+	}
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
     }
-
-    // ++ CALLBACKS ++ //
-    
-    //++dropins++//
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    //--dropins--//
-    //++dropdowns++//
+    // -- EVENTS -- //
+    // ++ INTERNAL VALUES ++ //
+
+    private $bDoEdit;
+    protected function SetDoEdit($bOn) {
+	$this->bDoEdit = $bOn;
+    }
+    protected function GetDoEdit() {
+	return $this->bDoEdit;
+    }
+    private $bDoEnter;
+    protected function SetDoEnter($bOn) {
+	$this->bDoEnter = $bOn;
+    }
+    protected function GetDoEnter() {
+	return $this->bDoEnter;
+    }
     
+    // -- INTERNAL VALUES -- //
+    // ++ FIELD VALUES ++ //
+
+    protected function NameString() {
+	return $this->GetFieldValue('Name');
+    }
+    // PUBLIC so SCTitle listing can use it
+    public function Abbreviation() {
+	return $this->GetFieldValue('Abbr');
+    }
+    protected function DateAvailable() {
+	return $this->GetFieldValue('DateActive');
+    }
+    /*----
+      NOTE: SupplierID() was "PUBLIC so Title Entry form can use it", but not sure whether that's read or write
+    */
+    protected function SetSupplierID($id) {
+	return $this->SetFieldValue('ID_Supplier',$id);
+    }
+    /*----
+      NOTE: SupplierID() was "PUBLIC so Title Entry form can use it", but not sure whether that's read or write
+    */
+    protected function GetSupplierID() {
+	return $this->GetFieldValue('ID_Supplier');
+    }
+    protected function SupercedeID() {
+	return $this->GetFieldValue('ID_Supercede');
+    }
+    protected function IsCloseout() {
+	return $this->GetFieldValue('isCloseOut');
+    }
+    
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+
+    // CALLBACK for dropdowns
     public function ListItem_Link() {
 	return $this->SelfLink_name();
     }
+    // CALLBACK for dropdowns
     public function ListItem_Text() {
 	$sSummary = $this->Abbreviation().' - '.$this->NameString();
 	if ($this->IsActive()) {
@@ -131,38 +214,12 @@ class vcraSCSource extends clsDataSet {
 	    return "($sSummary)";
 	}
     }
-    
-    //--dropdowns--//
-    
-    // -- CALLBACKS -- //
-    // ++ FIELD VALUES ++ //
-
-    protected function NameString() {
-	return $this->Value('Name');
-    }
-    // PUBLIC so SCTitle listing can use it
-    public function Abbreviation() {
-	return $this->Value('Abbr');
-    }
-    protected function DateAvailable() {
-	return $this->Value('DateAvail');
-    }
-    // PUBLIC so Title Entry form can use it
-    public function SupplierID($id=NULL) {
-	return $this->Value('ID_Supplier',$id);
-    }
-    protected function SupercedeID() {
-	return $this->Value('ID_Supercede');
-    }
-    protected function IsCloseout() {
-	return $this->Value('isCloseOut');
-    }
-    
-    // -- FIELD VALUES -- //
-    // -- FIELD CALCULATIONS -- //
-
     protected function HasSupplier() {
-	return !is_null($this->SupplierID());
+	if ($this->IsNew()) {
+	    return FALSE;
+	} else {
+	    return !is_null($this->GetSupplierID());
+	}
     }
     protected function IsSuperceded() {
 	return !is_null($this->SupercedeID());
@@ -175,20 +232,22 @@ class vcraSCSource extends clsDataSet {
     // ++ TABLES ++ //
     
     protected function SupplierTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_CATALOG_SUPPLIERS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_CATALOG_SUPPLIERS,$id);
     }
     protected function SCTitleTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_SUPPCAT_TITLES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_SUPPCAT_TITLES,$id);
     }
     
     // -- TABLES -- //
     // ++ RECORDS ++ //
 
-    // USED BY: Title Entry form, and some internal stuff
-    // PUBLIC so TEf can use it
+    /*----
+      USED BY: Title Entry form, and some internal stuff
+      PUBLIC so TEf can use it
+    */
     private $rcSupp;
     public function SupplierRecord() {
-	$idSupp = $this->SupplierID();
+	$idSupp = $this->GetSupplierID();
 	$doGet = TRUE;
 	if (!empty($this->rcSupp)) {
 	    if ($this->rcSupp->GetKeyValue() == $idSupp) {
@@ -200,35 +259,43 @@ class vcraSCSource extends clsDataSet {
 	}
 	return $this->rcSupp;
     }
+    protected function SupplierLink() {
+	if ($this->HasSupplier()) {
+	    return $this->SupplierRecord()->SelfLink_name();
+	} else {
+	    return '<b>SUPPLIER NOT SET</b>';
+	}
+    }
     public function SupercedeRecord() {
 	if ($this->IsSuperceded()) {
-	    $rc = $this->Table()->GetItem($this->SupercedeID());
+	    $rc = $this->GetTableWrapper()->GetRecord_forKey($this->SupercedeID());
 	} else {
 	    $rc = NULL;
 	}
 	return $rc;
     }
     protected function GetRecords_forSupplier() {
-	$sqlFilt = 'ID_Supplier='.$this->SupplierID();
+	$sqlFilt = 'ID_Supplier='.$this->GetSupplierID();
 	$sqlSort = '(ID_Supercede IS NOT NULL), Abbr DESC, Name DESC';
-	$rs = $this->Table()->SelectRecords($sqlFilt,$sqlSort);
+	$rs = $this->GetTableWrapper()->SelectRecords($sqlFilt,$sqlSort);
 	return $rs;
     }
     
     // -- RECORDS -- //
-    // ++ ACTIONS ++ //
+    // ++ DB WRITE ++ //
     
     public function MakeTitle($idLCTitle,$idGroup) {
 	$t = $this->SCTitleTable();
 	return $t->Add($idLCTitle,$idGroup,$this->GetKeyValue());
     }
     
-    // -- ACTIONS -- //
+    // -- DB WRITE -- //
     // ++ ADMIN UI PIECES ++ //
 
+    /* 2017-06-20 I don't think this code is needed anymore.
     public function DropDown($iName,$iDefault=NULL) {
 	throw new exception('Does anything still use this? It won\'t work as written.');
-	$objRows = $this->Table->GetData('ID_Supplier='.$this->ID_Supplier,NULL,'DateAvail DESC');
+	$objRows = $this->Table->GetData('ID_Supplier='.$this->ID_Supplier,NULL,'DateActive DESC');
 	return $objRows->DropDown_this_data($iName,$iDefault,$this->ID);
     }
     public function DropDown_this_data($iName,$iDefault=NULL,$iCurrent=NULL) {
@@ -249,7 +316,8 @@ class vcraSCSource extends clsDataSet {
 	    $out = 'No source catalogs found';
 	}
 	return $out;
-    }
+    } */
+    /* 2017-06-18 It seems very unlikely that this is needed anymore.
     public function PageTitle() {
 	throw new exception(__METHOD__.' needs a little updating.');
 	$isNew = is_null($this->ID);
@@ -262,7 +330,7 @@ class vcraSCSource extends clsDataSet {
 	    $out = $this->SupplierRecord()->Value('CatKey') . ': ' . $this->Value('Abbr') . ' catalog';
 	}
 	return $out;
-    }
+    } */
     
     // -- ADMIN UI PIECES -- //
     // ++ ADMIN UI PAGES ++ //
@@ -278,6 +346,7 @@ class vcraSCSource extends clsDataSet {
 <table class=listing>
   <tr>
     <th>ID</th>
+    <th>Supplier</th>
     <th>Name</th>
     <th>Abbr</th>
     <th>When Avail</th>
@@ -290,7 +359,7 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $out = 'No catalogs found.';
+	    $out = '<div class=content>No catalogs found.</div>';
 	}
 	return $out;
     }
@@ -299,7 +368,8 @@ __END__;
 	static $isOdd=FALSE;
 	
 	$id = $this->GetKeyValue();
-	$wtID = $this->SelfLink();
+	$ftID = $this->SelfLink();
+	$ftSupp = $this->SupplierLink();
 
 	$isOdd = !$isOdd;
 	$cssClass = $isOdd?'odd':'even';
@@ -308,30 +378,32 @@ __END__;
 	    $cssClass .= 'inact';
 	}
 
-	$strDate = clsDate::NzDate($this->DateAvailable());
+	$strDate = fcDate::NzDate($this->DateAvailable());
 	if ($this->IsSuperceded()) {
 	    if ($this->SupercedeID() == $this->GetKeyValue()) {
-		$strSuper = '(self)';
+		$htSuper = '(self)';
 	    } else {
 		$rcSuper = $this->SupercedeRecord();
-		$strSuper = $rcSuper->Abbreviation();
+//		$sSuper = $rcSuper->Abbreviation();
+		$htSuper = $rcSuper->SelfLink_name();
 	    }
 	} else {
-	    $strSuper = '(current)';
+	    $htSuper = '(current)';
 	}
 	$strStatus = $this->isCloseOut()?'closeout':'';
-
+	
 	$sName = $this->NameString();
 	$sAbbr = $this->Abbreviation();
 	
 	$out = <<<__END__
 
   <tr class=$cssClass>
-    <td>$wtID</td>
+    <td>$ftID</td>
+    <td>$ftSupp</td>
     <td>$sName</td>
     <td>$sAbbr</td>
     <td>$strDate</td>
-    <td>$strSuper</td>
+    <td>$htSuper</td>
     <td>$strStatus</td>
   </tr>
 __END__;
@@ -343,24 +415,29 @@ __END__;
     //++single++//
     
     public function AdminPage() {
-    
-
-	$oPage = $this->Engine()->App()->Page();
-    
+	$oFormIn = fcHTTP::Request();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
 	$isNew = $this->IsNew();
-	$doEdit = $oPage->PathArg('edit') || $isNew;
-	$doSave = $oPage->ReqArgBool('btnSave');
-	$idSupp = $oPage->PathArg('supp');
+	$frm = $this->PageForm();
+	if ($isNew) {
+	    $frm->ClearValues();
+	} else {
+	    $frm->LoadRecord();
+	}
 
-	if (!empty($idSupp)) {
-	    $this->SupplierID($idSupp);
-	    $this->PageForm()->LoadRecord();	// copy to Field object
-	    $this->PageForm()->FieldObject('ID_Supplier')->SetDefault($idSupp);
-	    $this->PageForm()->FieldObject('ID_Supplier')->SetValue($idSupp);
+	//$doEdit = $oPage->PathArg('edit') || $isNew;
+	$doSave = $oFormIn->GetBool('btnSave');
+	$idSupp = $oPathIn->GetInt('supp');
+
+	if (!is_null($idSupp) && !$this->HasSupplier()) {
+	    $this->SetSupplierID($idSupp);
+//	    if (!$isNew) {
+//		$frm->LoadRecord();	// copy to Field object
+//	    }
+	    $frm->FieldObject('ID_Supplier')->SetDefault($idSupp);
+	    $frm->FieldObject('ID_Supplier')->SetValue($idSupp);
 	}
 	
-	$frm = $this->PageForm();
-		
 	if ($doSave) {
 	    $id = $frm->Save();
 	    $this->SetKeyValue($id);	// store new ID so we can redirect to it
@@ -368,27 +445,13 @@ __END__;
 	}
 	
 	// load the Values() into the Field controls
-	$frm->LoadRecord();
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit this source'));
+	    $this->SetDoEdit($ol->GetIsSelected());
 
-	if ($isNew) {
-	    $sTitle = 'New Catalog';
-	} else {
-	    $sTitle = $this->Abbreviation().':supplier catalog';
-	}
-
-	$arMenu = array(
-	    // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
-	  new clsActionLink_option(array(),
-	    'edit',	// link key
-	    NULL,	// group key
-	    NULL,	// OFF display
-	    NULL,	// ON display,
-	    'edit this source'	// popup description
-	    ),
-	  );
-	$oPage->TitleString($sTitle);
-	$oPage->PageHeaderWidgets($arMenu);
-
+	$doEdit = $this->GetDoEdit();
+	
 	// Set up rendering objects
 	
 	$oTplt = $this->PageTemplate();
@@ -408,13 +471,14 @@ __END__;
 	//	$htReplaced = $rcSuper->SelfLink_name();
 	    }
 	    $arCtrls['isCloseOut'] = $this->isCloseOut()?'YES':'no';
+	    //$arCtrls['ID_Supplier'] = $this->GetSupplierID();	// KLUGE
 	}
 	// non-editable
-	$rcSupp = $this->SupplierRecord();
+	//$rcSupp = $this->SupplierRecord();
 	//$arCtrls['!Supplier'] = $rcSupp->SelfLink_name();
 
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -425,6 +489,8 @@ __END__;
 	}
 
 	if (!$isNew) {
+	    $out .= $this->DoTitlesHeader();
+	
 	    // optional Title-entry form:
 	    $out .= $this->HandleEntry();
 	    
@@ -443,11 +509,12 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=content>
   <tr><td align=right><b>Name</b>:</td><td>[#Name#]</td></tr>
   <tr><td align=right><b>Code</b>:</td><td>[#Abbr#]</td></tr>
   <tr><td align=right><b>Supplier</b>:</td><td>[#ID_Supplier#]</td></tr>
-  <tr><td align=right><b>Available</b>:</td><td>[#DateAvail#]</td></tr>
+  <tr><td align=right><b>Available</b>:</td><td>[#DateActive#]</td></tr>
+  <tr><td align=right><b>Updated</b>:</td><td>[#LastUpdate#]</td></tr>
   <tr><td align=right><b>Replaced by</b>:</td><td>[#ID_Supercede#]</td></tr>
   <tr><td align=right><b>Closeout</b>:</td><td>[#isCloseOut#]</td></tr>
 </table>
@@ -472,17 +539,26 @@ __END__;
 	      
 	      $oField = new fcFormField_Num($oForm,'ID_Supplier');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->SupplierTable()->ActiveRecords());
-		$oField->OkToWrite(FALSE);
+		//$oCtrl->SetRecords($this->SupplierTable()->ActiveRecords());
+		$oCtrl->SetRecords($this->SupplierTable()->SelectRecords());
+		/* 2017-06-18 might reinstate this later...
+		if ($this->HasSupplier()) {
+		    $oCtrl->AddChoice($this->GetSupplierID(),$this->SupplierRecord()->ListItem_Text());
+		    $oField->ControlObject()->Editable(FALSE);
+		} */
 		
-	      $oField = new fcFormField_Time($oForm,'DateAvail');
+	      $oField = new fcFormField_Time($oForm,'DateActive');
 		$oCtrl = new fcFormControl_HTML_Timestamp($oField,array());
 		$oCtrl->Format('Y-m-d');
+
+	      $oField = new fcFormField_Time($oForm,'LastUpdate');
+		$oCtrl = new fcFormControl_HTML_Timestamp($oField,array());
+		//$oCtrl->Format('Y-m-d h:n:s');	// 2017-06-18 not sure of time fmt, but maybe this is default?
 
 	      $oField = new fcFormField_Num($oForm,'ID_Supercede');
 		if ($this->HasSupplier()) {
 		    $oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		    $oCtrl->Records($this->GetRecords_forSupplier());
+		    $oCtrl->SetRecords($this->GetRecords_forSupplier());
 		    $oCtrl->AddChoice(NULL,'(current)');
 		}
 		
@@ -503,22 +579,34 @@ __END__;
     /*----
       HISTORY:
 	2016-02-06 Rewriting from scratch to make a bit more sense...
+	2017-05-29 Pulling the control points back into this object so we don't have to make them public.
     */
     protected function HandleEntry() {
+	$oFormIn = fcHTTP::Request();
+
 	$sClass = KS_CLASS_TITLE_ENTRY_MANAGER;
 	$oMgr = new $sClass($this);
-	$out = $oMgr->DoMain();
+	
+	$isReqEnter = $this->GetDoEnter();
+	$isReqDone = $oFormIn->GetBool('btnDone');
+	
+	$out = NULL;
+	if ($isReqEnter && !$isReqDone) {
+	    $out .= $oMgr->DoEnter();
+	}
+	
 	return $out;
     }
-    
+    /*
     protected function HandleEntry_old() {
-	$oPage = $this->Engine()->App()->Page();
+	$oFormIn = fcHTTP::Request();
     
-	$doEnter = $oPage->PathArg('enter');	// activates the first form
-	$doParse = $oPage->ReqArgBool('btnParse')	// first button - run STAGE 2
-	  || $oPage->ReqArgBool('title-btnChk')		// ...or if the Use Topics button was pressed
+	$doEnter = $this->GetDoEnter();
+;	// activates the first form
+	$doParse = $oFormIn->GetBool('btnParse')	// first button - run STAGE 2
+	  || $oFormIn->GetBool('title-btnChk')		// ...or if the Use Topics button was pressed
 	  ;
-	$doChange = $oPage->ReqArgBool('btnChange');	// second button - run STAGE 3
+	$doChange = $oFormIn->GetBool('btnChange');	// second button - run STAGE 3
 
 	$doSomething = $doEnter || $doParse || $doChange;
 	$out = NULL;
@@ -528,9 +616,9 @@ __END__;
 	    //$doBox = $doEnter && !$doTitleLoad;
 	    $doBox = FALSE;	// is the box actually helpful?
 
-/* 2011-09-30 departments are going away
+// WAS commented out with NOTE: 2011-09-30 departments are going away
 	    $idDept = $wgRequest->GetIntOrNull('dept');	// get chosen department
-*/
+
 	    if ($doChange) {
 		$out .= $this->HandleEntry_stage_3();	// process data before displaying status (so status shows the changes)
 	    }
@@ -573,7 +661,7 @@ __END__;
 	    }
 	}
 	return $out;
-    }
+    } */
     /*----
       PURPOSE: HandleEntry() STAGE 2 -- allow user to select titles and groups to be added to them
       LATER: we will need to modify this to deal with suppliers where the topic (formerly department)
@@ -1008,16 +1096,24 @@ __END__;
     //--topics--//
     //++titles++//
     
+    protected function DoTitlesHeader() {
+	$oMenu = new fcHeaderMenu();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('titles.do','enter',NULL,NULL));
+	    $this->SetDoEnter($ol->GetIsSelected());
+	  
+	$oHdr = new fcSectionHeader('Titles',$oMenu);
+	return $oHdr->Render();
+    }
     /*----
       ACTION: Displays the list of titles for this catalog, along with any
 	appropriate administrative controls.
       HISTORY:
 	2010-11-06 started writing
 	2016-01-27 marked as needing update
+	2017-05-29 fixing menus
     */
     protected function AdminTitles() {
-	$oPage = $this->Engine()->App()->Page();
-	
+/*
 	$arMenu = array(
 	    // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
 	  new clsActionLink_option(array(),
@@ -1029,9 +1125,10 @@ __END__;
 	    ),
 	  );
 	$out = $oPage->ActionHeader('Titles',$arMenu);
+	*/
 	$rs = $this->SCTitleTable()->List_forSource($this->GetKeyValue());
-	$out .= $rs->AdminList();
-	return $out;
+
+	return $rs->AdminList();
     }
     
     //--titles--//

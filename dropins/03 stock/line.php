@@ -4,11 +4,12 @@
   HISTORY:
   HISTORY:
     2014-03-22 extracted Item classes from place.php
-      Made VCT_StkLines descend from clsVbzTable rather than clsStkItems
+      Made VCT_StkLines (later vctAdminStockLines) descend from clsVbzTable (later vcAdminTable) rather than clsStkItems
+      2017-03-21 This possibly doesn't make sense anymore.
     2014-06-02 Changing terminology from "stock items" to "stock lines".
 */
 
-class VCT_StkLines extends vcAdminTable {
+class vctAdminStockLines extends vcAdminTable {
 
     // ++ SETUP ++ //
 
@@ -18,7 +19,7 @@ class VCT_StkLines extends vcAdminTable {
     }
     // CEMENT
     protected function SingularName() {
-	return 'VCR_StkLine';
+	return 'vcrAdminStockLine';
     }
     // CEMENT
     public function GetActionKey() {
@@ -26,13 +27,21 @@ class VCT_StkLines extends vcAdminTable {
     }
     
     // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'There currently is no rendering function for stock lines.';
+    }
+
+    // ++ EVENTS ++ //
     // ++ CLASS NAMES ++ //
     
     /*----
       CLASS FOR: local catalog items
     */
     protected function LCItemsClass() {
-	if (fcDropInManager::IsModuleLoaded('vbz.lcat')) {
+	if (fcDropInManager::Me()->HasModule('vbz.lcat')) {
 	    return KS_ADMIN_CLASS_LC_ITEMS;
 	} else {
 	    return KS_LOGIC_CLASS_LC_ITEMS;
@@ -52,21 +61,24 @@ class VCT_StkLines extends vcAdminTable {
 	throw new exception('StockLog() is deprecated - call StockLineLog().');
 	return $this->Engine()->StkLog();
     }
-    protected function StockInfoQuery() {
-	return $this->Engine()->Make('vcqtStockLinesInfo');
-    }
     protected function StockLineLog($id=NULL) {
 	return $this->Engine()->Make(KS_CLASS_STOCK_LINE_LOG,$id);
     }
     // PUBLIC so Records can use it
     public function LCItemTable($id=NULL) {
-    	return $this->Engine()->Make($this->LCItemsClass(),$id);
+    	return $this->GetConnection()->MakeTableWrapper($this->LCItemsClass(),$id);
     }
     protected function ReceivedRestockTable($id=NULL) {
 	return $this->Engine()->Make(KS_ADMIN_CLASS_RESTOCKS_RECEIVED,$id);
     }
+    
+    // queries
+    
     protected function TitleInfoQuery() {
 	return $this->Engine()->Make('vcqtTitlesInfo');
+    }
+    protected function StockInfoQuery() {
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_LINES_INFO);
     }
 
     // -- TABLES -- //
@@ -102,54 +114,25 @@ class VCT_StkLines extends vcAdminTable {
     }
     /*----
       PURPOSE: retrieve a dataset of stock for the given title
+      RETURNS: recordset, one stock line per record
       USED FOR: stock listing in Title record display page
       HISTORY:
 	2012-02-03 created
 	2016-03-22 replaced stored query with SQO
+	2017-03-16 reworked completely
     */
     public function Records_forTitle($idTitle) {
-	$sqlFilt = "ID_Title=$idTitle";
-	
-	// This would be for if we wanted a stock summary grouped by Title
-	//$sql = $this->TitleInfoQuery()->SQL_ExhibitInfo($sqlFilt);
-
-	// This would be for if we wanted a stock summary grouped by Item
-	//$sql = vcqtItemsInfo::SQL_forTitlePage($idTitle);
-
-	// Get information for every Stock Line for this Title
-	
-	$sqo = vcqtStockLinesInfo::SQO_forItemStatus();
-	$sqo->Select()->Source()->AddElement(
-	  new fcSQL_JoinElement(
-	    new fcSQL_TableSource('cat_items','i'),
-	    'si.ID_Item=i.ID'
-	    )
-	  );
-	$sqo->Select()->Fields()->SetFields(
-	  array(
-	    'si.WhenAdded',
-	    'si.WhenChanged',
-	    'si.WhenCounted',
-	    'si.WhenRemoved',
-	    'si.ID_Bin',
-	    'si.Qty',
-	    'si.Cost',
-	    'si.Notes'
-	    )
-	  );
-	$sqo->Terms()->Filters()->AddCond($sqlFilt);
-	$sql = $sqo->Render();
-	
-	// old version - deprecated 2016-03-22
-	//$sql = 'SELECT * FROM qryStk_lines_Title_info WHERE '.$sqlFilt;
-	return $this->DataSQL($sql);
+	$tq = $this->StockInfoQuery();
+	$q = $tq->SQO_forSaleableLines_forTitle($idTitle);
+	$sql = $q->Render();
+	return $this->FetchRecords($sql);
     }
     /*----
       HISTORY:
 	2012-03-11 created for title stock summary
     */
     public function Data_forItem($iID,$iSort=NULL) {
-	$rs = $this->GetData('ID_Item='.$iID,NULL,$iSort);
+	$rs = $this->SelectRecords('ID_Item='.$iID,$iSort);
 	return $rs;
     }
 
@@ -163,12 +146,12 @@ class VCT_StkLines extends vcAdminTable {
 	currently commented out
     */
     public function Count_inStock($sqlFilt=NULL) {
-      throw new exception('Who calls this?');
+      throw new exception('Who calls this?');	// 2017-08-24 will need revision if being used
 	$sql = 'SELECT SUM(QtyForSale) AS Qty FROM qryStkItms_for_sale';
 	if (!is_null($sqlFilt)) {
 	    $sql .= ' WHERE '.$sqlFilt;
 	}
-	$rc = $this->Engine()->Make('clsRecs_generic');
+	$rc = $this->Engine()->Make('fcDataRow');
 	$rc->Query($sql);
 	$rc->NextRow();
 	return $rc->Value('Qty');
@@ -216,7 +199,7 @@ class VCT_StkLines extends vcAdminTable {
 SELECT SUM(Qty) AS QtyTotal FROM $sqlTbl
 WHERE (ID_Bin=$idBin)
 AND (ID_Item=$idItem)
-AND (WhenRemoved IS NULL)
+AND (Qty > 0)
 GROUP BY ID_Bin;
 __END__;
 	return $sql;
@@ -311,15 +294,14 @@ __END__;
       METHODOLOGY:
 	Look for lines which already have some of the given item.
 	Add this quantity to the line with the lowest ID, to minimize fragmentation.
-	  (This negates the need to account for the deprecated WhenRemoved field being set.)
     */
-    public function Add($qAdd,$idItem,$idBin,vcrStockEvent $oEvent=NULL) {
+    public function Add($qAdd,$idItem,$idBin,vcrStockLineEvent $oEvent=NULL) {
 	$doReally = !is_null($oEvent);
 	$sqlFilt = "(ID_Bin=$idBin) AND (ID_Item=$idItem)";
 	$sqlSort = 'ID';
 	$sqlTbl = $this->NameSQL();
-	$sql = "SELECT ID, Qty, WhenRemoved FROM $sqlTbl WHERE $sqlFilt ORDER BY $sqlSort LIMIT 1";
-	$rc = $this->DataSQL($sql);
+	$sql = "SELECT ID, Qty FROM $sqlTbl WHERE $sqlFilt ORDER BY $sqlSort LIMIT 1";
+	$rc = $this->FetchRecords($sql);
 
 	if ($rc->HasRows()) {
 	    // add quantity to this line
@@ -345,7 +327,6 @@ __END__;
 	    $arUpd = array(
 	      'Qty'		=> $qAfter,
 	      'WhenChanged'	=> 'NOW()',
-	      'WhenRemoved'	=> 'NULL'	// make sure this is not set
 	      );
 	    $rc->Update($arUpd);
 	} else {
@@ -399,7 +380,7 @@ __END__;
 	$oEvent (optional) = provisioned event object to use for logging
 	  If NULL, then the transfer is only simulated.
     */
-    public function Remove($nQty,$idItem,$idBin,vcrStockEvent $oEvent=NULL) {
+    public function Remove($nQty,$idItem,$idBin,vcrStockLineEvent $oEvent=NULL) {
 	$doReally = !is_null($oEvent);
 	$sqlFilt = "(ID_Bin=$idBin) AND (ID_Item=$idItem)";
 	$sqlSort = 'Qty';
@@ -480,7 +461,7 @@ __END__;
 	$out = $txtEv;
 	$arEv = array(
 	  'descr'	=> $txtEv,
-	  'code'	=> 'MV-'.clsStkLog::chTypeRstk,
+	  'code'	=> 'MV-'.vctStockLineLog::chTypeRstk,
 	  'where'	=> __METHOD__
 	  );
 	$objBin->StartEvent($arEv);
@@ -526,7 +507,7 @@ __END__;
 	// - create system log event:
 	$arEv = array(
 	  'descr'	=> $txtEv,
-	  'code'	=> 'MV-'.clsStkLog::chTypeRstk,
+	  'code'	=> 'MV-'.vctStockLineLog::chTypeRstk,
 	  'where'	=> __METHOD__
 	  );
 	$rcEvSys = $rcBin->CreateEvent($arEv);
@@ -537,7 +518,7 @@ __END__;
 	$rcStkEv = $tStkLog->StartEvent(
 	  $nQty,
 	  $idBin,
-	  clsStkLog::chTypeRstk,
+	  vctStockLineLog::chTypeRstk,
 	  $idRstk,
 	  NULL,		// stock line not yet created
 	  $rcLine->GetKeyValue(),
@@ -566,7 +547,7 @@ __END__;
 	      $idItem,
 	      $nQty,
 	      $idBin,
-	      clsStkLog::chTypeRstk,	// $chOtherType
+	      vctStockLineLog::chTypeRstk,	// $chOtherType
 	      $rcLine->ParentID(),	// $idOtherCont
 	      $idNew,			// $idStkLine
 	      $rcLine->GetKeyValue(),	// $idOtherLine,
@@ -611,7 +592,7 @@ __END__;
     public function Listing_forItem($rcItem) {
 	$id = $rcItem->GetKeyValue();
 
-	$rs = $this->Data_forItem($id,'WhenRemoved,WhenAdded,WhenChanged');
+	$rs = $this->Data_forItem($id,'WhenAdded,WhenChanged');
 	if ($rs->HasRows()) {
 	    $out = <<<__END__
 <table class=listing>
@@ -622,7 +603,7 @@ __END__;
     <th>Added</th>
     <th>Changed</th>
     <th>Counted</th>
-    <th>Removed</th>
+    <th>Cleared</th>
   </tr>
 __END__;
 	    $isOdd = TRUE;
@@ -634,11 +615,11 @@ __END__;
 
 		$ftID = $rs->SelfLink();
 		$wtStyle = $isOdd?'background:#ffffff;':'background:#cccccc;';
-		$intQty = $rs->Value('Qty');
+		$intQty = $rs->GetFieldValue('Qty');
 
-		$txtNotes = $rs->Value('Notes');
-		$isActive = is_null($rs->Value('WhenRemoved')) && ($intQty > 0) && $rcBin->IsActive();
-		$isValid = $rcBin->PlaceRecord()->IsActive();
+		$txtNotes = $rs->GetFieldValue('Notes');
+		$isActive = ($intQty > 0) && $rcBin->SelfIsActive();
+		$isValid = $rcBin->PlaceRecord()->IsActiveSpace();
 		if (!$isActive) {
 		    $wtStyle .= ' color: #888888;';
 		}
@@ -647,10 +628,10 @@ __END__;
 		} else {
 		    $wtStyleCell = 'style="text-decoration: line-through;"';
 		}
-		$ftWhenAdd = fcDate::NzDate($rs->Value('WhenAdded'));
-		$ftWhenChg = fcDate::NzDate($rs->Value('WhenChanged'));
-		$ftWhenCnt = fcDate::NzDate($rs->Value('WhenCounted'));
-		$ftWhenRmv = fcDate::NzDate($rs->Value('WhenRemoved'));
+		$ftWhenAdd = fcDate::NzDate($rs->GetFieldValue('WhenAdded'));
+		$ftWhenChg = fcDate::NzDate($rs->GetFieldValue('WhenChanged'));
+		$ftWhenCnt = fcDate::NzDate($rs->GetFieldValue('WhenCounted'));
+		$ftWhenClr = fcDate::NzDate($rs->GetFieldValue('WhenCleared'));
 		$out .= <<<__END__
   <tr style="$wtStyle">
     <td $wtStyleCell>$ftID</td>
@@ -659,7 +640,7 @@ __END__;
     <td>$ftWhenAdd</td>
     <td>$ftWhenChg</td>
     <td>$ftWhenCnt</td>
-    <td>$ftWhenRmv</td>
+    <td>$ftWhenClr</td>
   </tr>
 __END__;
 		if (!is_null($txtNotes)) {
@@ -670,20 +651,20 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $sql = $rs->sqlMake;
-	    $out = 'There has never been any stock for this item.'
-	      ."\n<br><small><b>SQL</b>: $sql</small>";
+	    $sql = $rs->sql;
+	    $out = '<div class=content>There has never been any stock for this item.'
+	      ."\n<br><span class=line-stats><b>SQL</b>: $sql</span></div>";
 	}
 	return $out;
     }
 }
-/*####
+/*::::
   HISTORY:
     2011-03-29 changed parent from clsAdminData to clsDataSet
       clsAdminData apparently does not work with form-building routines,
 	and I don't *think* it's needed anymore.
 */
-class VCR_StkLine extends vcAdminRecordset {
+class vcrAdminStockLine extends vcAdminRecordset {
     use ftFrameworkAccess;
 
     // ++ DROP-IN API ++ //
@@ -702,49 +683,45 @@ class VCR_StkLine extends vcAdminRecordset {
       PUBLIC because Package objects need to access it
     */
     public function BinID() {
-	return $this->Value('ID_Bin');
+	return $this->GetFieldValue('ID_Bin');
     }
     /*----
       PUBLIC because stock-event log needs to access it
     */
     public function ItemID() {
-	return $this->Value('ID_Item');
+	return $this->GetFieldValue('ID_Item');
     }
-    public function Qty($qty=NULL) {
-	return $this->Value('Qty',$qty);
+    public function SetQty($qty) {
+	return $this->SetFieldValue('Qty',$qty);
     }
-    protected function WhenRemoved() {
-	return $this->Value('WhenRemoved');
+    public function GetQty() {
+	return $this->GetFieldValue('Qty');
+    }
+    protected function WhenCleared() {
+	return $this->GetFieldValue('WhenCleared');
     }
     
     // -- FIELD VALUES -- //
     // ++ FIELD CALCULATIONS ++ //
     
-    public function IsRemoved() {
-	return !is_null($this->WhenRemoved());
-    }
     /*----
       RETURNS: quantity actually in stock
-	If WhenRemoved is not NULL, then qty is zero.
       HISTORY:
 	2011-03-28 created for Place inventory
+	2017-03-16 WhenRemoved no longer exists; Qty tells the truth.
     */
     public function Qty_inStock() {
-	if ($this->IsRemoved()) {
-	    return 0;
-	} else {
-	    return $this->Value('Qty');
-	}
+	return $this->Value('Qty');
     }
 
     // -- FIELD VALUES -- //
     // ++ TABLES ++ //
     
     protected function LCItemTable($id=NULL) {
-	return $this->Table()->LCItemTable($id);
+	return $this->GetTableWrapper()->LCItemTable($id);
     }
     protected function BinTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_STOCK_BINS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_BINS,$id);
     }
     protected function StockLogTable($id=NULL) {
 	return $this->Engine()->Make(KS_CLASS_STOCK_LINE_LOG,$id);
@@ -787,28 +764,8 @@ class VCR_StkLine extends vcAdminRecordset {
     }//*/
 
     // -- RECORDS -- //
-    // ++ ACTIONS ++ //
+    // ++ DATA READ ++ //
 
-    public function Remove($qTake,vcrStockEvent $oEvent=NULL) {
-	$doReally = is_object($oEvent);
-	$qFound = $this->Qty();
-	$qLeft = $qFound - $qTake;
-	$idStockLine = $this->GetKeyValue();
-	if ($doReally) {
-	    $oEvent->SetQtyLineBefore($qFound);
-	    $oEvent->QtyAdded(-$qTake);
-	    $oEvent->StockLineID($idStockLine);
-	    //$oEvent->ItemID($idItem);
-	    $oEvent->Write("removing <b>$qTake</b> from stock line ID $idStockLine: <b>$qFound</b> found, <b>$qLeft</b> remain");
-	    $arUpd = array(
-	      'Qty'=>$qLeft,
-	      'WhenChanged'=>'NOW()'
-	      );
-	    $this->Update($arUpd);
-
-	    $oEvent->Finish();
-	}
-    }
     /*----
       ACTION: count all (active, valid) stock in the current recordset
       INPUT: recordset
@@ -829,16 +786,27 @@ class VCR_StkLine extends vcAdminRecordset {
 	}
 	return $arOut;
     }
-    /*-----
-      ACTION: Move this stock item line to the given bin and log the change
-    */
-    public function MoveToBin($idBin,$sDescr=NULL) {
-	$rcEv = $this->LogStart_MoveToBin($idBin,$sDescr);
-	$arUpd = array(
-	  'ID_Bin'	=> $idBin,
-	  'WhenChanged'	=> 'NOW()');
-	$this->Update($arUpd);
-	$rcEv->Finish();
+
+    // -- DATA READ -- //
+    // ++ DATA WRITE ++ //
+
+    public function GetStorableValues_toInsert() {
+	$ar = parent::GetStorableValues_toInsert();
+	$ar['WhenAdded'] = time();
+	return $ar;
+    }
+    public function GetStorableValues_toUpdate() {
+	$ar = parent::GetStorableValues_toUpdate();
+	$ar['WhenChanged'] = time();
+	
+	$idBinOld = $rc->BinID();
+	$idBinNew = $ar['ID_Bin'];
+	if ($idBinNew != $idBinOld) {
+	    //$rc->Log_MoveToBin($idBinNew,'moved manually');
+	    $rc->MoveToBin($idBinNew,'moved manually');	// 2017-05-26 not sure what this does. Log event?
+	}
+
+	return $ar;
     }
     /*----
       ACTION: Logs movement of a single Stock Line directly to another Bin
@@ -853,7 +821,7 @@ class VCR_StkLine extends vcAdminRecordset {
 	$rcEv = $tLog->StartEvent(
 	  $this->Qty(),		// qty being moved
 	  $this->BinID(),	// ID of local bin
-	  clsStkLog::chTypeBin,	// type of other container (=bin)
+	  vctStockLineLog::chTypeBin,	// type of other container (=bin)
 	  $idBin,		// ID of other container (bin)
 	  $id,			// stock line being moved
 	  $id,			// ID of other line
@@ -861,6 +829,40 @@ class VCR_StkLine extends vcAdminRecordset {
 	  NULL			// associated system event (not currently supported here)
 	  );
 	return $rcEv;
+    }
+    
+      //++movement++//
+
+    public function Remove($qTake,vcrStockLineEvent $oEvent=NULL) {
+	$doReally = is_object($oEvent);
+	$qFound = $this->Qty();
+	$qLeft = $qFound - $qTake;
+	$idStockLine = $this->GetKeyValue();
+	if ($doReally) {
+	    $oEvent->SetQtyLineBefore($qFound);
+	    $oEvent->QtyAdded(-$qTake);
+	    $oEvent->StockLineID($idStockLine);
+	    //$oEvent->ItemID($idItem);
+	    $oEvent->Write("removing <b>$qTake</b> from stock line ID $idStockLine: <b>$qFound</b> found, <b>$qLeft</b> remain");
+	    $arUpd = array(
+	      'Qty'=>$qLeft,
+	      'WhenChanged'=>'NOW()'
+	      );
+	    $this->Update($arUpd);
+
+	    $oEvent->Finish();
+	}
+    }
+    /*-----
+      ACTION: Move this stock item line to the given bin and log the change
+    */
+    public function MoveToBin($idBin,$sDescr=NULL) {
+	$rcEv = $this->LogStart_MoveToBin($idBin,$sDescr);
+	$arUpd = array(
+	  'ID_Bin'	=> $idBin,
+	  'WhenChanged'	=> 'NOW()');
+	$this->Update($arUpd);
+	$rcEv->Finish();
     }
     /*----
       USED BY: inventory counting process
@@ -878,7 +880,7 @@ class VCR_StkLine extends vcAdminRecordset {
 	$rcEvent = $tLog->StartEvent(
 	  $idThis,	// stock line
 	  $idBin,	// stock bin
-	  clsStkLog::chTypeBin,	// other type
+	  vctStockLineLog::chTypeBin,	// other type
 	  $idBin,	// other container
 	  $idThis,	// other line
 	  $iDescr,$iQty);
@@ -887,11 +889,11 @@ class VCR_StkLine extends vcAdminRecordset {
 	$arUpd = array(
 	  'Qty'	=> $iQty,
 	  'WhenCounted' => 'NOW()');
-	if ($iQty != $this->Value('Qty')) {
+	if ($iQty != $this->GetFieldValue('Qty')) {
 	    $arUpd['WhenChanged'] = 'NOW()';
 	}
 	if ($iQty == 0) {
-	    $arUpd['WhenRemoved'] = 'NOW()';
+	    $arUpd['WhenCleared'] = 'NOW()';
 	}
 	$this->Update($arUpd);
 
@@ -917,27 +919,28 @@ class VCR_StkLine extends vcAdminRecordset {
 	$idEvent = $tSLog->LogEvent_Start(
 	  $this->GetKeyValue(),		// stock line
 	  $this->Value('ID_Bin'),	// bin
-	  clsStkLog::chTypePkg,	// other type
+	  vctStockLineLog::chTypePkg,	// other type
 	  $iPkg,		// other container
 	  $iPLine,		// other line
 	  $iDescr,$this->Value('Qty'));
 
 	// do quantity calculations
 	$qtyOld = $this->Value('Qty');
-	if ($iQty >= $qtyOld) {
-	    $qtyNew = 0;
-	    $qtyRtn = $qtyOld;
-	    $sqlWhenRemoved = 'NOW()';	// the last units have been removed
-	} else {
+	$isSomeLeft = $iQty < $qtyOld;
+	if ($isSomeLeft) {
 	    $qtyNew = $qtyOld - $iQty;
 	    $qtyRtn = $iQty;
-	    $sqlWhenRemoved = 'NULL';	// still some quantity left
+	} else {
+	    $qtyNew = 0;
+	    $qtyRtn = $qtyOld;
 	}
 	$arUpd = array(
 	  'Qty'		=> $qtyNew,
 	  'WhenChanged'	=> 'NOW()',
-	  'WhenRemoved'	=> $sqlWhenRemoved
 	  );
+	if (!$isSomeLeft) {
+	    $arUpd['WhenCleared'] = 'NOW()';
+	}
 	$this->Update($arUpd);
 	$tSLog->LogEvent_Finish($idEvent);
 	return $qtyRtn;
@@ -968,20 +971,25 @@ class VCR_StkLine extends vcAdminRecordset {
 	$rcEv->Finish();
 	$this->Qty_inStock($qNew);
     }
+    
+      //++movement++//
+    
+    // -- DATA WRITE -- //
+
 
     // -- ACTIONS -- //
     // ++ ADMIN WEB UI ++ //
 
     /*----
       HISTORY:
-	2011-03-29 adapted from clsPackage to VbzAdminStkItem
+	2011-03-29 adapted from vcrAdminPackage (formerly clsPackage) to VbzAdminStkItem
     */
     private $oForm;
     private function PageForm() {
 	// create fields & controls
 
 	if (empty($this->oForm)) {
-	    $oForm = new fcForm_StockLine($this);
+	    $oForm = new fcForm_DB($this);
 
 	      $oField = new fcFormField_Num($oForm,'ID_Item');
 
@@ -998,7 +1006,7 @@ class VCR_StkLine extends vcAdminRecordset {
 
 	      $oField = new fcFormField_Time($oForm,'WhenCounted');
 	      
-	      $oField = new fcFormField_Time($oForm,'WhenRemoved');
+	      $oField = new fcFormField_Time($oForm,'WhenCleared');
 	      
 	      $oField = new fcFormField_Num($oForm,'Cost');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>5));
@@ -1028,7 +1036,7 @@ $sTplt = <<<__END__
       <tr><td align=right><b>Added</b>:</td><td>[[WhenAdded]]</td></tr>
       <tr><td align=right><b>Changed</b>:</td><td>[[WhenChanged]]</td></tr>
       <tr><td align=right><b>Counted</b>:</td><td>[[WhenCounted]]</td></tr>
-      <tr><td align=right><b>Removed</b>:</td><td>[[WhenRemoved]]</td></tr>
+      <tr><td align=right><b>Removed</b>:</td><td>[[WhenCleared]]</td></tr>
     </table>
   </td></tr>
   <tr><td align=right><b>Cost</b>:</td><td>[[Cost]]</td></tr>
@@ -1165,23 +1173,22 @@ __END__;
 __END__;
 	    $isOdd = FALSE;
 	    while ($this->NextRow()) {
-		if ($this->IsRemoved()) {
-		    $cssClass = 'void';
-		} elseif (!$this->BinRecord()->IsEnabled()) {
-		    $cssClass = 'inact';
-		} else {
+	//	if ($this->BinRecord()->IsEnabled()) {
+		if ($this->BinRecord()->HasActivePlace()) {
 		    $isOdd = !$isOdd;
 		    $cssClass = $isOdd?'odd':'even';
+		} else {
+		    $cssClass = 'inact';
 		}
 		$htID = $this->SelfLink();
 		$htItem = $this->LCItemRecord()->SelfLink_friendly();
-		$htQty = $this->Value('Qty');
+		$htQty = $this->GetQty();
 		$htBin = $this->BinRecord()->SelfLink_name();
-		$htWhenAdd = $this->Value('WhenAdded');
-		$htWhenChg = $this->Value('WhenChanged');
-		$htWhenCnt = $this->Value('WhenCounted');
-		$htWhenRmv = $this->Value('WhenRemoved');
-		$htCost = $this->Value('Cost');
+		$htWhenAdd = $this->GetFieldValue('WhenAdded');
+		$htWhenChg = $this->GetFieldValue('WhenChanged');
+		$htWhenCnt = $this->GetFieldValue('WhenCounted');
+		$htWhenClr = $this->WhenCleared();
+		$htCost = $this->GetFieldValue('Cost');
 
 		$out .= <<<__END__
 
@@ -1193,11 +1200,11 @@ __END__;
     <td>$htWhenAdd</td>
     <td>$htWhenChg</td>
     <td>$htWhenCnt</td>
-    <td>$htWhenRmv</td>
+    <td>$htWhenClr</td>
     <td>$htCost</td>
   </tr>
 __END__;
-		$sNotes = $this->Value('Notes');
+		$sNotes = $this->GetFieldValue('Notes');
 		if (!is_null($sNotes)) {
 		    $out .= "<tr class=$cssClass><td></td><td colspan=8>$sNotes</td></tr>";
 		}

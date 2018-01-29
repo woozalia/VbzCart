@@ -5,9 +5,10 @@
     2010-10-17 Extracted restock classes from SpecialVbzAdmin.php
     2013-12-15 Adapting for dropin-module system.
     2015-12-31 Split request.php into request.logic.php and request.admin.php
+    2017-03-28 y2017 remediation
 */
 
-class VCT_RstkReqs extends vctRstkReqs {
+class vctAdminRstkReqs extends vctRstkReqs implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
     use vtRestockTable_admin;
 
@@ -15,7 +16,7 @@ class VCT_RstkReqs extends vctRstkReqs {
     
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_RstkReq';
+	return 'vcrAdminRstkReq';
     }
     // CEMENT
     public function GetActionKey() {
@@ -23,19 +24,26 @@ class VCT_RstkReqs extends vctRstkReqs {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminRows();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminRows();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ TRAIT HELPERS ++ //
 
-    // RETURNS: recordset that includes all fields needed for admin functions
+    /*----
+      RETURNS: recordset that includes all fields needed for admin functions
+      TODO: rename this so it doesn't sound like a rendering method (2017-02-28)
+    */
     protected function AdminRecords($sqlWhere,$sqlOrder) {
 	if ($this->PageOption_ShowOnlyActive()) {
 	    $rs = $this->RowsActive($sqlWhere,$sqlOrder);
@@ -74,13 +82,43 @@ class VCT_RstkReqs extends vctRstkReqs {
     
 }
 
-class VCR_RstkReq extends vcrRstkReq {
+class vcrAdminRstkReq extends vcrRstkReq implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftFrameworkAccess;
-    use ftLinkableRecord;
+    use ftLinkableRecord, ftSaveableRecord;
     use ftLoggableRecord;
-    use vtLoggableAdminObject;
     use vtRestockRecords_admin;
+    use ftExecutableTwig;
 
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	if ($this->IsNew()) {
+	    $sTitle = 'rstk req: new';
+	    $htTitle = 'Enter new Restock Request';
+	} else {
+	    $sOurPO = $this->OurPurchaseOrderNumber();
+	    $id = $this->GetKeyValue();
+	    $sTitle = "rstk req PO#$sOurPO ($id)"; 
+	    $htTitle = "Restock Request $sOurPO (ID $id)";
+	}
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
+
+    // -- EVENTS -- //
     // ++ TRAIT HELPERS ++ //
 
     public function SelfLink_name($arArgs=NULL) {
@@ -90,26 +128,7 @@ class VCR_RstkReq extends vcrRstkReq {
     }
 
     // -- TRAIT HELPERS -- //
-    // ++ CALLBACKS ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
-	return $this->AdminPage();
-    }
-    // CALLBACK for dropdown box display
-    public function ListItem_Text() {
-	return $this->SummaryLine_short();
-    }
-    // CALLBACK for AdminRows_forItem()
-    public function SortingKey() {
-	$dtCreated = $this->Value('WhenCreated');
-	return is_null($dtCreated)?($this->Value('WhenOrdered')):$dtCreated;
-    }
-
-    // -- CALLBACKS -- //
-    // ++ CLASS NAMES ++ //
+    // ++ CLASSES ++ //
 
     protected function ReceivedsClass($id=NULL) {
 	return KS_ADMIN_CLASS_RESTOCKS_RECEIVED;
@@ -118,7 +137,7 @@ class VCR_RstkReq extends vcrRstkReq {
 	return KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS;
     }
     
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ ARRAY CALCULATIONS ++ //
     
     // PUBLIC so Table object can use it
@@ -161,6 +180,15 @@ class VCR_RstkReq extends vcrRstkReq {
     // -- ARRAY CALCULATIONS -- //
     // ++ FIELD CALCULATIONS ++ //
     
+    // CALLBACK for dropdown box display
+    public function ListItem_Text() {
+	return $this->SummaryLine_short();
+    }
+    // CALLBACK for AdminRows_forItem()
+    public function SortingKey() {
+	$dtCreated = $this->GetFieldValue('WhenCreated');
+	return is_null($dtCreated)?($this->GetFieldValue('WhenOrdered')):$dtCreated;
+    }
     protected function SupplierLink() {
 	if ($this->HasSupplier()) {
 	    return $this->SupplierRecord()->SelfLink_name();
@@ -302,16 +330,43 @@ __END__;
     //+single+//
     
     public function AdminPage() {
-	$oPage = $this->PageObject();
-	
+	$oFormIn = fcHTTP::Request();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+
+	$doSave = $oFormIn->GetBool('btnSave');
+	if ($doSave) {
+	    $this->PageForm()->Save();
+	    $this->SelfRedirect();
+	}
+
 	$isNew = $this->IsNew();
 	
 	$frm = $this->PageForm();
 	if ($isNew) {
 	    $frm->ClearValues();
+	    //$sTitle = 'rstk req: new';
+	    //$htTitle = 'Enter new Restock Request';
 	} else {
 	    $frm->LoadRecord();
+	    //$sOurPO = $this->OurPurchaseOrderNumber();
+	    //$id = $this->GetKeyValue();
+	    //$sTitle = "rstk req PO#$sOurPO ($id)"; 
+	    //$htTitle = "Restock Request $sOurPO (ID $id)";
 	}
+	
+	//$oApp = fcApp::Me();
+	//$oApp->GetPageObject()->SetBrowserTitle($sTitle);
+	//$oApp->GetPageObject()->SetContentTitle($htTitle);
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit restock request'));
+	    $doEdit = $ol->GetIsSelected();
+	  $oMenu->SetNode($ol = new fcMenuOptionLink('do','enter',NULL,NULL,'enter things'));
+	    // presumably I'll remember what "things" when this code is working again...
+	    $doEnter = $ol->GetIsSelected();
+
+	/* old
 	$arActs = array(
 	  new clsActionLink_option(array(),'edit'),
 	  new clsActionLink_option(array(),	// show controls for entering things
@@ -324,29 +379,24 @@ __END__;
 
 	  );
 	$oPage->PageHeaderWidgets($arActs);
-	if ($this->IsNew()) {
-	    $sTitle = 'Enter new Restock Request';
-	} else {
-	    $sTitle = 'Restock Request '.$this->OurPurchaseOrderNumber().' (ID '.$this->GetKeyValue().')';
-	}
 	$oPage->TitleString($sTitle);
-	
-	$out = NULL;
 
 	$strAction = $oPage->PathArg('do');
 	$doEdit = $oPage->PathArg('edit');
+	*/
+	
+	$out = NULL;
+
 	$doForm = $doEdit || $isNew;
-	$doSave = $oPage->ReqArgBool('btnSave');
-	if ($doSave) {
-	    $this->PageForm()->Save();
-	    $this->SelfRedirect();
-	}
 
 	$doActBox = FALSE;
 	$doAction = FALSE;
 	$doStamp = FALSE;
 	$doEnter = FALSE;
-	$strType = $oPage->PathArg('type');
+	
+	// TODO: this should probably be done with menu objects; figure out later
+	$strAction = $oPathIn->GetString('do');
+	$strType = $oPathIn->GetString('type');
 	switch ($strAction) {
 	  case 'mark':
 	    $doActBox = TRUE;
@@ -362,7 +412,7 @@ __END__;
 	    break;
 */
 	}
-	if ($oPage->ReqArgBool('btnStamp')) {
+	if ($oFormIn->GetBool('btnStamp')) {
 	    $doActBox = TRUE;
 	    $doAction = TRUE;
 	    $doStamp = TRUE;	// receive timestamp data and use it
@@ -399,6 +449,10 @@ __END__;
 	    }
 
 	    $htForm = NULL;
+	    // 2017-04-10 I'm not sure why you'd want to do anything here if $strType isn't even set
+	    if (empty($strType)) {
+		$doEnter = FALSE;
+	    }
 	    if ($doEnter) {
 		switch ($strType) {
 		  case 'items':
@@ -409,11 +463,14 @@ __END__;
 		    $out .= $this->EnterRecd();
 		    break;
 */
+		  default:
+		    $htEnter = "UNKNOWN ENTRY TYPE: [$strType]";
 		}
 		$out .= "\n<table align=right class=listing><tr><td>$htEnter</td></tr></table>";
 	    }
 
 	    /* 2016-01-18 I... don't get what $doStamp was for.
+	    2017-04-10 It's used below -- apparently this and another commented-out bit put the output in a table.
 	    
 	    if ($doStamp) {
 		// we do stamps in a box
@@ -453,7 +510,7 @@ __END__;
 		} */
 		if ($doEnter) {
 		    // 2016-01-18 This should probably be rewritten using the text parser thingy.
-		    $txtList = $oPage->ReqArgArray('items');
+		    $txtList = $oFormIn->GetArray('items');
 		    $xts = new xtString($txtList);
 		    $xts->ReplaceSequence("\t ",' ');
 		    $txtList = $xts->Value();
@@ -474,13 +531,13 @@ __END__;
 		}
 	    } else {
 		if ($doStamp) {
-		    $arLink = $oPage->PathArgs(array('page','id'));
-		    $txtNotes = $oPage->ReqArgText('notes');
-		    $urlForm = $oPage->SelfURL($arLink,TRUE);
+		    $txtNotes = $oPage->ReqArgText(KS_FERRETERIA_FIELD_EDIT_NOTES);
+		    
 		    $out .= 
-		      '<form method=post action="'.$urlForm.'">'
+//		      '<form method=post action="'.$urlForm.'">'
+		      '<form method=post>'
 		      .'Log notes:<br>'
-		      .'<textarea rows=3 cols=30 name=notes>'
+		      .'<textarea rows=3 cols=30 name='.KS_FERRETERIA_FIELD_EDIT_NOTES.'>'
 			.fcString::EncodeForHTML($txtNotes)
 		      .'</textarea>'
 		      .$htXtra
@@ -509,12 +566,12 @@ __END__;
 	    $isActive = $this->IsActive();
 	    
 	    $fMarkLink = function($sField,$sText,$sPopup) use ($isActive,&$arLink,&$arCtrls) {
-		$sVal = $this->Value($sField);
+		$sVal = $this->GetFieldValue($sField);
 		if ($isActive && is_null($sVal)) {
 		    $arLink['type'] = $sText;
 		    $url = $this->SelfURL($arLink);
-		    $htLink = clsHTML::BuildLink($url,'stamp',$sPopup);
-		    $arCtrls[$sField] = ifEmpty($sVal,'['.$htLink.']');
+		    $htLink = fcHTML::BuildLink($url,'stamp',$sPopup);
+		    $arCtrls[$sField] = empty($sVal)?('['.$htLink.']'):$sVal;
 		}
 	    };
 	    
@@ -531,7 +588,7 @@ __END__;
 	    if ($isActive && is_null($sVal)) {
 		$arLink['type'] = 'order';
 		$url = $this->SelfURL($arLink);
-		$htLink = clsHTML::BuildLink($url,'stamp','mark as ordered');
+		$htLink = fcHTML::BuildLink($url,'stamp','mark as ordered');
 		$arCtrls['WhenOrdered'] = ifEmpty($sVal,'['.$htLink.']');
 	    }
 	    
@@ -539,13 +596,13 @@ __END__;
 	    if ($isActive && is_null($sVal)) {
 		$arLink['type'] = 'confirm';
 		$url = $this->SelfURL($arLink);
-		$htLink = clsHTML::BuildLink($url,'stamp','mark order as confirmed');
+		$htLink = fcHTML::BuildLink($url,'stamp','mark order as confirmed');
 		$arCtrls['WhenConfirmed'] = ifEmpty($sVal,'['.$htLink.']');
 	    }*/
 	    
 	    // TODO: other timestamps
 	}
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 	
 	if ($doForm) {
@@ -557,12 +614,14 @@ __END__;
 	}
 	
 	if (!$isNew) {
+	    $oHdrItems = new fcSectionHeader('Items in Request');
+	    $oHdrEvents = new fcSectionHeader('Event Log');
 	    $out .=
 	      //$oPage->ActionHeader('Shipments Received')
 	      $this->AdminReceived($this->GetKeyValue())
-	      .$oPage->ActionHeader('Items in Request')
+	      .$oHdrItems->Render()
 	      .$this->AdminItems()
-	      .$oPage->ActionHeader('Event Log')
+	      .$oHdrEvents->Render()
 	      .$this->EventListing()
 	      ;
 	}
@@ -573,7 +632,6 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<div class="form-block">
 <table class=listing><tr><td>
 <ul>
 <li> <b>Our PO#</b>: [[PurchOrdNum]]	</li>
@@ -602,7 +660,6 @@ __END__;
 <li> <b>Notes</b>: [[Notes]]
 </ul>
 </td></tr></table>
-</div>
 __END__;
 	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
 	}
@@ -621,11 +678,11 @@ __END__;
 	    
 		$oField = new fcFormField_Num($frm,'ID_Supplier');
 		    $oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		    $oCtrl->Records($this->SupplierRecords_all());
+		    $oCtrl->SetRecords($this->SupplierRecords_all());
 		    
 		$oField = new fcFormField_Num($frm,'ID_Warehouse');
 		    $oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		    $oCtrl->Records($this->WarehouseRecords_all());
+		    $oCtrl->SetRecords($this->WarehouseRecords_all());
 		    
 		$oField = new fcFormField_Text($frm,'PurchOrdNum');
 		    $oCtrl = new fcFormControl_HTML_Text($oField,array('size'=>'10'));
@@ -686,7 +743,7 @@ __END__;
     */
     protected function AdminItems() {
 	$out = '';
-	$rsLine = $this->RequestItemTable()->GetData('ID_Parent='.$this->GetKeyValue());
+	$rsLine = $this->RequestItemTable()->SelectRecords('ID_Parent='.$this->GetKeyValue());
 	if ($rsLine->hasRows()) {
 	
 	    // links to help pages
@@ -726,11 +783,11 @@ __END__;
 __END__;
 	    $tItems = $this->CatalogItemTable();
 	    while ($rsLine->NextRow()) {
-		$idItem = $rsLine->Value('ID_Item');
-		$rcItem = $tItems->GetItem($idItem);
-		$key = $rcItem->Value('CatNum');
+		$idItem = $rsLine->GetFieldValue('ID_Item');
+		$rcItem = $tItems->GetRecord_forKey($idItem);
+		$key = $rcItem->GetFieldValue('CatNum');
 		$arSort[$key]['item'] = $rcItem;
-		$arSort[$key]['line'] = $rsLine->Values();
+		$arSort[$key]['line'] = $rsLine->GetFieldValues();
 	    }
 	    ksort($arSort);
 
@@ -738,21 +795,21 @@ __END__;
 	    $rcLine = $rsLine;	// need a line record-object
 	    foreach ($arSort as $key => $data) {
 		$rcItem = $data['item'];
-		$rcLine->Values($data['line']);
+		$rcLine->SetFieldValues($data['line']);
 
 		$cssClass = $isOdd?'odd':'even';
 		$isOdd = !$isOdd;
 
 		$ftID = $rcLine->SelfLink();
 		$ftItem = $rcItem->SelfLink($rcItem->CatNum());
-		$ftDescr = $rcLine->Value('Descr');
-		$qtyNeed = $rcLine->Value('QtyNeed');
-		$qtyCust = $rcLine->Value('QtyCust');
-		$qtyOrd = $rcLine->Value('QtyOrd');
-		$qtyExp = $rcLine->Value('QtyExp');
-		$ftIsGone = clsHTML::fromBool($rcLine->Value('isGone'));
-		$ftCostExp = vcCartLine_form::FormatMoney($rcLine->Value('CostExpPer'));
-		$strNotes = $rcLine->Value('Notes');
+		$ftDescr = $rcLine->GetFieldValue('Descr');
+		$qtyNeed = $rcLine->GetFieldValue('QtyNeed');
+		$qtyCust = $rcLine->GetFieldValue('QtyCust');
+		$qtyOrd = $rcLine->GetFieldValue('QtyOrd');
+		$qtyExp = $rcLine->GetFieldValue('QtyExp');
+		$ftIsGone = fcHTML::fromBool($rcLine->GetFieldValue('isGone'));
+		$ftCostExp = vcCartLine_form::FormatMoney($rcLine->GetFieldValue('CostExpPer'));
+		$strNotes = $rcLine->GetFieldValue('Notes');
 
 		$out .= <<<__END__
   <tr class="$cssClass">
@@ -776,8 +833,11 @@ __END__;
 	//$arLink = $oPage->PathArgs(array('page','id'));
 	$arLink['do'] = 'enter';
 	$arLink['type'] = 'items';
+	/*
 	$oPage = $this->Engine()->App()->Page();
 	$out .= ' [<a href="'.$oPage->SelfURL($arLink,TRUE).'">enter items</a>]';
+	*/
+	$out .= ' [<a href="'.$this->SelfURL($arLink).'">enter items</a>]';
 	return $out;
     }
     protected function RenderEnterItemsForm() {
@@ -797,7 +857,7 @@ __END__;
     protected function AdminReceived() {
 	$id = $this->GetKeyValue();
 	$rc = $this->ReceivedRecords();
-	$rc->RequestID($id);	// so it can correctly render "new" link
+	$rc->SetRequestID($id);	// so it can correctly render "new" link
 	$out = $rc->AdminRows();
 
 	if (is_null($out)) {
@@ -805,7 +865,7 @@ __END__;
 	}
 
 	// include action link for creating new received restock
-	$rcNew = $rc->Table()->SpawnItem();
+	$rcNew = $rc->GetTableWrapper()->SpawnRecordset();
 	//$arArgs = array('req'=>$id);
 	//$out .= '[ '.$rcNew->SelfLink('add','add a received restock shipment',$arArgs).' ]';
 

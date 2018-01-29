@@ -3,14 +3,14 @@
   HISTORY:
     2014-02-13 split card classes off from cust.php
 */
-class VCT_CustCards extends clsCustCards_dyn {
+class vctAdminCustCards extends vctCustCards_dyn implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_CustCard';
+	return 'vcrAdminCustCard';
     }
     // CEMENT
     public function GetActionKey() {
@@ -18,16 +18,20 @@ class VCT_CustCards extends clsCustCards_dyn {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ ADMIN WEB UI ++ //
 
     protected function AdminPage() {
@@ -361,20 +365,32 @@ class VCT_CustCards extends clsCustCards_dyn {
 
     // -- ADMIN WEB ACTIONS -- //
 }
-class VCR_CustCard extends clsCustCard {
+class vcrAdminCustCard extends vcrCustCard implements fiLinkableRecord {
     use ftLinkableRecord;
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
     use ftShowableRecord;
     
-    // ++ BOILERPLATE HELPERS ++ //
-
+    // ++ FIELD CALCULATIONS ++ //
+    
     // PUBLIC so Orders can easily show links to CustCards
     public function SelfLink_name() {
-	$sText = $this->SafeString();
+	$sText = $this->GetSafeString();
 	return $this->SelfLink($sText);
     }
-
-    // -- BOILERPLATE HELPERS -- //
+    
+    // THESE NEED ADAPTING
+    
+    // CALLBACK for dropdown Control
+    public function ListItem_Text() {
+	// first approximation:
+	return $this->GetSafeString();
+    }
+    // CALLBACK for dropdown Control
+    public function ListItem_Link() {
+	return $this->SelfLink_name();
+    }
+    
+    // -- FIELD CALCULATIONS -- //
     // ++ DROP-IN API ++ //
 
     /*----
@@ -444,7 +460,7 @@ class VCR_CustCard extends clsCustCard {
     // ++ DATA CLASS NAMES ++ //
     
     protected function AddressesClass() {
-	return KS_CLASS_MAIL_ADDRS;
+	return KS_CLASS_MAIL_ADDRS_ADMIN;
     }
     
     // -- DATA CLASS NAMES -- //
@@ -457,7 +473,7 @@ class VCR_CustCard extends clsCustCard {
 	return $this->Engine()->Make($this->AddressesClass(),$id);
     }
     protected function NameTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_CUST_NAMES,$id);
+	return $this->Engine()->Make(KS_CLASS_CUST_NAMES_ADMIN,$id);
     }
 
     // -- DATA TABLE ACCESS -- //
@@ -530,7 +546,7 @@ class VCR_CustCard extends clsCustCard {
 	    } else {
 		$htSelect = '';
 	    }
-	    $out .= '<option'.$htSelect.' value="'.$id.'">'.$this->SafeString().'</option>';
+	    $out .= '<option'.$htSelect.' value="'.$id.'">'.$this->GetSafeString().'</option>';
 	}
 	$out .= '</option>';
 	return $out;
@@ -539,6 +555,9 @@ class VCR_CustCard extends clsCustCard {
     // -- WEB UI WIDGETS -- //
     // ++ ADMIN WEB UI ++ //
 
+    protected function AdminRows_settings_columns() {
+	throw new exception('2017-04-16 Is this actually being called?');
+    }
     public function AdminPage() {
 
 	if (clsHTTP::Request()->getBool('btnSave')) {

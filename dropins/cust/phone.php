@@ -2,19 +2,31 @@
 /*
   HISTORY:
     2014-02-13 split phone classes off from cust.php
+    2017-01-28 y2017 remediation
 */
-class clsAdminCustPhones extends clsCustPhones {
-    /*----
-      HISTORY:
-	2011-04-17 added ActionKey()
-    */
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('clsAdminCustPhone');
-	  $this->ActionKey('cust.phone');
+class vctAdminCustPhones extends vctCustPhones implements fiEventAware, fiLinkableTable {
+    use ftLinkableTable;
+
+    // ++ SETUP ++ //
+
+    protected function SingularName() {
+	return 'vcrAdminCustPhone';
     }
+    public function GetActionKey() {
+	return KS_ACTION_CUST_PHONE;
+    }
+
+    // -- SETUP -- //
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
+	return 'Nothing written yet.'; 	// should probably be a search function with a regex option
+    }
+
+    // -- EVENTS -- //
 }
-class clsAdminCustPhone extends clsCustPhone {
+class vcrAdminCustPhone extends vcrCustPhone {
     /* @@@@
       SECTION: BOILERPLATE - event logging
     */
@@ -184,7 +196,7 @@ class clsAdminCustPhone extends clsCustPhone {
     public function Fields_forUpdate() {
 	return array(
 	  'WhenUpd' => 'NOW()',
-	  'PhoneSrch' => SQLValue(nz(clsCustPhones::Searchable($this->Number()))),	// this may not work the first time
+	  'PhoneSrch' => SQLValue(nz(vctCustPhones::Searchable($this->Number()))),	// this may not work the first time
 	  );
     }
 }

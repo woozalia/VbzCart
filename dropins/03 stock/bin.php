@@ -4,78 +4,60 @@
   HISTORY:
     2014-03-22 extracted Bin classes from place.php
 */
-class VCM_StockBins extends vcAdminTable {
+class vctAdminStockBins extends vctStockBins implements fiEventAware, fiLinkableTable, fiInsertableTable {
+    use ftLinkableTable;
+    use ftLoggableTable;
+    use ftExecutableTwig;
 
     // ++ SETUP ++ //
 
-    protected function TableName() {
-	return 'stk_bins';
-    }
     protected function SingularName() {
-	return 'VCM_StockBin';
+	return 'vcrAdminStockBin';
     }
     public function GetActionKey() {
 	return KS_ACTION_STOCK_BIN;
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Stock Bins');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
-    public function Listing() {
-	throw new exception('2017-01-05 Call MenuExec() instead of Listing().');
-    }
-    /* 2017-01-05 This isn't how arguments are passed anymore.
-    protected function Arg($sName) {
-	if (is_array($this->arArgs) && array_key_exists($sName,$this->arArgs)) {
-	    return $this->arArgs[$sName];
-	} else {
-	    return NULL;
-	}
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->AdminPage();
     } */
 
-    // -- DROP-IN API -- //
-    // ++ BOILERPLATE: cache management (table) ++ //
-
-    /*----
-      PURPOSE: intercepts the Update() function to update the cache timestamp
-    */
-    public function Update(array $iSet,$iWhere=NULL) {
-	parent::Update($iSet,$iWhere);
-	$this->CacheStamp();
-    }
-    /*----
-      ACTION: update the cache record to show that this table has been changed
-      NOTES:
-	Must be public so it can be called by recordset type.
-    */
-    public function CacheStamp() {
-	$objCache = $this->Engine()->CacheMgr();
-	$objCache->UpdateTime_byTable($this);
+    // -- EVENTS -- //
+    // ++ TABLES ++ //
+    
+    protected function BinInfoTable() {
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_BINS_INFO);
     }
 
-    // -- BOILERPLATE -- //
-    // ++ DATA RECORDS ++ //
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
 
-    /*----
-      RETURNS: Dataset of active bins
-    */
-    public function GetActive() {
-	$objRows = $this->GetData('(WhenVoided IS NULL) AND isForShip',NULL,'Code');
-	return $objRows;
-    }
     /*----
       RETURNS: Dataset with extra information
+      HISTORY:
+	2017-03-23 now using a query object rather than a stored query
     */
-    public function DataSet_Info($iFilt=NULL) {
-	$sqlFilt = is_null($iFilt)?'':' WHERE '.$iFilt;
-	$sql = 'SELECT * FROM qryStk_Bins_w_info'.$sqlFilt.' ORDER BY Code';
-	$rs = $this->DataSQL($sql);
+    public function SelectInfoRecords($sqlFilt=NULL) {
+	//$sqlFilt = is_null($iFilt)?'':' WHERE '.$iFilt;
+	//$sql = 'SELECT * FROM qryStk_Bins_w_info'.$sqlFilt.' ORDER BY Code';
+	$tInfo = $this->BinInfoTable();
+	$rs = $tInfo->SelectStatusRecords($sqlFilt);
 	return $rs;
     }
     public function Search_byCode($sCode) {
@@ -84,8 +66,8 @@ class VCM_StockBins extends vcAdminTable {
 	return $rs;
     }
 
-    // -- DATA RECORDS -- //
-    // ++ DATA ARRAYS ++ //
+    // -- RECORDS -- //
+    // ++ ARRAYS ++ //
 
     /*----
       ACTION: Returns stock data for the given list of items
@@ -94,6 +76,7 @@ class VCM_StockBins extends vcAdminTable {
 	a use for this.
     */
     public function Info_forItems(array $iItems) {
+	throw new exception('2017-03-23 Is anything still calling this? It will need updating.');
 	$sqlList = NULL;
 	foreach ($iItems as $id) {
 	    if (!is_null($sqlList)) {
@@ -126,13 +109,14 @@ class VCM_StockBins extends vcAdminTable {
 	return $arOut;
     }
 
-    // -- DATA ARRAYS -- //
+    // -- ARRAYS -- //
     // ++ CALCULATIONS ++ //
 
     /*----
       NOTE: For listing multiple items, use Info_forItems()
     */
     public function Qty_ofItem($idItem) {
+	throw new exception('2017-03-16 This will need fixing also.');
 	$sql = "SELECT QtyExisting FROM qryStk_items_remaining WHERE ID_Item=$idItem";
 	$objRow = $this->Engine()->DataSet($sql);
 	if ($objRow->HasRows()) {
@@ -153,6 +137,7 @@ class VCM_StockBins extends vcAdminTable {
       FILTER: Does not show voided Bins, but does not check if Place is active.
     */
     public function DropDown($iName=NULL,$iDefault=NULL,$iFilt='WhenVoided IS NULL',$iSort='Code') {
+	throw new exception('2017-03-23 Is anything still calling this? It will need updating.');
 	$objRows = $this->GetData($iFilt,NULL,$iSort);
 	$strName = is_null($iName)?($this->ActionKey()):$iName;
 	return $objRows->DropDown($strName,$iDefault);
@@ -168,6 +153,7 @@ class VCM_StockBins extends vcAdminTable {
 	array[sort]: SQL to use for sorting (ORDER BY clause)
     */
     public function DropDown_active(array $iArgs=NULL) {
+	throw new exception('2017-03-23 Is anything still calling this? It will need updating.');
 	// set up input parameters
 	$iName		= empty($iArgs['name'])	? ($this->ActionKey()) 	: $iArgs['name'];
 	$iDefault	= empty($iArgs['def'])	? NULL 			: $iArgs['def'];
@@ -178,23 +164,11 @@ class VCM_StockBins extends vcAdminTable {
 	$rs = $this->GetData($iFilt,NULL,$iSort);
 	$strName = is_null($iName)?($this->ActionKey()):$iName;
 
-	$fnFilt = function(VCM_StockBin $rcBin) {
-	    return $rcBin->PlaceRecord()->IsActive();
+	$fnFilt = function(vcrAdminStockBin $rcBin) {
+	    return $rcBin->PlaceRecord()->IsActivated();
 	};
 
 	return $rs->DropDown($iName,$iDefault,$iChoose,$fnFilt);
-    }
-    /*-----
-      ACTION:
-	Render table of all bins within the given Place
-	Show form to allow user to move selected bins
-    */
-    public function List_forPlace($idPlace) {
-	$sqlFilt = 'ID_Place='.$idPlace;
-
-	$rs = $this->DataSet_Info($sqlFilt);
-	$out = $rs->AdminList($idPlace);
-	return $out;
     }
     /*----
       ACTION: Displays all bins
@@ -202,83 +176,56 @@ class VCM_StockBins extends vcAdminTable {
       HISTORY:
 	2011-03-03 renamed from ListPage() to AdminPage(), to work with menu regularization
     */
-    public function AdminPage($iFilt=NULL) {
-	$rs = $this->DataSet_Info($iFilt);
-	return $rs->AdminList(NULL);
+    public function AdminPage($sqlFilt=NULL) {
+	$rs = $this->SelectInfoRecords($sqlFilt);
+	return $rs->AdminList(NULL)
+	  . $this->EventListing()
+	  ;
     }
 
     // -- ADMIN WEB UI -- //
 
 }
-class VCM_StockBin extends vcAdminRecordset {
+class vcrAdminStockBin_trait extends  vcrStockBin {
+    use ftSaveableRecord;	// we need to override GetStorableValues_toInsert()
+}
+class vcrAdminStockBin extends vcrAdminStockBin_trait implements fiLinkableRecord, fiEventAware, fiEditableRecord {
+    use ftLinkableRecord;
+    use ftLoggableRecord;
+    use vtAdminStockBin;
+    use ftExecutableTwig;
 
-    // ++ BOILERPLATE: cache management (recordset) ++ //
-
-    /*----
-      ACTION: update the cache record to show that this table has been changed
-    */
-    protected function CacheStamp($iCaller) {
-	$this->Table()->CacheStamp($iCaller);
-    }
-    /*----
-      PURPOSE: intercepts the Update() function to update the cache timestamp
-    */
-    public function Update(array $iSet,$iWhere=NULL) {
-	parent::Update($iSet,$iWhere);
-	$this->CacheStamp(__METHOD__);
-    }
-
-    // -- BOILERPLATE -- //
-    // ++ TRAIT HELPERS ++ //
-
-    public function SelfLink_name() {
-	$ftLink = $this->SelfLink($this->Name());
-
-	$htStyleActv = NULL;
-	$sDescr = NULL;
-	$isActive = $this->IsActive();
-	$isEnabled = $this->IsEnabled();
-	if (!$isActive) {	// voided
-	    $sDescr .= 'voided ';
-	    $htStyleActv = 'text-decoration: line-through;';
-	}
-	if (!$isEnabled) {	// Place is invalid
-	    $sDescr .= 'place-invalid';
-	    $htStyleActv .= ' background-color: #aaaaaa;';
-	}
-
-	$ftSfx = NULL;
-	$isValid = $this->IsValid();
-	if ($isValid != $isEnabled) {
-	    $ftStat = $isValid?'enabled':'disabled';
-	    $ftSfx .= ' <span title="update needed - should be '.$ftStat.'" style="color: red; font-weight: bold;">!!</span>';
-	}
-
-	if (is_null($htStyleActv)) {
-	    return $ftLink.$ftSfx;
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	if ($this->IsNew()) {
+	    $doEdit = TRUE;
+	    $sCode = NULL;
+	    $htTitle = 'New bin';
+	    $sTitle = $htTitle;
 	} else {
-	    return '<span style="'.$htStyleActv.'" title="'.$sDescr.'">'.$ftLink.'</span>'.$ftSfx;
+	    $id = $this->GetKeyValue();
+	    $sCode = $this->GetFieldValue('Code');
+	    $htTitle = "Stock Bin $id - $sCode";
+	    $sTitle = "$sCode (bin $id)";
+	    //$sName = $sCode;
 	}
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
     }
-
-    // -- TRAIT HELPERS -- //
-    // ++ FRAMEWORK ++ //
-    
-    protected function PageObject() {
-	return $this->Engine()->App()->Page();
-    }
-    
-    // -- FRAMEWORK -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ CLASS NAMES ++ //
 
     protected function CTitlesClass() {
@@ -295,9 +242,6 @@ class VCM_StockBin extends vcAdminRecordset {
 	    return KS_LOGIC_CLASS_LC_ITEMS;
 	}
     }
-    protected function PlacesClass() {
-	return KS_CLASS_STOCK_PLACES;
-    }
     protected function StockLinesClass() {
 	return KS_CLASS_STOCK_LINES;
     }
@@ -305,9 +249,6 @@ class VCM_StockBin extends vcAdminRecordset {
     // -- CLASS NAMES -- //
     // ++ TABLES ++ //
 
-    protected function PlaceTable($id=NULL) {
-	return $this->Engine()->Make($this->PlacesClass(),$id);
-    }
     protected function CItemTable($id=NULL) {
 	return $this->Engine()->Make($this->CItemsClass(),$id);
     }
@@ -318,38 +259,19 @@ class VCM_StockBin extends vcAdminRecordset {
 	return $this->Engine()->Make($this->CTitlesClass(),$id);
     }
     protected function BinLog($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_STOCK_BIN_LOG,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_BIN_LOG,$id);
     }
     protected function StockInfoQuery() {
-	return $this->Engine()->Make(KS_CLASS_STOCK_LINES_INFO);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_LINES_INFO);
     }
 
     // -- TABLES -- //
     // ++ RECORDS ++ //
 
-    /*----
-      HISTORY:
-	2011-03-19 Return a Spawned item if ID_Place is not set -- presuming
-	  we need the object for other purposes besides its current values
-    */
-    public function PlaceObj() {
-	throw new exception('PlaceObj() is deprecated; use PlaceRecord() instead.');
-    }
-    /*----
-      PUBLIC because Package object needs it
-    */
-    public function PlaceRecord() {
-	if ($this->HasValue('ID_Place')) {
-	    $idPlc = $this->Value('ID_Place');
-	    $rc = $this->PlaceTable($idPlc);
-	    return $rc;
-	} else {
-	    return $this->PlaceTable()->SpawnItem();
-	}
-    }
     protected function StockRecords() {
-	$sql = '(ID_Bin='.$this->GetKeyValue().') AND (WhenRemoved IS NULL)';
-	$rs = $this->LineTable()->GetData($sql);
+	$id = $this->GetKeyValue();
+	$sql = "(ID_Bin=$id) AND (Qty > 0)";
+	$rs = $this->LineTable()->FetchRecords($sql);
 	return $rs;
     }
     
@@ -363,9 +285,9 @@ class VCM_StockBin extends vcAdminRecordset {
 	$rs = $this->StockRecords();
 	if ($rs->HasRows()) {
 	    while ($rs->NextRow()) {
-		$idItem = $rs->Value('ID_Item');
+		$idItem = $rs->ItemID();
 		$qty = $rs->Qty();
-		clsArray::NzSum($arOut,$idItem,$qty);
+		fcArray::NzSum($arOut,$idItem,$qty);
 	    }
 	} else {
 	    $arOut = NULL;
@@ -377,30 +299,11 @@ class VCM_StockBin extends vcAdminRecordset {
     // ++ FIELD VALUES ++ //
 
     public function Name() {	// alias, for now
-	return $this->Value('Code');
+	throw new exception('2017-03-24 This alias seems like a bad idea. Document necessity if it emerges.');
+	return $this->GetFieldValue('Code');
     }
     protected function Code() {
-	return $this->Value('Code');
-    }
-    /*----
-      RETURNS: value of isEnabled flag
-    */
-    public function IsEnabled() {
-	//return ord($this->Value('isEnabled'));
-	return $this->PlaceRecord()->IsActive();	// 2016-02-24 This could be slow...
-    }
-    protected function IsForSale() {
-	return ord($this->Value('isForSale'));
-    }
-    protected function IsForShip() {
-	return ord($this->Value('isForShip'));
-    }
-    /*----
-      RETURNS: TRUE IFF bin is in an active Place
-	In other words, returns how the isEnabled flag *should* be set.
-    */
-    public function PlaceID($id=NULL) {
-	return $this->Value('ID_Place',$id);
+	return $this->GetFieldValue('Code');
     }
     protected function WhenCreated() {
 	return $this->Value('WhenCreated');
@@ -412,52 +315,6 @@ class VCM_StockBin extends vcAdminRecordset {
     // -- FIELD ACCESS -- //
     // ++ FIELD CALCULATIONS ++ //
     
-    // RETURNS: [NOT VOIDED]
-    public function IsActive() {
-	return empty($this->Value('WhenVoided'));	// sometimes comes up as zero
-    }
-    // RETURNS: [PLACE IS ACTIVE]
-    public function IsValid() {
-	$rcPlace = $this->PlaceRecord();
-	if (is_null($rcPlace)) {
-	    return FALSE;
-	} else {
-	    return $rcPlace->IsActive();
-	}
-    }
-    // RETURNS: [NOT VOIDED] AND [ENABLED]
-    public function IsActive_and_Enabled() {
-	if ($this->IsActive()) {
-	    if ($this->IsEnabled()) {
-		return TRUE;
-	    }
-	}
-	return FALSE;
-    }
-    /*----
-      RETURNS: [NOT VOIDED] AND [ENABLED] AND [PLACE IS ACTIVE]
-      NOTE: I'm inclined to deprecate this in favor of IsUsable().
-    */
-    public function IsRelevant() {
-	if ($this->IsActive_and_Enabled()) {
-	    return $this->IsValid();
-	} else {
-	    return FALSE;
-	}
-    }
-    public function IsUsable() {
-	return $this->IsRelevant();
-    }
-    public function StatusCode() {
-	$out = '';
-	if ($this->IsValid()) {
-	    $out .= 'V';
-	}
-	if ($this->IsActive()) {
-	    $out .= 'A';
-	}
-	return $out;
-    }
     public function NameLong() {
 	$out = $this->Value('Code');
 	$txtDescr = $this->Value('Descr');
@@ -466,7 +323,9 @@ class VCM_StockBin extends vcAdminRecordset {
 	}
 	return $out;
     }
-    protected function Place_isActive() {
+    // PUBLIC so Stock Line records can access it in admin view
+    public function Place_isActive() {
+	throw new exception('2017-04-19 Call HasActivePlace() instead');
 	$rcPlace = $this->PlaceRecord();
 	if (is_null($rcPlace)) {
 	    return FALSE;
@@ -512,6 +371,22 @@ class VCM_StockBin extends vcAdminRecordset {
     }
 
     // -- CALCULATIONS -- //
+    // ++ DATA WRITE ++ //
+    
+    // CALLBACK
+    public function GetStorableValues_toInsert() {
+	$ar = parent::GetStorableValues_toInsert();
+	$ar['WhenCreated'] = time();
+	return $ar;
+    }
+    // CALLBACK
+    public function GetStorableValues_toUpdate() {
+	$ar = parent::GetStorableValues_toUpdate();
+	$ar['WhenEdited'] = time();
+	return $ar;
+    }
+
+    // -- DATA WRITE -- //
     // ++ ACTIONS ++ //
 
     /*----
@@ -519,25 +394,26 @@ class VCM_StockBin extends vcAdminRecordset {
       USAGE: It is the caller's responsibility to ensure that the quantity removed is added somewhere else.
       PUBLIC so that Package can use it to remove items during the packaging process.
     */
-    public function Remove($qty,$idItem,vcrStockEvent $oEvent=NULL) {
+    public function Remove($qty,$idItem,vcrStockLineEvent $oEvent=NULL) {
 	return $this->LineTable()->Remove($qty,$idItem,$this->GetKeyValue(),$oEvent);
     }
-    public function Add($qty,$idItem,vcrStockEvent $oEvent=NULL) {
+    public function Add($qty,$idItem,vcrStockLineEvent $oEvent=NULL) {
 	return $this->LineTable()->Add($qty,$idItem,$this->GetKeyValue(),$oEvent);
     }
     /*----
       ACTION: Move the current bin to the given Place, and log the move
+      NOTE: 2017-05-07 This will probably need to be updated to use EventPlex.
     */
     public function MoveTo($idDest) {
 	$rcDest = $this->PlaceTable($idDest);
 	$txtEv = 'Moving from [#'
-	  .$this->PlaceID()
+	  .$this->GetPlaceID()
 	  .'='
-	  .$this->PlaceRecord()->Name()
+	  .$this->PlaceRecord()->NameString()
 	  .'] to [#'
 	  .$idDest
 	  .'='
-	  .$rcDest->Name()
+	  .$rcDest->NameString()
 	  .']'
 	  ;
 
@@ -552,7 +428,7 @@ class VCM_StockBin extends vcAdminRecordset {
 	$this->Update($arUpd);
 
 	// log the move - old style
-	$idPlaceOld = $this->PlaceID();
+	$idPlaceOld = $this->GetPlaceID();
 	$idPlaceNew = $idDest;
 	$this->LogEvent($idPlaceOld,$idPlaceNew,$txtEv);
 
@@ -591,7 +467,7 @@ class VCM_StockBin extends vcAdminRecordset {
 __END__;
 	    }
 	    $sTplt = <<<__END__
-<table>
+<table class=content>
   <tr><td align=right><b>Code</b>:</td><td>[#Code#]</td></tr>
   <tr><td align=right><b>Where</b>:</td><td>[#ID_Place#]</td></tr>
   <tr><td align=right><b>Status</b>:</td><td>[#Status#]</td></tr>
@@ -607,24 +483,27 @@ __END__;
     }
     /*----
       HISTORY:
-	2010-11-01 adapted from clsPackage
+	2010-11-01 adapted from vcrAdminPackage (formerly clsPackage)
     */
     private $oForm;
     private function PageForm() {
 	// create fields & controls
 	if (is_null($this->oForm)) {
-	    $oForm = new fcForm_Bin($this);
+	    $oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+
+	    $oForm = new fcForm_DB($this);
 	    
 	      $oField = new fcFormField_Num($oForm,'ID_Place');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
 		// TODO: maybe this should be doAll *only* for read-only mode?
-		$doAll = !$this->IsNew();
-		$oCtrl->Records($this->PlaceTable()->GetData_forDropDown(!$doAll));
+		// Do we want to show inactive Places? Current policy: only if we're already in one, and not a new record
+		$doAll = $this->IsNew() ? FALSE : (!$this->HasActivePlace());
+		$oCtrl->SetRecords($this->PlaceTable()->SelectRecords_forDropDown(!$doAll));
 		// TODO: change 'id-place' to action constant
-		$idPlace = $this->PageObject()->URL_RequestObject()->GetInt('id-place');
+		$idPlace = $oPathIn->GetInt('id-place');
 		if (!is_null($idPlace)) {
 		    $oCtrl->Editable(FALSE);
-		    $oField->SetValue($idPlace);
+		    $oField->SetValue($idPlace,TRUE);
 		}
 		
 	      $oField = new fcFormField_Text($oForm,'Code');
@@ -669,29 +548,51 @@ __END__;
 	}
 	return $this->oForm;
     }
-    protected function Request_DoEdit() {
-	return $this->PageObject()->URL_RequestObject()->GetBool('edit');
-    }
     /*-----
       ACTION: Display bin details and contents (via this->AdminContents())
       HISTORY:
 	2011-04-01 moved AdminInventory() up so it takes place before record is displayed
     */
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	$isNew = $this->IsNew();
+	if (!$isNew) {
+
+	    $sCode = $this->GetFieldValue('Code');
+	
+	    $oMenu = fcApp::Me()->GetHeaderMenu();
+	      $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('mode','Action'));
+		$oGrp->SetChoice($ol = new fcHeaderChoice('edit','edit specs for '.$sCode));
+		  $doEdit = $ol->GetIsSelected();
+					      // ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+		$oGrp->SetChoice($ol = new fcHeaderChoice('inv','list all inventory for bin '.$sCode,'inventory'));
+		  $doInv = $ol->GetIsSelected();
+		  
+	    // menu choices for places other than the header
+	    $omDoVoid = new fcMenuOptionLink('do','void',NULL,NULL,'immediately void '.$sCode);
+	      $doVoid = $omDoVoid->GetIsSelected();
+	} else {
+	    $doEdit = TRUE;
+	    $doInv = FALSE;
+	    $doVoid = FALSE;
+	}
+
 	$rcPlace = $this->PlaceRecord();
 
-	$doSave = $oPage->ReqArgBool('btnSave');
-	$isNew = $this->IsNew();
+	// TODO: a lot of this logic should probably be inside the if-not-new condition
+	
+	$doSave = $oFormIn->GetBool('btnSave');
 	$doAdd = $isNew;
-	//$doEdit = ($oPage->PathArg('edit')) || $isNew;
-	$doEdit = ($this->Request_DoEdit()) || $isNew;
-	$doUpd = $oPage->PathArg('update');
-	$strDo = $oPage->PathArg('do');
-	$idPlace = $oPage->PathArg('id-place');
+	//$isEditReq = $oPathIn->GetBool('edit');
+	//$doEdit = $isEditReq || $isNew;
+	$doUpd = $oPathIn->GetBool('update');
+	//$strDo = $oPathIn->GetString('do');
+	$idPlace = $oPathIn->GetInt('id-place');
 	$hasPlace = !is_null($idPlace);
 	if ($isNew && $hasPlace) {
-	    $this->PlaceID($idPlace);	// set value for control to use as default
+	    $this->SetPlaceID($idPlace);	// set value for control to use as default
 	}
 	
 	$frm = $this->PageForm();
@@ -703,7 +604,7 @@ __END__;
 	    if (!$this->IsNew()) {
 		// only pre-existing bins can be "moved"
 		$idPlaceNew = $this->PageForm()->EnteredValue($this->GetKeyValue(),'ID_Place');
-		$idPlaceOld = $this->PlaceID();
+		$idPlaceOld = $this->GetPlaceID();
 		if ($idPlaceNew != $idPlaceOld) {
 		    // we're moving the bin -- log it:
 		    $this->MoveTo($idPlaceNew);	// actually, this also moves it... redundant
@@ -717,7 +618,7 @@ __END__;
 	*/
 	    $frm->Save();	// save edit
 	    $out .= $frm->MessagesString();
-	    if ($this->IsNew()) {
+	    if ($isNew) {
 		// only redirect to self if there isn't something more useful
 		if ($hasPlace) {	// If we have a default Place, use that.
 		    $rcPlace = $this->PlaceRecord();
@@ -729,10 +630,10 @@ __END__;
 	    return;
 	}
 
-	if ($this->IsNew()) {
+	if ($isNew) {
 	    $doEnabled = FALSE;
 	} else {
-	    $doEnabled = $this->Place_isActive();
+	    $doEnabled = $this->HasActivePlace();
 	    if ($doUpd) {
 		// update any calculated fields
 		$arUpd = array(
@@ -744,7 +645,7 @@ __END__;
 	}
 
 	$out .= $this->AdminInventory();
-	if ($strDo == 'void') {
+	if ($doVoid) {
 	    $arEv = array(
 	      'descr'	=> 'Voiding this bin',
 	      'code'	=> 'VOID',
@@ -759,29 +660,6 @@ __END__;
 	    $this->FinishEvent();
 	}
 
-	// do the header
-	if ($doAdd) {
-	    $doEdit = TRUE;
-	    $strCode = NULL;
-	    $sTitle = 'New bin';
-	    $sName = 'new bin';
-	} else {
-	    $id = $this->GetKeyValue();
-	    $strCode = $this->Value('Code');
-	    $sTitle = 'Stock Bin '.$id.' - '.$strCode;
-	    $sName = $strCode;
-	}
-
-	//clsActionLink_option::UseRelativeURL_default(TRUE);	// use relative URLs
-	$arActs = array(
-	    // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
-	  new clsActionLink_option(array(),'edit'),
-//	  new clsActionLink_option(array(),'inv',NULL,'inventory',NULL,'list all inventory of location '.$strName)
-	  );
-
-	$oPage->Skin()->SetPageTitle($sTitle);
-	$oPage->PageHeaderWidgets($arActs);
-
 	// Set up rendering objects
 	$frm = $this->PageForm();
 	if ($isNew) {
@@ -793,24 +671,26 @@ __END__;
 	$arCtrls = $frm->RenderControls($doEdit);
 	if ($doEdit) {
 	    $out .= "\n<form method=post>";
-	    $frm->FieldObject('isEnabled')->SetValue($doEnabled);	// set the enabled flag to save properly
-	    $htForSale = $frm->ControlObject('isForSale')->Render(TRUE);
-	    $htForShip = $frm->ControlObject('isForShip')->Render(TRUE);
-	    $htEnabled = $frm->ControlObject('isEnabled')->Render(TRUE); 
+	    $frm->FieldObject('isEnabled')->SetValue($doEnabled,TRUE);	// set the enabled flag to save properly
+	    $htForSale = $frm->GetControlObject('isForSale')->Render(TRUE);
+	    $htForShip = $frm->GetControlObject('isForShip')->Render(TRUE);
+	    $htEnabled = $frm->GetControlObject('isEnabled')->Render(TRUE); 
 	    $htStatus = "[$htForSale for sale][$htForShip for shipping][$htEnabled enabled]";
 	} else {
 	    // customize the form data:
 	    $arCtrls['Code'] = $this->SelfLink_name();
 
-	    $isForSale = $this->IsForSale();
-	    $isForShip = $this->IsForShip();
-	    $isEnabled = $this->IsEnabled();
+	    $isForSale = $this->IsSellable();
+	    $isForShip = $this->IsShippable();
+	    //$isEnabled = $this->IsEnabled();
 	    $htStatus =
-	      ' '.($isForSale?'<b>':'<s>').'SELL'.($isForSale?'</b>':'</s>').
-	      ' '.($isForShip?'<b>':'<s>').'SHIP'.($isForShip?'</b>':'</s>').
-	      ' '.($isEnabled?'<b>':'<s>').'ENABLED'.($isEnabled?'</b>':'</s>');
+	      ' '.($isForSale?'<b>SELL</b>':'<s>sell</s>')
+	      .' '.($isForShip?'<b>SHIP</b>':'<s>ship</s>')
+	      //.' '.($isEnabled?'<b>':'<s>').'ENABLED'.($isEnabled?'</b>':'</s>')
+	      ;
 
-	    $doEnabled = $this->Place_isActive();
+	    $doEnabled = $this->HasActivePlace();
+	    /* 2017-03-24 isEnabled field is deprecated
 	    if ($isEnabled != $doEnabled) {
 		$arLink = $oPage->PathArgs(array('page','id'));
 		$arLink['update'] = TRUE;
@@ -818,24 +698,27 @@ __END__;
 
 		$txtStat = $doEnabled?'enabled':'disabled';
 		$htStatus .= ' - <b><a href="'.$urlUpd.'">update</a></b> - should be '.$txtStat;
-	    }
+	    } */
 
-	    $dtVoided = $this->Value('WhenVoided');
+	    $dtVoided = $this->GetFieldValue('WhenVoided');
 	    if (is_null($dtVoided)) {
 		//$htWhenVoided = $oPage->SelfLink(array('do'=>'void'),'void now');
+		/* 2017-03-22 old
 		$url = $oPage->SelfURL(array('do'=>'void'));
-		$htWhenVoided = clsHTML::BuildLink($url,'void now');
+		$htWhenVoided = fcHTML::BuildLink($url,'void now');
+		*/
+		$htWhenVoided = $omDoVoid->Render();	// hope this works...
 	    } else {
-		$htWhenVoided = $this->Value('WhenVoided');
+		$htWhenVoided = $dtVoided;
 	    }
-	    $htWhenTainted = $this->Value('WhenTainted');
+	    $htWhenTainted = $this->GetFieldValue('WhenTainted');
 	}
 
 	$htDescRow = $htNotesRow = NULL;
-	if ($doEdit || !is_null($this->Value('Descr'))) {
+	if ($doEdit || !is_null($this->GetFieldValue('Descr'))) {
 	    $htDescRow = "<tr><td align=right><b>Description</b>:</td><td>[#Descr#]</td></tr>";
 	}
-	if ($doEdit || !is_null($this->Value('Notes'))) {
+	if ($doEdit || !is_null($this->GetFieldValue('Notes'))) {
 	    $htNotesRow = "\n<b>Notes</b>:<br>[#Notes#]";
 	}
 
@@ -845,7 +728,7 @@ __END__;
 	$arCtrls['NotesRow'] = $htNotesRow;
 
 	// render the template
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 /*
@@ -878,7 +761,7 @@ __END__;
 	if (!$isNew) {
 
 	    $out .= $this->AdminContents()
-	      . $oPage->SectionHeader('History')
+	      . (new fcSectionHeader('History'))->Render()
 	      . $this->RenderEvents()	// bin event log - needs to be merged with system log
 	      . $this->EventListing()	// universal log
 	      ;
@@ -898,6 +781,7 @@ __END__;
 	  'do.place': TRUE = show place column; FALSE = all in one place, don't bother to list it
     */
     public function AdminList($idPlace=NULL) {
+	throw new exception('2017-03-23 Is anything still calling this?');
 	$isPage = is_null($idPlace);
 	$arActs = array(
 	  new clsActionLink_option(
@@ -1057,7 +941,7 @@ __END__;
 		$arLink['id-place'] = $idPlace;
 	    }
 	    $url = $oPage->SelfURL($arLink);
-	    $htLink = clsHTML::BuildLink($url,'create new bin');
+	    $htLink = fcHTML::BuildLink($url,'create new bin');
 	    $out .= "[ $htLink ]";
 	    $out .= "\n</form>";
 	} else {
@@ -1070,72 +954,6 @@ __END__;
 
 	return $out;
     }
-    /*----
-      ACTION: Process user-input changes to the AdminList
-      FUTURE: Should this be a method of the table instead of the rowset?
-    */
-    protected function AdminListSave() {
-	$out = '';
-
-	$doSelBins = array_key_exists('btnSelBins',$_REQUEST);
-	$doMoveBins = array_key_exists('btnMoveBins',$_REQUEST);
-
-	if ($doSelBins || $doMoveBins) {
-	    $arBins = $_REQUEST[KS_ACTION_STOCK_BIN];
-
-	    if ($doSelBins) {
-		$nBins = count($arBins);
-		$sBinWord = 'Bin'.fcString::Pluralize($nBins);
-
-		$oPage = $this->Engine()->App()->Page();
-		$out .= $oPage->ActionHeader('Move '.$sBinWord);
-
-		$out .= '<form method=post>';	 // this is an additional form, not the main one
-		$out .= "<b>$sBinWord</b>:";
-		foreach ($arBins as $idBin => $zero) {
-		    $rcBin = $this->Table()->GetItem($idBin);
-		    $out .= ' '.$rcBin->SelfLink_name().'<input type=hidden name="bin['.$idBin.']" value=1>';
-		}
-		$out .= '<br><b>Notes</b> (optional):<br><textarea name=notes height=2 width=40></textarea>';
-		$htPlaces = $this->PlaceTable()->DropDown('ID_Place');
-		$out .= "\n<br><input type=submit name=btnMoveBins value=\"Move to:\">$htPlaces";
-		$out .= '</form>';
-	    }
-	    if ($doMoveBins) {
-		$idPlace = (int)$_REQUEST['ID_Place'];
-		$txtNotes = $_REQUEST['notes'];
-		$rcPlace = $this->PlaceTable($idPlace);
-		$htPlace = $rcPlace->SelfLink($rcPlace->Value('Name'));
-
-		// create overall event:
-		$txtBins = '';
-		$htBins = '';
-		foreach ($arBins as $idBin => $zero) {
-		    $rcBin = $this->Table()->GetItem($idBin);
-		    $sBin = $rcBin->Code();
-		    $txtBins .= ' '.$sBin;
-		    $htBins .= ' '.$rcBin->SelfLink($sBin);
-		    $arBins[$idBin] = $rcBin->RowCopy();	// so we don't have to look them up again
-		}
-		$sqlDescr = 'Moving bins to [#'.$idPlace.'='.$rcPlace->Name().']:'.$txtBins;
-		$out .= 'Moving bins'.$htBins.' to [#'.$idPlace.'='.$htPlace.']...';
-
-		$arEv = array(
-		  'descr'	=> $sqlDescr,
-		  'where'	=> __METHOD__,
-		  'code'	=> 'MVL',	// MoVe List
-		  'notes'	=> $txtNotes
-		  );
-		$this->StartEvent($arEv);
-		foreach ($arBins as $idBin => $rcBin) {
-		    $rcBin->MoveTo($idPlace);
-		}
-		$out .= ' done.';
-		$this->FinishEvent();
-	    }
-	}
-	return $out;
-    }
     
     //--multi--//
     //++related++//
@@ -1146,11 +964,30 @@ __END__;
 	Also, determine whether header should be shown *after* counting number of rows that will appear.
     */
     public function AdminContents() {
-	$oPage = $this->PageObject();
-	$out = NULL;
-	
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
 	$sHdr = 'Bin Contents';
-	$sBinName = $this->Name();
+	$sBinName = $this->LabelString();
+	
+	// header/menu
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader($sHdr,$oMenu);
+	
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Show'));
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('rmvd', "show items that have been removed from $sBinName",'removed'));
+	      $doShowRmvd = $ol->GetIsSelected();
+
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('mode','Action'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('move.items',"move items from $sBinName to another bin",'move'));
+	      $doMoveForm = $ol->GetIsSelected();
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('count.items',"record inventory count for $sBinName",'count'));
+	      // apparently this is used in $this->AdminInventory()
+
+	$out = $oHdr->Render();
+
+	/* 2017-03-22 old
 	$arActs = array(
 	  // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL)
 	  new clsActionLink_option(array(),
@@ -1182,8 +1019,9 @@ __END__;
 	$sShow = $oPage->PathArg('show');
 	$doShowRmvd = ($sShow == 'rmv');
 	$doMoveForm = ($sDo == 'move.items');
-	$doConfForm = $oPage->ReqArgBool('btnMove');
-	$doMoveNow = $oPage->ReqArgBool('btnConf');
+	*/
+	$doConfForm = $oFormIn->GetBool('btnMove');
+	$doMoveNow = $oFormIn->GetBool('btnConf');
 
 	$idBin = $this->GetKeyValue();
 	if (empty($idBin)) {
@@ -1323,7 +1161,7 @@ __END__;
 			    $htStyle .= ' color: #888888;';
 			    $htStyle .= ' text-decoration: line-through;';
 			}
-			$htActive	= clsHTML::fromBool($isActive);
+			$htActive	= fcHTML::fromBool($isActive);
 			
 			$txtQty	= $row['Qty'];
 
@@ -1381,8 +1219,8 @@ __END__;
       RETURNS: Rendering of stock bin events for this bin
     */
     public function RenderEvents() {
-	$t = $this->Engine()->Make(KS_CLASS_STOCK_BIN_LOG);
-	$rs = $t->GetData('ID_Bin='.$this->GetKeyValue());
+	$t = $this->BinLog();
+	$rs = $t->SelectRecords('ID_Bin='.$this->GetKeyValue());
 	return $rs->RenderRows();		// stock bin event listing
     }
     
@@ -1436,12 +1274,12 @@ __END__;
 	$idBin = $this->GetKeyValue();
 	
 	// get list of items currently in bin (according to db):
-	$sqlLines = '(ID_Bin='.$idBin.') AND (WhenRemoved IS NULL)';
-	$rsLines = $this->StockItemTable()->GetData($sqlLines);
+	$sqlLines = '(ID_Bin='.$idBin.') AND (Qty > 0)';
+	$rsLines = $this->StockItemTable()->FetchRecords($sqlLines);
 	if ($rsLines->HasRows()) {
 	    while ($rsLines->NextRow()) {
-		$idItem = $rsLines->Value('ID_Item');
-		$arAll[$idItem]['old'] = nz($arAll[$idItem]['old']) + $rsLines->Value('Qty');
+		$idItem = $rsLines->ItemID();
+		$arAll[$idItem]['old'] = nz($arAll[$idItem]['old']) + $rsLines->Qty();
 	    }
 	}
 
@@ -1635,17 +1473,18 @@ __END__;
 	and the sanity-check process before that should weed out any accidental garbage data.
     */
     protected function AdminInventory() {
-	$oPage = $this->Engine()->App()->Page();
-
-	$sDo = $oPage->PathArg('do');
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	$sDo = $oPathIn->GetString('do');
 	
 	$doInvEnter = ($sDo == 'inv');
-	$doInvCheck = $oPage->ReqArgBool('btnInvLookup');
-	$doInvSave = $oPage->ReqArgBool('btnInvSave');
+	$doInvCheck = $oFormIn->GetBool('btnInvLookup');
+	$doInvSave = $oFormIn->GetBool('btnInvSave');
 	if ($doInvSave) {
 	    $doInvEnter = FALSE;
 	}
-	$txtInvList = $oPage->ReqArgText('inv');	// raw data
+	$txtInvList = $oFormIn->GetString('inv');	// raw data
 		
 	$out = NULL;
 	
@@ -1702,7 +1541,7 @@ __END__;
 	    if ($doInvEnter) {
 	      // PHASE I
 
-		$out .= $oPage->ActionHeader('Inventory Count Entry')
+		$out .= (new fcSectionHeader('Inventory Count Entry'))->Render()
 		  ."\n<form method=post>"
 		  ."\n$htEntryMsg<br>"
 		  ."\n<textarea name=inv rows=20>$htInvList</textarea>"
@@ -1740,8 +1579,8 @@ __END__;
 	$idBin = $this->GetKeyValue();
 	
 	foreach ($arItems as $idItem => $qty) {
-	    $sqlLines = "(ID_Bin=$idBin) AND (ID_Item=$idItem) AND (WhenRemoved IS NULL)";
-	    $rsLines = $this->LineTable()->GetData($sqlLines);	// stock lines for this item
+	    $sqlLines = "(ID_Bin=$idBin) AND (ID_Item=$idItem) AND (Qty > 0)";
+	    $rsLines = $this->LineTable()->FetchRecords($sqlLines);	// stock lines for this item
 	    if ($rsLines->HasRows()) {
 		// old records exist -- update them
 		// -- make sure there's only one record. If more than one, update the first and delete others.
@@ -1847,7 +1686,7 @@ __END__;
       ACTION: Log an event where the bin stays in the same place
     */
     public function LogEvent_SamePlace($iDescr) {
-	$idPlace = $this->PlaceID();
+	$idPlace = $this->GetPlaceID();
 	$this->LogEvent($idPlace,$idPlace,$iDescr);
     }
 
@@ -1883,7 +1722,7 @@ __END__;
 	    }
 	}
 	if ($ok) {
-	    $out = clsHTML::DropDown_arr($iName,$arRows,$iDefault,$iChoose);
+	    $out = fcHTML::DropDown_arr($iName,$arRows,$iDefault,$iChoose);
 	} else {
 	    $out = 'No locations found';
 	}

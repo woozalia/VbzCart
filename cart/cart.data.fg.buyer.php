@@ -320,14 +320,20 @@ class vcCartData_Buyer extends vcCartData_Contact {
 	  :''
 	  ;
 
+	$og = vcGlobalsApp::Me();
+	$wsVisa = $og->GetWebSpec_forVisaCard();
+	$wsMCard = $og->GetWebSpec_forMasterCard();
+	$wsAmex = $og->GetWebSpec_forAmexCard();
+	$wsDisc = $og->GetWebSpec_forDiscoverCard();
+
 	$sTplt = <<<__END__
 <table class="form-block" id="card-address">
   <tr><td align=right valign=middle>We accept:</td>
 	  <td>
-	  <img align=absmiddle src="/tools/img/cards/logo_ccVisa.gif" title="Visa">
-	  <img align=absmiddle src="/tools/img/cards/logo_ccMC.gif" title="MasterCard">
-	  <img align=absmiddle src="/tools/img/cards/logo_ccAmex.gif" title="American Express">
-	  <img align=absmiddle src="/tools/img/cards/logo_ccDiscover.gif" title="Discover / Novus">
+	  <img align=absmiddle src="$wsVisa" title="Visa">
+	  <img align=absmiddle src="$wsMCard" title="MasterCard">
+	  <img align=absmiddle src="$wsAmex" title="American Express">
+	  <img align=absmiddle src="$wsDisc" title="Discover / Novus">
 	  </td></tr>
   <tr><td align=right valign=middle>Card Number:</td>
 	  <td>[[card-num]] Expires: [[card-exp]] (mm/yy)

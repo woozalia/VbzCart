@@ -6,7 +6,7 @@
     2017-01-06 updated somewhat
 */
 
-class VCT_OrderMsgs extends vctOrderMsgs {
+class vctAdminOrderMsgs extends vctOrderMsgs implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
@@ -17,20 +17,24 @@ class VCT_OrderMsgs extends vctOrderMsgs {
     }
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_OrderMsg';
+	return 'vcrAdminOrderMsg';
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->RenderSearch();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->RenderSearch();
+    } */
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ ADMIN INTERFACE ++ //
 
     protected function RenderSearch() {
@@ -71,8 +75,10 @@ __END__;
 
     // -- ADMIN INTERFACE -- //
 }
-class VCR_OrderMsg extends vcrOrderMsg {
+class vcrAdminOrderMsg extends vcrOrderMsg implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
+    use ftExecutableTwig;	// dispatch events
+    use ftSaveableRecord;	// implements ChangeFieldValues()
 
     // ++ STATIC ++ //
 
@@ -103,23 +109,46 @@ class VCR_OrderMsg extends vcrOrderMsg {
     }
 
     // -- STATIC -- //
-    // ++ DROP-IN API ++ //
+    // ++ EVENTS ++ //
 
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$id = $this->GetKeyValue();
+	$rcOrd = $this->OrderRecord();
+	$sOrd = $rcOrd->NameString();
+
+	$sTitle = "msg id$id (ord $sOrd";
+	$htTitle = "Order $sOrd";
+	if ($this->HasPackage()) {
+	    $rcPkg = $this->PackageRecord();
+	    $sPkgSeq = $rcPkg->Seq();
+	    $htTitle .= " Package #".$sPkgSeq;
+	    
+	    $sTitle .= ' '.$sPkgSeq;
+	}
+	$sTitle .= ')';
+	$htTitle .= " message #$id";
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle($sTitle);
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
     /*----
       PURPOSE: execution method called by dropin menu
     */
-    public function MenuExec(array $arArgs=NULL) {
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- DROP-IN API -- //
+    // -- EVENTS -- //
     // ++ FIELD VALUES ++ //
     
     protected function GetOrderID() {
-	return $this->Value('ID_Ord');
+	return $this->GetFieldValue('ID_Ord');
     }
     protected function GetPackageID() {
-	return $this->Value('ID_Pkg');
+	return $this->GetFieldValue('ID_Pkg');
     }
     
     // -- FIELD VALUES -- //
@@ -141,13 +170,13 @@ class VCR_OrderMsg extends vcrOrderMsg {
     // ++ DATA TABLE ACCESS ++ //
 
     protected function OrderTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_ORDERS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_ORDERS,$id);
     }
     protected function PackageTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_PACKAGES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_PACKAGES,$id);
     }
     protected function MediaTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_ORDER_MSG_MEDIA,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_ORDER_MSG_MEDIA,$id);
     }
 
     // -- DATA TABLE ACCESS -- //
@@ -193,7 +222,7 @@ class VCR_OrderMsg extends vcrOrderMsg {
 		// fake package will need to know the order #
 		$rcPkg->Value('ID_Order',$this->Value('ID_Ord'));
 	    } else {
-		$rcPkg = $tPkgs->GetItem($id);
+		$rcPkg = $tPkgs->GetRecord_forKey($id);
 		$idPkg = $id;
 	    }
 	    $this->idPkg = $idPkg;
@@ -228,9 +257,8 @@ __END__;
 		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
 		$isOdd = !$isOdd;
 
-		$row = $this->Values();
-		//$id = $row['ID'];
 		$htID = $this->SelfLink();
+		$row = $this->GetFieldValues();
 		$idPkg = $row['ID_Pkg'];
 		$idMed = $row['ID_Media'];
 		$sMed = self::TypeText($idMed);
@@ -276,7 +304,7 @@ __END__;
 	    }
 	    $out .= "\n</table>";
 	} else {
-	    $strDescr = nz($iArgs['descr']);
+	    $strDescr = fcArray::Nz($iArgs,'descr');
 	    $out = "\nNo messages$strDescr.";
 	}
 	return $out;
@@ -284,23 +312,32 @@ __END__;
     /*----
       HISTORY:
 	2011-10-08 created so we can tidy up the Order admin page a bit
+	2017-11-19 This will need some updating.
     */
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	$doEdit = $oPage->PathArg('edit');
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	$doEdit = $oPathIn->GetBool('edit');
+	$doSave = $oFormIn->GetBool('btnSave');
 
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+				// ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+	$oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,'cancel','edit the message'));
+	  $doEdit = $ol->GetIsSelected();
+
+	  /* 2017-11-20 old format
 	$arPath = array();	// not sure if anything is needed here
 	$arActs = array(
 	  // (array $iarData,$iLinkKey,$iGroupKey=NULL,$iDispOff=NULL,$iDispOn=NULL,$iDescr=NULL)
 	  new clsActionLink_option($arPath,'edit',NULL,NULL,NULL,'edit the message'),
 	  );
 	$oPage->PageHeaderWidgets($arActs);
+	*/
 	$idMsg = $this->GetKeyValue();
 	$sOrdNum = $this->OrderRecord()->NameString();
 	$sTitle = "msg$idMsg ord#$sOrdNum";
-	$oPage->Skin()->SetPageTitle($sTitle);
+//	$oPage->Skin()->SetPageTitle($sTitle);
 
 	// save edits before showing events
 	$frm = $this->PageForm();
@@ -326,7 +363,7 @@ __END__;
 	if ($doEdit) {
 	    $out .= '<form method=post>';
 	} else {
-	    $arCtrls['ID_Media']	= self::TypeText($this->Value('ID_Media'));	// do this right later
+	    $arCtrls['ID_Media']	= self::TypeText($this->GetFieldValue('ID_Media'));	// do this right later
 	}
 /*
 	$out = NULL;
@@ -342,7 +379,7 @@ __END__;
 	$out .= "\n</table>";
 	$out .= "<table align=center><tr><td><pre>$ctMsg</pre></td></tr></table>";
 //*/
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out = $oTplt->RenderRecursive();
 	if ($doEdit) {
 	    $out .= '<input type=submit name="btnSave" value="Save">';
@@ -356,7 +393,7 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-<table>
+<table class=form-record>
   <tr><td align=right><b>Order</b>:</td><td>		[[!Order]]</td></tr>
   <tr><td align=right><b>Package</b>:</td><td>		[[!Package]]</td></tr>
   <tr><td align=right><b>Media</b>:</td><td>		[[ID_Media]]</td></tr>
@@ -397,7 +434,7 @@ __END__;
 		
 	      $oField = new fcFormField_Num($oForm,'ID_Media');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->MediaRecords());
+		$oCtrl->SetRecords($this->MediaRecords());
 	      
 	      $oField = new fcFormField_Num($oForm,'doRelay');
 		$oCtrl = new fcFormControl_HTML_CheckBox($oField,array());

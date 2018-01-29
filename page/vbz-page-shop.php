@@ -13,9 +13,10 @@ class vcpePageHeader_shop extends vcPageHeader {
     // ++ OUTPUT ++ //
 
     protected function RenderBefore() {
+	$oGlob = vcGlobals::Me();
 	$sWhere = __METHOD__;
-	$urlHome = KWP_HOME_ABS;
-	$urlLogo = KWP_LOGO_HEADER;
+	$urlHome = $oGlob->GetWebPath_forAppBase().'/';
+	$urlLogo = $oGlob->GetWebPath_forSiteLogo();
 	$sStore = KS_SITE_NAME;
 	$sLogoAlt = KS_SMALL_LOGO_ALT;
 	$out = KS_MSG_SITEWIDE_TOP;
@@ -104,22 +105,31 @@ __END__;
 
 	return $out;
     } */
+    // TODO: Make this a wiki template-page.
     protected function RenderToolbar() {
-	$fpPages = KWP_SITE;
-
+	$oGlob = vcGlobals::Me();
+	
+	$wpHome = $oGlob->GetWebPath_forAppBase().'/';
+	$wpSearch = $oGlob->GetWebPath_forSearchPages();
+	$wpCart = $oGlob->GetWebPath_forCartPage();
+	$wpHelp = $oGlob->GetWebPath_forHelpPage();
+	
+	$wsHomeIcon = $oGlob->GetWebSpec_forHomeIcon();
+	$wsSearchIcon = $oGlob->GetWebSpec_forSearchIcon();
+	$wsCartIcon = $oGlob->GetWebSpec_forCartIcon();
+	$wsHelpIcon = $oGlob->GetWebSpec_forHelpIcon();
 	$out = NULL
-	  .$this->RenderToolbarItem(KWS_HOME,'home',KS_SITE_NAME.' home page','home page')
-	  .$this->RenderToolbarItem(KWS_SEARCH,'search','search page','search page')
-	  .$this->RenderToolbarItem(KWP_CART_REL,'cart','shopping cart','shopping cart')
-	  .$this->RenderToolbarItem(KWP_HELP_HOME,'help','help!','help')
+	  .$this->RenderToolbarItem($wpHome,$wsHomeIcon,KS_SITE_NAME.' home page','home page')
+	  .$this->RenderToolbarItem($wpSearch,$wsSearchIcon,'search page','search page')
+	  .$this->RenderToolbarItem($wpCart,$wsCartIcon,'shopping cart','shopping cart')
+	  .$this->RenderToolbarItem($wpHelp,$wsHelpIcon,'help!','help')
 	  ;
 	return $out;
     }
-    protected function RenderToolbarItem($url,$sIcon,$sTitle,$sAlt) {
-	$fsIcon = KWP_ICONS."/$sIcon.050pxh.png";
+    protected function RenderToolbarItem($url,$wsIcon,$sTitle,$sAlt) {
 	return '<a href="'.$url.'">'
 	  .'<img border=0 src="'
-	  .$fsIcon
+	  .$wsIcon
 	  .'" title="'.$sTitle
 	  .'" alt="'.$sAlt
 	  .'"></a>'
@@ -159,7 +169,7 @@ class vcNavElement_search extends fcPageElement {
 __END__;
     }
 }
-class vcNavItem_catLink extends fcNavLink {
+class vcNavItem_catLink extends fcNavLinkFixed {
 }
 class vcNavItem_wikiLink extends vcNavItem_catLink {
 
@@ -204,9 +214,13 @@ class vcNavFolder_catLinks extends vcNavFolder {
 
     // OVERRIDE (I think)
     protected function OnCreateElements() {
-	$this->SetNode(new vcNavItem_catLink(KWP_SHOP_SUPP,'Suppliers','our suppliers, and what we carry from each one'));
-	$this->SetNode(new vcNavItem_catLink(KWP_SHOP_STOCK,'Stock',"what's currently in stock"));
-	$this->SetNode(new vcNavItem_catLink(KWP_SHOP_TOPICS,'Topics','topic master index (topics are like category tags)'));
+	$oGlob = vcGlobals::Me();
+	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forCatalogPages(),
+	  'Suppliers','our suppliers, and what we carry from each one'));
+	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forStockPages(),
+	  'Stock',"what's currently in stock"));
+	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forTopicPages(),
+	  'Topics','topic master index (topics are like category tags)'));
     }
 
     // -- EVENTS -- //
@@ -217,10 +231,11 @@ class vcNavFolder_wikiLinks extends vcNavFolder {
     // ++ EVENTS ++ //
 
     protected function OnCreateElements() {
-	$this->SetNode(new vcNavItem_wikiLink(KURL_WIKI_PUBLIC,'Main','vbz wiki homepage'));
-	$this->SetNode(new vcNavItem_wikiLink(KWP_HELP_HOME,'Help','help main index'));
-	$this->SetNode(new vcNavItem_wikiLink(KWP_HELP_CONTACT,'Contact','contact '.KS_SITE_NAME));
-	$kwpCommunity = KURL_WIKI_PUBLIC.'VBZwiki_talk:Community_portal';
+	$oGlob = vcGlobals::Me();
+	//$this->SetNode(new vcNavItem_wikiLink(KURL_WIKI_PUBLIC,'Main','vbz wiki homepage'));
+	$this->SetNode(new vcNavItem_wikiLink($oGlob->GetWebPath_forHelpPage(),'Help','help main index'));
+	$this->SetNode(new vcNavItem_wikiLink($oGlob->GetWebPath_forContactPage(),'Contact','contact '.KS_SITE_NAME));
+	//$kwpCommunity = KURL_WIKI_PUBLIC.'VBZwiki_talk:Community_portal';
 	// 2016-12-04 new account creation is currently disabled
 	//$this->SetNode(new vcNavItem_wikiLink($kwpCommunity,'Comments','leave public comments and suggestions'));
     }

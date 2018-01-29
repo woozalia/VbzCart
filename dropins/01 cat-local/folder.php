@@ -6,23 +6,29 @@
     2016-02-03 started
 */
 
-class vctaFolders extends clsVbzFolders {
-    use ftLinkableTable;
+class vctaFolders extends vctFolders  /* implements fiEventAware, fiLinkableTable */ {
+    //use ftLinkableTable;
     
     // ++ SETUP ++ //
     
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('vcraFolder');
-	  $this->ActionKey(KS_ACTION_FOLDER);
+    protected function SingularName() {
+	return 'vcraFolder';
     }
-    
+    public function GetActionKey() {
+	return KS_ACTION_FOLDER;
+    }
+
     // -- SETUP -- //
-    // ++ CALLBACKS ++ //
-    
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    }*/
 
     // -- CALLBACKS -- //
     // ++ WEB UI ++ //
@@ -34,29 +40,65 @@ class vctaFolders extends clsVbzFolders {
     
     // -- WEB UI -- //
 }
-
-class vcraFolder extends clsVbzFolder {
+class vcraFolder extends vcrFolder implements fiLinkableRecord, fiEventAware, fiEditableRecord {
     use ftLinkableRecord;
     use ftShowableRecord;
+    use ftExecutableTwig;
+    use ftSaveableRecord;	// implements fiEditableRecord
 
-    // ++ CALLBACKS ++ //
-    
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$sTitle = 'Folder #'.$this->GetKeyValue();
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle($sTitle);
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	return $this->AdminPage();
     }
+    /*
+    public function MenuExec() {
+	return $this->AdminPage();
+    } */
+    
+    // -- EVENTS -- //
+    // ++ FIELD VALUES ++ //
+    
+    protected function SpecPart() {
+	return $this->GetFieldValue('PathPart');
+    }
+    protected function Description() {
+	return $this->GetFieldValue('Descr');
+    }
+
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+
+    // CALLBACK
     public function ListItem_Text() {
 	return $this->SpecPart().' - '.$this->Description();
     }
+    // CALLBACK
     public function ListItem_Link() {
 	return $this->SelfLink($this->ListItem_Text());
     }
+
+    // -- FIELD CALCULATIONS -- //
+    // ++ WEB UI ++ //
+
+      // ++ lines ++ //
+    
     protected function AdminRows_start() {
 	return "\n<table class=listing>";
     }
-    public function AdminRows_settings_columns_default() {
+    public function AdminRows_settings_columns() {
 	return array(
 	    '!ID'	=> 'ID',
-	    'ID_Parent'	=> 'Parent',
+	    //'ID_Parent'	=> 'Parent',
 	    'PathPart'	=> 'Path',
 	    'Descr'	=> 'Description'
 	  );
@@ -65,36 +107,20 @@ class vcraFolder extends clsVbzFolder {
 	if ($sField == '!ID') {
 	    $val = $this->SelfLink();
 	} else {
-	    $val = $this->Value($sField);
+	    $val = $this->GetFieldValue($sField);
 	}
 	return "<td>$val</td>";
     }
     
-    // -- CALLBACKS -- //
-    // ++ FRAMEWORK ++ //
-    
-    protected function PageObject() {
-	return $this->Engine()->App()->Page();
-    }
+      // -- lines -- //
+      // ++ record ++ //
 
-    // -- FRAMEWORK -- //
-    // ++ FIELD VALUES ++ //
-    
-    protected function SpecPart() {
-	return $this->Value('PathPart');
-    }
-    protected function Description() {
-	return $this->Value('Descr');
-    }
-
-    // -- FIELD VALUES -- //
-    // ++ WEB UI ++ //
-    
     protected function AdminPage() {
-	$oPage = $this->PageObject();
-	
-	$doEdit = $oPage->URL_RequestObject()->GetBool('edit');
-	$doSave = $oPage->HTTP_RequestObject()->GetBool('btnSave');
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
+	//$doEdit = $oPage->URL_RequestObject()->GetBool('edit');
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	if ($doSave) {
 	    $frm = $this->PageForm();
@@ -102,8 +128,15 @@ class vcraFolder extends clsVbzFolder {
 	    $ftSaveMsg = $frm->MessagesString();
 	    $this->SelfRedirect(NULL,$ftSaveMsg);
 	}
-	// page title bar and action links
+	// page title bar and menu
+
+	$oMenu = fcApp::Me()->GetHeaderMenu();
 	
+		  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit this folder record'));
+	    $doEdit = $ol->GetIsSelected();
+	
+	/*
 	// -- title string
 	$sTitle = 'Folder #'.$this->GetKeyValue();
 	$oPage->TitleString($sTitle);
@@ -112,6 +145,7 @@ class vcraFolder extends clsVbzFolder {
 	  new clsActionLink_option(array(),'edit')
 	  );
 	$oPage->PageHeaderWidgets($arActs);
+	*/
 
 	// generate the record display
 	
@@ -132,7 +166,7 @@ class vcraFolder extends clsVbzFolder {
 	} else {
 	}
 	
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$out .= $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -148,11 +182,10 @@ __END__;
     protected function PageTemplate() {
 	if (empty($this->tpPage)) {
 	    $sTplt = <<<__END__
-  <table>
-    <tr><td align=right><b>ID</b>:</td><td>[[!ID]]</td></tr>
-    <tr><td align=right><b>Parent</b>:</td><td>[[ID_Parent]]</td></tr>
-    <tr><td align=right><b>Relative Path</b>:</td><td>[[PathPart]]</td></tr>
-    <tr><td align=right><b>Description</b>:</td><td>[[Descr]]</td></tr>
+  <table class=form-block>
+    <tr><td class=form-block>ID</td><td>: [[!ID]]</td></tr>
+    <tr><td class=form-block>Relative Path</td><td>: [[PathPart]]</td></tr>
+    <tr><td class=form-block>Description</td><td>: [[Descr]]</td></tr>
   </table>
 __END__;
 	    $this->tpPage = new fcTemplate_array('[[',']]',$sTplt);
@@ -163,12 +196,12 @@ __END__;
     private function PageForm() {
 	if (empty($this->oForm)) {
 	    $oForm = new fcForm_DB($this);
-	    
+	    /* 2017-07-23 field removed
 	      $oField = new fcFormField_Num($oForm,'ID_Parent');
 		$oField->ControlObject($oCtrl = new fcFormControl_HTML_DropDown($oField));
-		$oCtrl->Records($this->Table()->SelectRecords());
+		$oCtrl->SetRecords($this->GetTableWrapper()->SelectRecords());
 		$oCtrl->AddChoice(NULL,'-- none --');
-	      
+	      */
 	      $oField = new fcFormField_Text($oForm,'PathPart');
 		$oCtrl = new fcFormControl_HTML($oField,array('size'=>40));
 		
@@ -179,6 +212,8 @@ __END__;
 	}
 	return $this->oForm;
     }
-    
+
+       // -- record -- //
+   
     // -- WEB UI -- //
 }

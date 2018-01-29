@@ -3,24 +3,24 @@
 PURPOSE: Class for handling specialized stock item query
 HISTORY:
   2014-05-12 Created
-  2016-03-03 VCR_StkLine_info now descends from VCR_StkLine instead of generic recordset. More to do...
+  2016-03-03 VCR_StkLine_info (now vcrAdminStockLineInfo) now descends from VCR_StkLine (now vcrAdminStockLine)
+    instead of generic recordset. More to do...
     I don't think this class ended up ever being used for anything -- but now it will.
 */
-class vctqaStockLinesInfo extends VCT_StkLines {
+class vctqaStockLinesInfo extends vctAdminStockLines {
     use ftQueryableTable;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng(KS_CLASS_STOCK_LINE_INFO);
+    protected function SingularName() {
+	return KS_CLASS_STOCK_LINE_INFO;
     }
 
     // -- SETUP -- //
     // ++ QUERIES ++ //
     
     protected function ItemInfoQuery() {
-	return $this->Engine()->Make('vcqtItemsInfo');
+	return $this->GetConnection()->MakeTableWrapper('vcqtItemsInfo');
     }
     
     // -- QUERIES -- //
@@ -35,13 +35,12 @@ class vctqaStockLinesInfo extends VCT_StkLines {
 	);
 	$arFilt = array('ID_Bin='.$idBin);
 	if (!$doShowRmvd) {
-	    $arFilt[] = 'WhenRemoved IS NULL';
 	    $arFilt[] = 'Qty>0';
 	}
 	$qot = new fcSQL_Terms(
 	  array(
 	    new fcSQLt_Filt('AND',$arFilt),
-	    new fcSQLt_Sort(array('WhenRemoved','CatNum_Item'))
+	    new fcSQLt_Sort(array('WhenChanged','WhenAdded','CatNum_Item'))	// could also include WhenCounted
 	    )
 	  );
 	$qo->SetTerms($qot);
@@ -55,11 +54,32 @@ class vctqaStockLinesInfo extends VCT_StkLines {
 	    'WhenAdded',
 	    'WhenChanged',
 	    'WhenCounted',
-	    'WhenRemoved',
+	    'WhenCleared',
 	    'Notes'	=> 'sl.Notes'
 	    )
 	  );
 	return $qo;
+    }
+    public function SQO_forSaleableLines_forTitle($idTitle) {
+	// get base SELECT
+	$qs = vcqtStockLinesInfo::SQO_SELECT_forLines_wBins_andItems();
+	$qs->Fields(new fcSQL_Fields(array('sl.*')));	// by default, just return stock line fields
+
+	// construct TERMS (saleable lines & title)
+	$qt = new fcSQL_Terms(
+	  array(
+	    new fcSQLt_Filt('AND',
+	      array(
+		'sl.Qty>0',
+		'ci.ID_Title='.$idTitle
+		)
+	      )
+	    )
+	  );
+
+	// put together the QUERY
+	$q = new fcSQL_Query($qs,$qt);
+	return $q;
     }
     
     // -- SQO -- //
@@ -68,13 +88,13 @@ class vctqaStockLinesInfo extends VCT_StkLines {
     public function GetRecords_forBinExhibit($idBin,$doShowRmvd) {
 	$qo = $this->SQO_Items_forBinExhibit($idBin,$doShowRmvd);
 	$sql = $qo->Render();
-	$rs = $this->DataSQL($sql);
+	$rs = $this->FetchRecords($sql);
 	return $rs;
     }
     
     // -- RECORDS -- //
 }
-class vcrqaStockLineInfo extends VCR_StkLine {
+class vcrqaStockLineInfo extends vcrAdminStockLine {
 
     // ++ FIELD VALUES ++ //
 
@@ -107,7 +127,7 @@ class vcrqaStockLineInfo extends VCR_StkLine {
     // ++ TABLES ++ //
     
     protected function TitleTable() {
-	return $this->Engine()->Make(KS_CLASS_CATALOG_TITLES);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_CATALOG_TITLES);
     }
     
     // -- TABLES -- //
@@ -136,9 +156,9 @@ class vcrqaStockLineInfo extends VCR_StkLine {
 __END__;
 	$ftList = NULL;
 	$isOdd = FALSE;
-	$rcTitle = $this->TitleTable()->SpawnItem();
+	$rcTitle = $this->TitleTable()->SpawnRecordset();
 	while ($this->NextRow()) {
-	    $row = $this->Values();
+	    $row = $this->GetFieldValues();
 
 	    $id		= $row['ID'];
 	    $htID	= $this->SelfLink();
@@ -148,23 +168,22 @@ __END__;
 	    //$rcItem	= $tItems->GetItem($idItem);
 	    //$htCatNum	= $rcItem->SelfLink($txtCatNum);
 
-	    $isActive	= is_null($row['WhenRemoved']);
-	    $hasAnything = ($isActive && ($row['Qty'] > 0));
+	    $isActive	= ($row['Qty'] > 0);
+	    $hasAnything = $isActive;	// 2017-03-16 these are now the same thing
 
 	    // calculate line formatting:
 	    $cssClass = $isOdd?'odd':'even';
 	    $isOdd = !$isOdd;
-	    //$isActive = is_null($row['WhenRemoved']) && ($row['Qty'] > 0);
 	    if (!$hasAnything) {
 		$cssClass = 'inact';
 	    }
-	    $htActive	= clsHTML::fromBool($isActive);
+	    $htActive	= fcHTML::fromBool($isActive);
 
 	    $txtQty	= $row['Qty'];
 
 	    $sTitle = $row['TitleName'];
 	    $idTitle = $row['ID_Title'];
-	    $rcTitle->Value('ID',$idTitle);
+	    $rcTitle->SetFieldValue('ID',$idTitle);
 	    $htTitle	= $rcTitle->SelfLink($sTitle);
 	    
 	    $htCatNum		= $row['CatNum_Item'];
@@ -172,7 +191,7 @@ __END__;
 	    $txtWhenAdded	= fcDate::NzDate($row['WhenAdded']);
 	    $txtWhenChged	= fcDate::NzDate($row['WhenChanged']);
 	    $txtWhenCnted	= fcDate::NzDate($row['WhenCounted']);
-	    $txtWhenRmved	= fcDate::NzDate($row['WhenRemoved']);
+	    $txtWhenClred	= fcDate::NzDate($row['WhenCleared']);
 	    $txtNotes	= $row['Notes'];
 
 	    if ($doBoxes && $isActive) {
@@ -195,14 +214,14 @@ __END__;
     <td>$txtWhenAdded</td>
     <td>$txtWhenChged</td>
     <td>$txtWhenCnted</td>
-    <td>$txtWhenRmved</td>
+    <td>$txtWhenClred</td>
     <td>$txtNotes</td>
   </tr>
 __END__;
 	}
 	$out .= "\n</table>";
 	if (!is_null($ftList)) {
-	    $out .= "<b>Text list</b> (active only): $ftList<br>";
+	    $out .= "<div class=content><b>Text list</b> (active only): $ftList</div>";
 	}
 	return $out;
     }

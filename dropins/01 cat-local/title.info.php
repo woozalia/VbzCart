@@ -6,14 +6,13 @@
     2015-03-05 Started for active-no-image report, but will probably have other uses
 */
 
-class vcqtaTitlesInfo extends VCTA_Titles {
+class vcqtaTitlesInfo extends vctAdminTitles {
     use vtQueryableTable_Titles;
 
     // ++ SETUP ++ //
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('vcqraTitleInfo');
+    protected function SingularName() {
+	return 'vcqraTitleInfo';
     }
 
     // -- SETUP -- //
@@ -34,6 +33,7 @@ class vcqtaTitlesInfo extends VCTA_Titles {
     */
     protected function Records_Active_noImage() {
 	$qo = $this->ItemInfoQuery()->SQO_forSale();
+	
 	$qsImg = $this->ImageInfoQuery()->SQO_Source('im');
 	$qsTtl = $this->SQO_Source('t');
 	$qsDept = $this->SourceDepartments();
@@ -61,47 +61,29 @@ class vcqtaTitlesInfo extends VCTA_Titles {
 	$qo->Terms()->UseTerm(new fcSQLt_Group(array('t.ID')));
 	  
 	$sql = $qo->Render();
-	//die("SQL: $sql");
-	$rs = $this->DataSQL($sql);
+	$rs = $this->FetchRecords($sql);
 	return $rs;
     }
-    /* 2016-03-23 Don't use this. It looks like these queries need to be carefully checked
-      to make sure they include everything (mainly: optionless items, items available
-      but not in stock) which makes it impractical to then try to retrofit them into an SQO.
-      Not sure if this proves the impracticality of the SQO concept or just that it still
-      needs some refinement.
-    public function Records_forTitles_noTopic() {
-	$tShop = $this->ShopTable();
-	//* 2016-03-22 This mostly works, but seems to omit some titles.
-	$qo = $tShop->SQO_forTopicPage_active(NULL);
-	$tShop->SQOfrag_AddJoins_forCatNum($qo);
-	/* /
-	$qo = $this->ShopTable()->SQO_forTopicPage_all(NULL);
-	//* /
-	$tShop->SQOfrag_Sort_byCatNum($qo);
-	$sql = $qo->Render();
-	die("SQL: $sql");
-	return $this->DataSQL($sql);
-    }//*/
     
     // -- RECORDS -- //
     // ++ WEB UI ++ //
     
     public function RenderRows_Active_noImage() {
 	$rs = $this->Records_Active_noImage();
-	$out = $this->PageObject()->SectionHeader('Report: active + no images',NULL,'section-header-sub')
+	$oHdr = new fcSectionHeader('Report: active + no images');
+	$out = $oHdr->Render()
 	  .$rs->AdminRows()
 	  ;
 	return $out;
     }
 }
-class vcqraTitleInfo extends VCRA_Title {
+class vcqraTitleInfo extends vcrAdminTitle implements fiLinkableRecord {
     use vctrTitleInfo;
 
     // ++ FIELD VALUES ++ //
 
     public function CatNum() {
-	return $this->Value('CatNum');
+	return $this->GetFieldValue('CatNum');
     }
     
     // -- FIELD VALUES -- //

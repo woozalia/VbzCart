@@ -7,7 +7,7 @@
     2017-01-06 updated somewhat
 */
 
-class vctaRRQIs_exp extends fcConnectedData {
+class vctaRRQIs_exp extends fcTable_wSource_wRecords {
     use ftLinkableTable;
 
     // ++ SETUP ++ //

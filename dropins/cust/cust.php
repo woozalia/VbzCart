@@ -14,7 +14,7 @@ define('KHT_DESCR_IS_BLANK','<span style="color: grey; font-style: italic;">'.KS
 /*::::
  CUSTOMER DATA
 */
-class vctaCusts extends clsCusts {
+class vctaCusts extends vctCusts implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
@@ -29,37 +29,29 @@ class vctaCusts extends clsCusts {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec() {
+    // ++ EVENTS ++ //
+  
+    public function DoEvent($nEvent) {}	// no action needed
+    public function Render() {
 	return $this->RenderSearch();
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec() {
+	return $this->RenderSearch();
+    } */
 
-    // -- DROP-IN API -- //
-    // ++ DATA RECORDS ACCESS ++ //
+    // -- EVENTS -- //
+    // ++ RECORDS ++ //
 
     public function GetRecs_forUser($idUser) {
 	$sqlFilt = '(ID_User='.$idUser.') AND (ID_Repl IS NULL)';
 	$rs = $this->GetData($sqlFilt);
 	return $rs;
     }
-    /* 2014-01-16 this is apparently unused -- does nothing
-    public function GetAddrs_forUser($idUser) {
-	$sql = 'SELECT a.* FROM '
-	  .$this->Table->SQLName().' AS c '
-	  .'LEFT JOIN cust_addrs AS a '
-	  .'ON a.ID_Cust=c.ID '
-	  .'WHERE '
-	    .'(c.ID_User='.$idUser.') AND '
-	    .'(WhenExp IS NULL)';
 
-    }
-    */
-
-    // -- DATA RECORDS ACCESS -- //
+    // -- RECORDS -- //
     // ++ ADMIN WEB UI ++ //
 
     protected function RenderSearch() {
@@ -121,10 +113,10 @@ __END__;
     // -- ADMIN WEB UI -- //
 
 }
-class vcraCust extends clsCust {
+class vcraCust extends vcrCust implements fiLinkableRecord {
     use ftLinkableRecord;
     use ftShowableRecord;
-    use ftLoggableRecord;
+    //use ftLoggableRecord;
 
     // ++ BOILERPLATE HELPERS ++ //
 
@@ -210,13 +202,13 @@ class vcraCust extends clsCust {
     }
 
     // -- METHOD OVERRIDES -- //
-    // ++ CLASS NAMES ++ //
+    // ++ CLASSES ++ //
 
     protected function NamesClass() {
-	return KS_CLASS_CUST_NAMES;
+	return KS_CLASS_CUST_NAMES_ADMIN;
     }
     protected function CardsClass() {
-	return KS_CLASS_CUST_CARDS;
+	return KS_CLASS_CUST_CARDS_ADMIN;
     }
     protected function CartsClass() {
 	return KS_CLASS_ADMIN_CARTS;
@@ -229,30 +221,21 @@ class vcraCust extends clsCust {
 	}
     }
     protected function MailAddrsClass() {
-	return KS_CLASS_MAIL_ADDRS;
+	return KS_CLASS_MAIL_ADDRS_ADMIN;
     }
     protected function EmailAddrsClass() {
-	return KS_CLASS_EMAIL_ADDRS;
+	return KS_CLASS_EMAIL_ADDRS_ADMIN;
     }
 
-    // -- CLASS NAMES -- //
-    // ++ DATA TABLES ++ //
+    // -- CLASSES -- //
+    // ++ TABLES ++ //
 
-    protected function CardTable($id=NULL) {
-	return $this->Engine()->Make($this->CardsClass(),$id);
-    }
     protected function OrderTable($id=NULL) {
 	return $this->Engine()->Make($this->OrdersClass(),$id);
     }
-    protected function NameTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_CUST_NAMES,$id);
-    }
-    protected function EmailAddrTable($id=NULL) {
-	return $this->Engine()->Make($this->EmailAddrsClass(),$id);
-    }
 
-    // -- DATA TABLES -- //
-    // ++ DATA RECORDS ++ //
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
     
     public function AddressRecord() {
 	$id = $this->Value('ID_Addr');
@@ -276,7 +259,7 @@ class vcraCust extends clsCust {
 	return $rc;
     }
 
-    // -- DATA RECORDS -- //
+    // -- RECORDS -- //
     // ++ FIELD CALCULATIONS ++ //
 
     protected function AddrStr() {
@@ -463,6 +446,10 @@ class vcraCust extends clsCust {
 	  'crea'	=> 'When Created',
 	);
 	return $arF;
+    }
+    protected function AdminRows_settings_columns() {
+	throw new exception('2017-04-16 Is this actually being called?');
+	return $this->ColumnsArray();	// seems likely to be a good default
     }
     /*
     protected function AdminRows_start() {
@@ -1170,27 +1157,30 @@ __END__;
       HISTORY:
 	2012-01-08 it seems likely that this will crash when you try to save a new record,
 	  as the event-logging call is wrong.
+	2017-03-27 Did a partial update, but more will be needed.
     */
     private function AdminCards() {
-	if (clsHTTP::Request()->getBool('btnAddCard')) {
-	    $txtAbbr = clsHTTP::Request()->getText('abbr');
-	    $isAct = clsHTTP::Request()->getBool('active');
-	    $strInv = clsHTTP::Request()->getText('WhenInv');
-	    $txtNum = clsHTTP::Request()->getText('CardNum');
-	    $txtExp = clsHTTP::Request()->getText('CardExp');
-	    $sqlExp = clsCustCards::ExpDateSQL($txtExp);
-	    $idAddr = clsHTTP::Request()->getInt('idAddr');
-	    $idName = clsHTTP::Request()->getInt('idName');
-	    $txtNotes = clsHTTP::Request()->getText('notes');
+	$db = $this->GetConnection();
+	$oFormIn = fcHTTP::Request();
+	if ($oFormIn->getBool('btnAddCard')) {
+	    $txtAbbr = $oFormIn->getText('abbr');
+	    $isAct = $oFormIn->getBool('active');
+	    $strInv = $oFormIn->getText('WhenInv');
+	    $txtNum = $oFormIn->getText('CardNum');
+	    $txtExp = $oFormIn->getText('CardExp');
+	    $sqlExp = vctCustCards::ExpDateSQL($txtExp);
+	    $idAddr = $oFormIn->getInt('idAddr');
+	    $idName = $oFormIn->getInt('idName');
+	    $txtNotes = $oFormIn->getText('notes');
 	    $arData = array(
-	      'Name'	 => SQLValue($txtAbbr),
-	      'isActive' => SQLValue($isAct),
-	      'Notes'	=> SQLValue($txtNotes),
-	      'ID_Addr'	=> SQLValue($idAddr),
-	      'ID_Name'	=> SQLValue($idName),
-	      'CardExp' => SQLValue($sqlExp)
+	      'Name'	 => $db->Sanitize_andQuote($txtAbbr),
+	      'isActive' => $db->Sanitize_andQuote($isAct),
+	      'Notes'	=> $db->Sanitize_andQuote($txtNotes),
+	      'ID_Addr'	=> $db->Sanitize_andQuote($idAddr),
+	      'ID_Name'	=> $db->Sanitize_andQuote($idName),
+	      'CardExp' => $db->Sanitize_andQuote($sqlExp)
 	      );
-	    $txtSafe = clsCustCards::SafeDescr_Short($txtNum,$txtExp);
+	    $txtSafe = vctCustCards::SafeDescr_Short($txtNum,$txtExp);
 	    $objPay = new clsPayment();
 	      $objPay->MakeAddr($idAddr);
 	      $objPay->MakeNum($txtNum);
@@ -1221,7 +1211,7 @@ __END__;
 	    $ftAct = ($rs->isActive)?'&radic;':'x';
 	    $ftAbbr = fcString::EncodeForHTML($rs->NameString());
 	    $ftFull = fcString::EncodeForHTML(
-	      clsCustCards::SafeDescr_Short(
+	      vctCustCards::SafeDescr_Short(
 		$rs->CardNumber(),$rs->CardExpiry()
 		)
 	      );

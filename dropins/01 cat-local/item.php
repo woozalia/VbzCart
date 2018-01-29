@@ -2,21 +2,23 @@
 /*
   PART OF: VbzCart admin interface
   PURPOSE: classes for handling Items
-    VCA_Items
-    VCR_Item
-    clsAdminItems_info_Cat - adds an ActionKey to clsItems_info_Cat
+    vctAdminItems
+    vcrAdminItem
+    clsAdminItems_info_Cat - adds an ActionKey to vctItems_info_Cat
   HISTORY:
     2013-11-06 split off from SpecialVbzAdmin.main.php
     2013-12-15 Renamed from vbz-mw-item.php to item.php for drop-in system.
 */
-class VCA_Items extends clsItems {
+class vctAdminItems extends vctItems implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
+    use ftExecutableTwig;
+    use vtTableAccess_ImagesInfo;
 
     // ++ SETUP ++ //
 
     // OVERRIDE
     protected function SingularName() {
-	return 'VCR_Item';
+	return 'vcrAdminItem';
     }
     // CEMENT
     public function GetActionKey() {
@@ -24,33 +26,47 @@ class VCA_Items extends clsItems {
     }
 
     // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetPageTitle('Items');
+	//$oPage->SetBrowserTitle('Suppliers (browser)');
+	//$oPage->SetContentTitle('Suppliers (content)');
+    }
+    public function Render() {
 	$out = $this->RenderSearch()
 	  .$this->RenderReports()
 	  ;
 	return $out;
     }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	$out = $this->RenderSearch()
+	  .$this->RenderReports()
+	  ;
+	return $out;
+    } */
     
-    // -- DROP-IN API -- //
-    // ++ DATA TABLE ACCESS ++ //
+    // -- EVENTS -- //
+    // ++ TABLES ++ //
     
     /*----
       PUBLIC so Records class can access it too (fewer functions to define)
     */
     public function StockLineTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_STOCK_LINES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_LINES,$id);
     }
+    /*
     protected function ImageInfoQuery() {
 	return $this->Engine()->Make('vcqtImagesInfo');
-    }
+    }*/
     
-    // -- DATA TABLE ACCESS -- //
-    // ++ SQL CALCULATIONS ++ //
+    // -- TABLES -- //
+    // ++ SQL ++ //
     
     /*----
       REPLACES: http://htyp.org/VbzCart/queries/qryItems_needed_forStock
@@ -69,7 +85,7 @@ class VCA_Items extends clsItems {
 	  ."\n WHERE i.isForSale AND ((i.QtyMin_Stk - s.QtyForSale) > 0)";
 	return $sql;
     }
-    // -- SQL CALCULATIONS -- //
+    // -- SQL -- //
     // ++ RECORDS ++ //
     
     protected function Records_Active_noPrice() {
@@ -84,7 +100,7 @@ class VCA_Items extends clsItems {
 
 	$sql = $qo->Render();
     
-	$rs = $this->DataSQL($sql);
+	$rs = $this->FetchRecords($sql);
 	return $rs;
     }	
     
@@ -116,10 +132,11 @@ class VCA_Items extends clsItems {
     // ++ ADMIN WEB UI ++ //
 
     protected function RenderSearch() {
-	$oPage = $this->Engine()->App()->Page();
-	
-	$sCat = $oPage->ReqArgText('inCatNum');
-	$sDsc = $oPage->ReqArgText('inDescr');
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+
+	$sCat = $oFormIn->GetString('inCatNum');
+	$sDsc = $oFormIn->GetString('inDescr');
 	$htCat = NULL;
 	$htDsc = NULL;
 	$htResults = NULL;
@@ -127,12 +144,12 @@ class VCA_Items extends clsItems {
 	    $sqlFilt = NULL;
 	    if (!empty($sCat)) {
 	      // prepare the search parameter
-		$sqlCat = $this->Engine()->SanitizeAndQuote("$sCat%");
+		$sqlCat = $this->GetConnection()->Sanitize_andQuote("$sCat%");
 		$htCat = '"'.fcString::EncodeForHTML($sCat).'"';
 		$sqlFilt = "(CatNum LIKE $sqlCat) OR (Supp_CatNum LIKE $sqlCat)";
 	    }
 	    if (!empty($sDsc)) {
-		$sqlDsc = $this->Engine()->SanitizeAndQuote("%$sDsc%");
+		$sqlDsc = $this->GetConnection()->Sanitize_andQuote("%$sDsc%");
 		$htDsc = fcString::EncodeForHTML($sDsc);
 		if (!is_null($sqlFilt)) {
 		    $sqlFilt .= "OR ";
@@ -143,16 +160,18 @@ class VCA_Items extends clsItems {
 	    if (is_null($sqlFilt)) {
 	    } else {
 		// do the search
-		$rs = $this->GetData($sqlFilt);
-		$htResults = $oPage->SectionHeader('Search Results',NULL,'section-header-sub')
-		  .$rs->AdminRows();
+		$rs = $this->SelectRecords($sqlFilt);
+		$oHdr = new fcSectionHeader('Search Results');
+		$htResults = $oHdr->Render()
+		  .$rs->AdminRows()
+		  ;
 	    }
 	}
-	
-	$out = $oPage->SectionHeader('Search')
+	$oHdr = new fcSectionHeader('Search');
+	$out = $oHdr->Render()
 	  .<<<__END__
 
-<form method=get>
+<form method=get class=content>
   Search items by:
   <br>catalog #: <input name=inCatNum size=20 value=$htCat>
   <br>description: <input name=inDescr size=50 value=$htDsc>
@@ -164,9 +183,15 @@ __END__;
 	return $out;
     }
     protected function RenderReports() {
-	$oPage = $this->Engine()->App()->Page();
 	$out = NULL;
+	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	  $oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('show','Show'));
+						// ($sKeyValue,$sPopup=NULL,$sDispOff=NULL,$sDispOn=NULL)
+	    $oGrp->SetChoice($ol = new fcHeaderChoice('no-price','show active items with no price set'));
+	      $doNoPrice = $ol->GetIsSelected();
 
+	/*
 	$arMenu = array(
 	  new clsAction_section('Show'),
 	  new clsActionLink_option(
@@ -179,12 +204,14 @@ __END__;
 	    )
 	  );
 	$out .= $oPage->SectionHeader('Reports',$arMenu);
+	*/
 	
-	$sShow =$oPage->PathArg('show');
+	//$sShow =$oPage->PathArg('show');
 	
-	if ($sShow == 'no-price') {
+	if ($doNoPrice) {
 	    $rs = $this->Records_Active_noPrice();
-	    $out .= $oPage->SectionHeader('active, no price',NULL,'section-header-subsub')
+	    $oHdr = new fcSectionHeader('active, no price');
+	    $out .= $oHdr->Render()
 	      .$rs->AdminRows()
 	      ;
 	}
@@ -230,12 +257,43 @@ __END__;
     // -- ADMIN WEB UI -- //
     
 }
-class VCR_Item extends clsItem {
-    use ftLinkableRecord, ftLoggableRecord, ftShowableRecord;
+class vcrAdminItem extends vcrItem implements fiLinkableRecord, fiEventAware, fiEditableRecord {
+    use ftLinkableRecord, ftShowableRecord, ftLoggableRecord, ftSaveableRecord;
     use vtTableAccess_Supplier;
+    use ftExecutableTwig;
 
-    private $idEvent;
+    // ++ EVENTS ++ //
+  
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	if ($this->IsNew()) {
+	    $sTitle = 'new Item';
+	    $htTitle = $sTitle;
+	    $this->SetTitleID($oPathIn->GetInt('title'));	// get Title ID, if given
+	} else {
+	    $sCatNum = $this->CatNum();
+	    $id = $this->GetKeyValue();
+	    $htDesc = $this->FullDescr();
+	    $htTitle = "Item #$id: $sCatNum - $htDesc";
+	    $sTitle = "$sCatNum (#$id)";
+	}
+	
+	$oPage = fcApp::Me()->GetPageObject();
+	//$oPage->SetPageTitle('Suppliers');
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
+    }
+    public function Render() {
+	return $this->AdminPage();
+    }
+    /*----
+      PURPOSE: execution method called by dropin menu
+    */ /*
+    public function MenuExec(array $arArgs=NULL) {
+	return $this->AdminPage();
+    } */
 
+    // -- EVENTS -- //
     // ++ TRAIT HELPERS ++ //
 
     public function SelfLink_name() {
@@ -268,50 +326,35 @@ class VCR_Item extends clsItem {
     }
 
     // -- TRAIT HELPERS -- //
-    // ++ CALLBACK ++ //
-
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */
-    public function MenuExec(array $arArgs=NULL) {
-	return $this->AdminPage();
-    }
-
-    // -- CALLBACK -- //
-    // ++ APP FRAMEWORK ++ //
-    
-    protected function PageObject() {
-	return $this->Engine()->App()->Page();
-    }
-    
-    // -- APP FRAMEWORK -- //
     // ++ FIELD VALUES ++ //
 
     // WRITABLE so we can set when adding Items for a Title.
     // PUBLIC because parent is.
-    public function SupplierID($id=NULL) {
-	return $this->Value('ID_Supp',$id);
+    public function SetSupplierID($id) {
+	return $this->SetFieldValue('ID_Supp',$id);
+    }
+    public function GetSupplierID() {
+	return $this->GetFieldValue('ID_Supp');
     }
     protected function IsMaster() {
-	return $this->Value('isMaster');
+	return $this->GetFieldValue('isMaster');
     }
     public function IsAvailable() {
-	return $this->Value('isAvail');
+	return $this->GetFieldValue('isAvail');
     }
+    /* 2017-06-29 IsCurrent was eliminated last week; use SC date fields instead
     protected function IsCurrent() {
-	return $this->Value('isCurrent');
-    }
-    protected function IsInPrint() {
-	return $this->Value('isInPrint');
-    }
+	return $this->GetFieldValue('isCurrent');
+    } */
+    /* 2017-06-19 Eliminating isCloseOut field; means the same thing as NOT IsInPrint
     protected function IsCloseOut() {
-	return $this->Value('isCloseOut');
-    }
+	return $this->GetFieldValue('isCloseOut');
+    } */
     protected function IsPulled() {
-	return $this->Value('isPulled');
+	return $this->GetFieldValue('isPulled');
     }
     protected function IsDumped() {
-	return $this->Value('isDumped');
+	return $this->GetFieldValue('isDumped');
     }
     protected function CatSfx() {
 	return $this->Value('CatSfx');
@@ -327,7 +370,7 @@ class VCR_Item extends clsItem {
 	return $this->Value('QtyMin_Stk');
     }
     protected function SupplierCatNum() {
-	return $this->Value('Supp_CatNum');
+	return $this->GetFieldValue('Supp_CatNum');
     }
     
     // -- FIELD VALUES -- //
@@ -380,14 +423,17 @@ class VCR_Item extends clsItem {
 	2016-02-10 Revised to calculate quantity directly from stock records
     */
     protected function Qty_InStock() {
+	/* 2017-03-16 old
 	$sql = vcqtStockLinesInfo::SQL_forItemStatus('ID_Item='.$this->GetKeyValue());
-	$rc = $this->Engine()->DataSet($sql);
+	$rc = $this->GetConnection()->FetchRecords($sql);
+	*/
+	$rc = $this->StockItemQuery()->GetItemRecord($this->GetKeyValue());
 	if ($rc->HasRows()) {
 	    if ($rc->RowCount() > 1) {
 		throw new exception('Internal data error: This should not happen.');
 	    }
 	    $rc->NextRow();	// get the only row
-	    return $rc->Value('QtyForSale');
+	    return $rc->QtyForSale();
 	} else {
 	    return NULL;
 	}
@@ -406,11 +452,12 @@ class VCR_Item extends clsItem {
 	    $out = '<b>N/A</b>';
 	}
 	if (!$this->isInPrint()) {
-	    $out .= ' RETIRED';
+	    $out .= ' <span title="out of print">RETIRED</span>';
 	}
+	/*
 	if ($this->isCloseOut()) {
 	    $out .= ' CLOSEOUT';
-	}
+	} */
 	if ($this->isCurrent()) {
 	    $out .= ' <span title="current">&radic;</span>';
 	} else {
@@ -455,26 +502,26 @@ class VCR_Item extends clsItem {
 	} else {
 	    $sStatus = NULL;
 	    if ($this->IsMaster()) {	$sStatus .= ' MASTER'; }
-	    if ($this->IsCurrent()) { 	$sStatus .= ' CURRENT';	}
+//	    if ($this->IsCurrent()) { 	$sStatus .= ' CURRENT';	}
 	    if ($this->IsAvailable()) {	$sStatus .= ' AVAILABLE'; }
 	    if ($this->IsInPrint()) {	$sStatus .= ' IN-PRINT'; }
-	    if ($this->IsCloseOut()) {	$sStatus .= ' CLOSEOUT'; }
-	    if ($this->IsPulled()) {	$sStatus .= ' PULLED'; }
-	    if ($this->IsDumped()) {	$sStatus .= ' DUMPED'; }
+//	    if ($this->IsCloseOut()) {	$sStatus .= ' CLOSEOUT'; }
+	    if ($this->IsPulled()) {	$sStatus .= ' >PULLED'; }
+	    if ($this->IsDumped()) {	$sStatus .= ' >DUMPED'; }
 	}
 	return $sStatus;
     }
     protected function StatusChars() {
 	$sStatus = NULL;
 	if ($this->IsMaster()) {	$sStatus .= 'M'; }
-	if ($this->IsCurrent()) {
-	  $sStatus .= '<span title="C=current" style="color: #006600;">C</span>';	}
+//	if ($this->IsCurrent()) {
+//	  $sStatus .= '<span title="C=current" style="color: #006600;">C</span>';	}
 	if ($this->IsAvailable()) {
 	  $sStatus .= '<span title="A=available from supplier" style="color:green;">A</span>';	}
 	if ($this->IsInPrint()) {
 	  $sStatus .= '<span title="P=in print" style="color: blue;">P</span>';	}
-	if ($this->IsCloseOut()) {
-	  $sStatus .= '<span title="T=closeout" style="color: grey;">G</span'; }
+//	if ($this->IsCloseOut()) {
+//	  $sStatus .= '<span title="T=closeout" style="color: grey;">G</span'; }
 	if ($this->IsPulled())	{
 	  $sStatus .= '<span title="U=pulled" style="color: red;">U</span>';	}
 	if ($this->IsDumped()) {
@@ -505,13 +552,13 @@ class VCR_Item extends clsItem {
     // ++ TABLES ++ //
 
     protected function TitleTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_CATALOG_TITLES,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_CATALOG_TITLES,$id);
     }
     protected function StockItemTable($id=NULL) {
 	throw new exception('StockItemTable() has been renamed StockLineTable().');
     }
     protected function StockLineTable($id=NULL) {
-	return $this->Table()->StockLineTable($id);
+	return $this->GetTableWrapper()->StockLineTable($id);
     }
     // ItemTypeTable($id=NULL) is defined by parent class
     // ItemOptionTable($id=NULL) is defined by parent class
@@ -519,23 +566,26 @@ class VCR_Item extends clsItem {
 	return $this->Engine()->Make(KS_CLASS_ORDER_LINES,$id);
     }
     protected function RestockRequestItemTable($id=NULL) {
-	return $this->Engine()->Make(KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_ADMIN_CLASS_RESTOCK_REQ_ITEMS,$id);
     }
     protected function ReceivedRestockItemTable($id=NULL) {
-	return $this->Engine()->Make(KS_ADMIN_CLASS_RESTOCK_LINES_RECEIVED,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_ADMIN_CLASS_RESTOCK_LINES_RECEIVED,$id);
     }
     protected function StockEventTable($id=NULL) {
-	return $this->Engine()->Make(KS_CLASS_STOCK_LINE_LOG,$id);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_STOCK_LINE_LOG,$id);
     }
     protected function OrdersQuery() {
-	return $this->Engine()->Make(KS_CLASS_JOIN_LCITEM_ORDERS);
+	return $this->GetConnection()->MakeTableWrapper(KS_CLASS_JOIN_LCITEM_ORDERS);
+    }
+    protected function StockItemQuery() {
+	return $this->GetConnection()->MakeTableWrapper('vcqtStockItemsInfo');
     }
 
     // -- TABLES -- //
     // ++ RECORDS ++ //
 
     public function TitleRecord() {
-	return $this->TitleTable($this->TitleID());
+	return $this->TitleTable($this->GetTitleID());
     }
     public function ItemTypeRecord() {
 	return $this->ItemTypeTable($this->ItemTypeID());
@@ -618,7 +668,7 @@ class VCR_Item extends clsItem {
     public function AdminRows() {	// ALIAS
 	return $this->AdminList();
     }*/
-    protected function AdminRows_settings_columns_default() {
+    protected function AdminRows_settings_columns() {
 	return array(
 	    'ID'	=> 'ID',
 	    'LCatNum'	=> 'Our Cat #',
@@ -662,11 +712,11 @@ class VCR_Item extends clsItem {
 	    $val = $this->ItemOptionString_forDetails();
 	    break;
 	  case 'PriceBuy':
-	    $val = clsMoney::Format_withSymbol($this->PriceBuy());
+	    $val = fcMoney::Format_withSymbol($this->PriceBuy());
 	    $htAttr = ' align=right';
 	    break;
 	  case 'PriceSell':
-	    $val = clsMoney::Format_withSymbol($this->PriceSell());
+	    $val = fcMoney::Format_withSymbol($this->PriceSell());
 	    $htAttr = ' align=right';
 	}
 	return "<td$htAttr>$val</td>";
@@ -716,7 +766,7 @@ __END__;
 	    while ($this->NextRow()) {
 		$sClass = $isOdd?'odd':'even';
 		$isActive = $this->IsForSale();
-		$isCurrent = $this->IsCurrent();
+		//$isCurrent = $this->IsCurrent();
 		$isInPrint = $this->IsInPrint();
 		$isPulled = $this->IsPulled();
 		if ($isActive) {
@@ -735,7 +785,7 @@ __END__;
 		}
 		$sStatus = '';
 		if ($isActive)	{ $sStatus .= '<span title="A=active" style="color:green;">A</span>';	}
-		if ($isCurrent) { $sStatus .= '<span title="C=current" style="color: #006600;">C</span>';	}
+		//if ($isCurrent) { $sStatus .= '<span title="C=current" style="color: #006600;">C</span>';	}
 		if ($isInPrint) { $sStatus .= '<span title="P=in print" style="color: blue;">P</span>';	}
 		if ($isPulled)	{ $sStatus .= '<span title="U=pulled" style="color: red;">U</span>';	}
 		$sPriceBuy = clsMoney::Format_withSymbol($this->PriceBuy());
@@ -797,29 +847,20 @@ __END__;
 	2011-02-24 Finally renamed from InfoPage() to AdminPage()
     */
     public function AdminPage(array $arOpts=NULL) {
-	$oPage = $this->PageObject();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 
-	if ($this->IsNew()) {
-	    $sTitle = 'new Item';
-	    $this->TitleID($oPage->PathArg('title'));	// get Title ID, if given
-	} else {
-	    $sCatNum = $this->CatNum();
-	    $sTitle = 'Item #'.$this->GetKeyValue().': '.$sCatNum.' - '.$this->FullDescr();
-	}
-
-	$oPage->Skin()->SetPageTitle($sTitle);
-
-	$sAction = $oPage->PathArg('do');
+	$sAction = $oPathIn->GetString('do');
 	$doAdd = ($sAction == 'add');
 	$isNew = $this->IsNew();
-	$doEdit = $isNew || $oPage->PathArg('edit');
-	$doSave = clsHTTP::Request()->GetBool('btnSave');
+	$doEdit = $isNew || $oPathIn->GetBool('edit');
+	$doSave = $oFormIn->GetBool('btnSave');
 
 	if ($doEdit || $doSave) {
 	    if ($doSave) {
 		$this->PageForm()->Save();
 		if (array_key_exists('url.return',$arOpts)) {
-		    clsHTTP::Redirect($arOpts['url.return']);
+		    fcHTTP::Redirect($arOpts['url.return']);
 		} else {
 		    // remove the form submission from the current state:
 		    $this->SelfRedirect();
@@ -832,12 +873,12 @@ __END__;
 	if ($isNew) {
 	    $frmEdit->ClearValues();
 	    
-	    if (clsArray::Exists($arOpts,'id.title')) {
+	    if (fcArray::Exists($arOpts,'id.title')) {
 		// if we're adding an Item to a specific Title, pre-load some defaults:
 		$idTitle = $arOpts['id.title'];
-		$this->TitleID($idTitle);
+		$this->SetTitleID($idTitle);
 		$rcTitle = $this->TitleRecord();
-		$this->SupplierID($rcTitle->SupplierID());
+		$this->SetSupplierID($rcTitle->SupplierID());
 		// TODO: maybe these defaults should also be read-only.
 		$frmEdit->LoadRecord();
 	    }
@@ -849,7 +890,7 @@ __END__;
 	$arCtrls['ID'] = $this->SelfLink();
 	//$arCtrls['!Status'] = $this->StatusText();
 
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	$htForm = $oTplt->RenderRecursive();
 
 	if ($doEdit) {
@@ -868,6 +909,16 @@ __END__;
 	  (($this->IsNew())?'Add New Item':'Edit Item #'.$this->GetKeyValue())
 	  :
 	  'specs for Item #'.$this->GetKeyValue();
+	
+	$oMenu = new fcHeaderMenu();
+	$oHdr = new fcSectionHeader($sHdr,$oMenu);
+
+	  // ($sGroupKey,$sKeyValue=TRUE,$sDispOff=NULL,$sDispOn=NULL,$sPopup=NULL)
+          $oMenu->SetNode($ol = new fcMenuOptionLink('do','edit',NULL,NULL,'edit this item'));
+          
+	$htHdr = $oHdr->Render();
+	
+	/* 2017-03-21 old
 	$arActs = array(
 	  new clsActionLink_option(
 	    array(),
@@ -879,6 +930,7 @@ __END__;
 	    )
 	  );
 	$htHdr = $oPage->ActionHeader($sHdr,$arActs);
+	*/
 	// put the form inside a box so the list indentations will work
 	$out = <<<__END__
 <table class=listing><tr><td>
@@ -922,6 +974,12 @@ __END__;
 		$oField->ControlObject()->Editable(FALSE);	// TODO: make editable if zero
 	      $oField = new fcFormField_Time($oForm,'WhenUpdated');
 		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($oForm,'SC_DateActive');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($oForm,'SC_LastUpdate');
+		$oField->ControlObject()->Editable(FALSE);
+	      $oField = new fcFormField_Time($oForm,'SC_DateExpires');
+		$oField->ControlObject()->Editable(FALSE);
 
 	      // bit fields:
 	      
@@ -929,10 +987,10 @@ __END__;
 		$oField->ControlObject()->DisplayStrings('AVAIL');
 	      $oField = new fcFormField_BoolInt($oForm,'isInPrint');
 		$oField->ControlObject()->DisplayStrings('IN-PRINT');
-	      $oField = new fcFormField_BoolInt($oForm,'isCloseOut');
-		$oField->ControlObject()->DisplayStrings('CLOSEOUT');
-	      $oField = new fcFormField_BoolInt($oForm,'isCurrent');
-		$oField->ControlObject()->DisplayStrings('CURRENT');
+	      //$oField = new fcFormField_BoolInt($oForm,'isCloseOut');
+		//$oField->ControlObject()->DisplayStrings('CLOSEOUT');
+	      //$oField = new fcFormField_BoolInt($oForm,'isCurrent');
+		//$oField->ControlObject()->DisplayStrings('CURRENT');
 	      $oField = new fcFormField_BoolInt($oForm,'isMaster');
 		$oField->ControlObject()->DisplayStrings('MASTER');
 	      $oField = new fcFormField_BoolInt($oForm,'isPulled');
@@ -957,29 +1015,29 @@ __END__;
 		
 	      $oField = new fcFormField_Num($oForm,'ID_ShipCost');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ShipCostTable()->DropDown_Records());
+		$oCtrl->SetRecords($this->ShipCostTable()->DropDown_Records());
 		
 	      $oField = new fcFormField_Num($oForm,'ID_Supp');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->SupplierTable()->DropDown_Records());
+		$oCtrl->SetRecords($this->SupplierTable()->DropDown_Records());
 		$oCtrl->AddChoice(NULL,'not set!');
 		
 	      $oField = new fcFormField_Num($oForm,'ID_Title');
 		//$oField->OkToWrite(FALSE);
-		$oField->SetDefault($this->TitleID());
+		$oField->SetDefault($this->GetTitleID());
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$sqlFilt = 'ID_Supp='.$this->SupplierID();
-		$oCtrl->Records($this->TitleTable()->GetData_forDropDown($sqlFilt));
+		$sqlFilt = 'ID_Supp='.$this->GetSupplierID();
+		$oCtrl->SetRecords($this->TitleTable()->GetData_forDropDown($sqlFilt));
 		
 	      $oField = new fcFormField_Num($oForm,'ID_ItTyp');
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ItemTypeTable()->DropDown_Records());
+		$oCtrl->SetRecords($this->ItemTypeTable()->DropDown_Records());
 		$oCtrl->AddChoice(NULL,'not set!');
 		
 	      $oField = new fcFormField_Num($oForm,'ID_ItOpt');
 		//$oField->OkToWrite(FALSE);
 		$oCtrl = new fcFormControl_HTML_DropDown($oField,array());
-		$oCtrl->Records($this->ItemOptionTable()->GetData_forDropDown());
+		$oCtrl->SetRecords($this->ItemOptionTable()->GetData_forDropDown());
 		$oCtrl->AddChoice(NULL,'no option');
 		
 	      $oField = new fcFormField_Text($oForm,'ItOpt_Descr');
@@ -1019,15 +1077,13 @@ __END__;
 <td>[[isAvail]]available
 <br>[[isMaster]]master
 <br>[[isInPrint]]in print
-<br>[[isCloseOut]]closeout
-<br>[[isCurrent]]current
 <br>[[isPulled]]pulled
 <br>[[isDumped]]dumped
 </td>
 </tr></table>
 __END__;
 	    } else {
-		$sStatus = '[[isAvail]] [[isMaster]] [[isInPrint]] [[isCloseOut]] [[isCurrent]] [[isPulled]] [[isDumped]]';
+		$sStatus = '[[isAvail]] [[isMaster]] [[isInPrint]] [[isPulled]] [[isDumped]]';
 	    }
 	    $sTplt = <<<__END__
 <ul>
@@ -1037,9 +1093,15 @@ __END__;
   <ul>
     <li> <b>created</b> &lt;[[WhenCreated]]&gt;</li>
     <li> <b>updated</b> &lt;[[WhenUpdated]]&gt;</li>
-  </ul>
+    <li> <b>Supplier Catalog</b>:</li>
+    <ul>
+	<li> <b>when active</b> &lt;[[SC_DateActive]]&gt;</li>
+	<li> <b>when updated</b> &lt;[[SC_LastUpdate]]&gt;</li>
+	<li> <b>when expires</b> &lt;[[SC_DateExpires]]&gt;</li>
+    </ul>
   <li> <b>Prices</b>:</li>
-  <ul>
+  <ul>WhenUpdated]]&gt;</li>
+  </ul>
     <li> <b>Buy</b>: [[PriceBuy]]</li>
     <li> <b>Sell</b>: [[PriceSell]]</li>
     <li> <i><b>List</b>: [[PriceList]]</i></li>
@@ -1081,13 +1143,14 @@ __END__;
 
     public function StockListing() {
 	$out =
-	  $this->Engine()->App()->Page()->ActionHeader('Stock')
-	  .$this->StockLineTable()->Listing_forItem($this);
+	  (new fcSectionHeader('Stock'))->Render()
+	  .$this->StockLineTable()->Listing_forItem($this)
+	  ;
 	return $out;
     }
     protected function OrderListing() {
 	$t = $this->OrdersQuery();
-	$out = $this->PageObject()->ActionHeader('Orders / Packages')
+	$out = (new fcSectionHeader('Orders / Packages'))->Render()
 	  .$t->AdminRows_forLCItem($this->GetKeyValue())
 	  ;
 	return $out;
@@ -1106,18 +1169,19 @@ __END__;
 	$id = $this->GetKeyValue();
 	
 	$tbl = $this->RestockRequestItemTable();
-	$rs = $tbl->GetData('ID_Item='.$id);
+	$rs = $tbl->SelectRecords('ID_Item='.$id);
 	$htReq = $rs->AdminRows_forLCItem();
 	
 	$tbl = $this->ReceivedRestockItemTable();
-	$rs = $tbl->GetData('ID_Item='.$id);
+	$rs = $tbl->SelectRecords('ID_Item='.$id);
 	$htRcd = $rs->AdminRows_forLCItem();
 
 	// TODO: write 2nd part of this
 	
 	$out =
-	  $this->PageObject()->ActionHeader('Restocks')
-	  .$htReq.$htRcd;
+	  (new fcSectionHeader('Restocks'))->Render()
+	  .$htReq.$htRcd
+	  ;
 	/*
 	$out =
 	  $this->Engine()->App()->Page()->ActionHeader('Restocks')
@@ -1132,8 +1196,9 @@ __END__;
 	$id = $this->GetKeyValue();
 	$tbl = $this->StockEventTable();
 	return
-	  $this->Engine()->App()->Page()->ActionHeader('Movement')
-	  .$tbl->Listing_forItem($id);
+	  (new fcSectionHeader('Movement'))->Render()
+	  .$tbl->Listing_forItem($id)
+	  ;
     }
 
     //--related--//
@@ -1142,14 +1207,7 @@ __END__;
 
 // FUNCTION DEPRECATED - remove eventually
     public function StoreLink_HT($iText) {
+	throw new exception('2017-03-22 Only one thing calls this, and it should probably call something else.');
 	return '<a href="'.KWP_CAT.$this->TitleRecord()->URL_part().'" title="browse in store">'.$iText.'</a>';
     }
 }
-/* 2016-01-24 This doesn't seem to be used.
-class clsAdminItems_info_Cat extends clsItems_info_Cat {
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ActionKey('item');
-    }
-}
-*/

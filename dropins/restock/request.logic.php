@@ -163,7 +163,7 @@ class vcrRstkReq extends vcBasicRecordset {
 	throw new exception('PurchaseOrderNumber() has been renamed OurPurchaseOrderNumber().');
     }
     protected function OurPurchaseOrderNumber() {
-	return $this->Value('PurchOrdNum');
+	return $this->GetFieldValue('PurchOrdNum');
     }
     protected function SupplierPurchaseOrderNumber() {
 	return $this->Value('SuppPONum');
@@ -181,13 +181,13 @@ class vcrRstkReq extends vcBasicRecordset {
 	return $this->Value('WhenConfirmed');
     }
     protected function WhenKilled() {
-	return $this->Value('WhenKilled');
+	return $this->GetFieldValue('WhenKilled');
     }
     protected function WhenClosed() {
-	return $this->Value('WhenClosed');
+	return $this->GetFieldValue('WhenClosed');
     }
     protected function WhenOrphaned() {
-	return $this->Value('WhenOrphaned');
+	return $this->GetFieldValue('WhenOrphaned');
     }
     protected function WhenExpectedOriginal() {
 	return $this->Value('WhenExpectedOrig');
@@ -307,13 +307,13 @@ class vcrRstkReq extends vcBasicRecordset {
     // ++ TABLES ++ //
 
     protected function CatalogItemTable() {
-	return $this->Engine()->Make(KS_ADMIN_CLASS_LC_ITEMS);
+	return $this->GetConnection()->MakeTableWrapper(KS_ADMIN_CLASS_LC_ITEMS);
     }
     protected function ReceivedTable($id=NULL) {
-	return $this->Engine()->Make($this->ReceivedsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->ReceivedsClass(),$id);
     }
     protected function RequestItemTable($id=NULL) {
-	return $this->Engine()->Make($this->RequestItemsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->RequestItemsClass(),$id);
     }
     protected function ContentsTable($id=NULL) {
 	return $this->RequestItemTable($id);	// alias
@@ -337,7 +337,7 @@ class vcrRstkReq extends vcBasicRecordset {
       ACTION: adds a line item to the request
       METHOD: defers to item table class
     */
-    public function AddItem(clsItem $rcItem,$qtyNeed,$qtySold) {
+    public function AddItem(vcrItem $rcItem,$qtyNeed,$qtySold) {
 	return $this->RequestItemTable()->AddItem($this->GetKeyValue(),$rcItem,$qtyNeed,$qtySold);
     }
 
