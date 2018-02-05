@@ -5,8 +5,9 @@ FILE SET: VbzCart libraries
 HISTORY:
   2013-08-29 created
   2014-01-20 moved MediaWiki-specific files into separate config-libs.php
+  2018-01-31 now assuming that Ferreteria base has already been loaded
 */
-fcCodeLibrary::Load_byName('ferreteria');
+//fcCodeLibrary::Load_byName('ferreteria');
 fcCodeLibrary::Load_byName('ferreteria.db.2');
 
 $fp = dirname( __FILE__ );

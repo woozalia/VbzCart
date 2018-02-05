@@ -41,7 +41,7 @@ class vctSuppliers extends vcShopTable {
     // ++ RECORDS ++ //
 
     public function GetRecord_byCatKey($sKey) {
-	$sqlCatKey = $this->GetConnection()->Sanitize_andQuote(strtoupper($sKey));
+	$sqlCatKey = $this->GetConnection()->SanitizeValue(strtoupper($sKey));
 	$rc = $this->SelectRecords("CatKey=$sqlCatKey");
 	$nRows = $rc->RowCount();
 	if ($nRows == 1) {

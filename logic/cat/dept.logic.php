@@ -51,7 +51,7 @@ class vctDepts extends vcShopTable {	// TODO: should be descended from non-shop 
       NOTE: If PageKey is NULL, CatKey should be used instead
     */
     public function GetRecord_bySupplier_andCatKey($idSupp,$sKey) {
-	$sqlCatKey = $this->GetConnection()->Sanitize_andQuote(strtoupper($sKey));
+	$sqlCatKey = $this->GetConnection()->SanitizeValue(strtoupper($sKey));
 	$sqlFilt = "(ID_Supplier=$idSupp) AND (IFNULL(PageKey,CatKey)=$sqlCatKey)";
 	$rc = $this->SelectRecords($sqlFilt);
 	$nRows = $rc->RowCount();
