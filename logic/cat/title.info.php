@@ -5,41 +5,27 @@
     2016-02-11 started
     2016-02-18 more or less working
     2016-10-25 Updated for db.v2
+    2018-02-09 moved:
+      vctCatDepartments_queryable to dept.query.php
+      vctCatSuppliers_queryable to supp.query.php
+      Not sure either of these are actually necessary
 */
-class vctCatDepartments_queryable extends vctDepts {
-    use ftQueryableTable;
-    use vtTableAccess_Supplier;
-
-    // ++ CLASSES ++ //
-    
-    protected function SuppliersClass() {
-	return 'vctCatSuppliers_queryable';
-    }
-    
-    // -- CLASSES -- //
-    // ++ SQO PIECES ++ //
-
-    public function SourceSuppliers() {
-	return $this->SupplierTable()->SQO_Source('s');
-	//return new fcSQL_TableSource($this->SupplierTable()->Name(),'s');
-    }
-
-    // -- SQO PIECES -- //
-}
-class vctCatSuppliers_queryable extends vctSuppliers {
-    use ftQueryableTable;
-}
 trait vtQueryableTable_Titles {
     use ftQueryableTable;
 
     // ++ CLASSES ++ //
     
-    // need to use queryable versions of the basic logic tables
-    
+    /*----
+      PURPOSE: we need to use queryable versions of the basic logic tables,
+	mainly so we have SQO_Source() for building SQO
+      HISTORY:
+	2018-02-14 This was commented out on 2/9 because I didn't know what it was for;
+	  now re-enabling because of SQO_Source.
+    */
     protected function DepartmentsClass() {
 	return 'vctCatDepartments_queryable';
     }
-    
+
     // -- CLASSES -- //
     // ++ SQL FRAGMENTS ++ //
     
@@ -75,9 +61,60 @@ trait vtQueryableTable_Titles {
     
     // -- SQO PIECES -- //
 }
+trait vtTitles_status {
+    // ++ SQO FULL ++ //
 
-class vcqtTitlesInfo extends vctShopTitles {
+    /*----
+      RETURNS: SQO for Titles with at least one active Item
+	SELECT OUTPUT: title ID, quantity active
+    */
+    protected function SQO_active() {
+	$qo = $this->ItemInfoQuery()->SQO_forSale();
+	$qo->Select()->Fields(new fcSQL_Fields(array(
+	      't.ID',
+	      'QtyForSale' => 'SUM(sl.Qty)'	// alias => source
+	      )
+	    )
+	  );
+	$qo->Terms()->UseTerm(new fcSQLt_Group(array('i.ID_Title')));
+	$qst = new fcSQL_TableSource($this->TableName(),'t');
+	$qo->Select()->Source()->AddElements(
+	  array(
+	    new fcSQL_JoinElement($qst,'i.ID_Title=t.ID'),
+	    )
+	  );
+	return $qo;
+    }
+    public function SQO_active_byTopic() {
+	$sqoTi = $this->SQO_active();
+	$sqosTT = new fcSQL_TableSource('cat_title_x_topic','tt');
+	$sqoTo = new fcSQL_Query(		// query
+	  new fcSQL_Select(				// +select
+	    new fcSQL_JoinSource(array(				// +source
+		new fcSQL_JoinElement(new fcSQL_SubQuerySource($sqoTi,'ti')),	// sub-source: SQO_active
+		new fcSQL_JoinElement($sqosTT,'ti.ID = tt.ID_Title')		// sub-source: titles_x_topics
+	      )),						// -source
+	    new fcSQL_Fields(array(				// +fields, +array
+		'tt.ID_Topic',
+		'QtyForSale'	=> 'SUM(ti.QtyForSale)',
+		'QtyTitles'	=> 'COUNT(ti.ID)'
+	      ))						// -array, -fields
+	    ),							// -select
+	    new fcSQL_Terms(array(				// +terms
+		new fcSQLt_Group(array('tt.ID_Topic'))
+	      ))						// -terms
+	    );						// -query
+	return $sqoTo;
+    }
+
+    // ++ SQO FULL ++ //
+}
+
+//class vcqtTitlesInfo extends vctShopTitles {
+//class vcqtTitlesInfo extends fcUsableTable {
+class vcqtTitlesInfo extends vctTitles {
     use vtQueryableTable_Titles;
+    use vtTitles_status;
     use vtTableAccess_Supplier,vtTableAccess_ItemType;
   
     // ++ CEMENTING ++ //
@@ -133,24 +170,6 @@ class vcqtTitlesInfo extends vctShopTitles {
 	$oq->Terms()->Filters()->AddCond('t.ID_Dept='.$idDept);
 	$oq->Terms()->UseTerm(new fcSQLt_Sort(array('t.CatKey','i.ItOpt_Sort')));
 	return $oq;
-    }
-    // RETURNS: SQO for Titles with at least one active Item
-    public function SQO_active() {
-	$qo = $this->ItemInfoQuery()->SQO_forSale();
-	$qo->Select()->Fields(new fcSQL_Fields(array(
-	      't.ID',
-	      'QtyForSale' => 'SUM(sl.Qty)'	// alias => source
-	      )
-	    )
-	  );
-	$qo->Terms()->UseTerm(new fcSQLt_Group(array('i.ID_Title')));
-	$qst = new fcSQL_TableSource($this->TableName(),'t');
-	$qo->Select()->Source()->AddElements(
-	  array(
-	    new fcSQL_JoinElement($qst,'i.ID_Title=t.ID'),
-	    )
-	  );
-	return $qo;
     }
     // RETURNS: SQO for all Titles, with availability fields
     public function SQO_availability() {
@@ -551,55 +570,6 @@ __END__;
 	$rs = $this->FetchRecords($sql);
 	return $rs;
     }
-    /* 2016-10-25 Seems to be disused, but not deleting yet just in case.
-    // This pulls together all the Title-based information from both stock and items (but not images)
-    public function GetRecords_withCatNum_andItemStats_forTopic($idTopic) {
-	throw new exception('Is anything actually using this?');
-	$oq = $this->SQLobj_withCatNum_andItemStats_forTopic($idTopic);
-	
-	$sql = $oq->Render();
-	
-	echo "SQL (wCatNum & ItemStats): <pre>$sql</pre>";
-	
-	$rs = $this->DataSQL($sql);
-	return $rs;
-    }
-    public function GetRecords_withCatNum_forTopic($idTopic,$sqlSort='CatNum') {
-	$sql = <<<__END__
-SELECT
-  CONCAT_WS('-',s.CatKey,d.CatKey,t.CatKey) AS CatNum,
-  t.Name
-FROM `cat_titles` AS t
-JOIN cat_depts AS d ON t.ID_Dept=d.ID
-JOIN cat_supp AS s ON t.ID_Supp=s.ID
-JOIN (
-
-SELECT 
-    i.ID_Title, SUM(Qty) AS QtyTotal
-FROM
-	cat_items AS i
-		JOIN
-    stk_lines AS sl ON sl.ID_Item = i.ID
-        JOIN
-    stk_bins AS sb ON sl.ID_Bin = sb.ID
-WHERE
-    (sl.Qty > 0)
-        AND (sb.isForSale)
-        AND (sb.isEnabled)
-        AND (sb.WhenVoided IS NULL)
-        
-GROUP BY sl.ID_Item
-
-) AS s ON s.ID_Title=t.ID
-
-JOIN cat_title_x_topic AS tt ON tt.ID_Title=t.ID
-WHERE tt.ID_Topic=$idTopic
-ORDER BY $sqlSort
-__END__;
-
-	$rs = $this->DataSQL($sql);
-	return $rs;
-    } */
     
     // -- RECORDS -- //
 }
@@ -609,7 +579,7 @@ trait vctrTitleInfo {
     // ++ FIELD VALUES ++ //
 
     protected function QtyInStock() {
-	return $this->Value('QtyInStock');
+	return $this->GetFieldValue('QtyInStock');
     }
     protected function PriceMinimum() {
 	return $this->GetFieldValue('PriceMin');
@@ -658,7 +628,7 @@ trait vctrTitleInfo {
     protected function RenderSummary_text() {
 	return $this->CatNum()
 	.' &ldquo;'
-	.$this->TitleString()
+	.$this->NameString()
 	.'&rdquo;: '
 	.$this->RenderStatus_text()
 	;
@@ -667,12 +637,15 @@ trait vctrTitleInfo {
     // -- UI PIECES -- //
 
 }
-class vcqrTitleInfo extends vcrShopTitle {
+class vcqrTitleInfo extends vcBasicRecordset {
+    use vtrTitle;
+    use vtrTitle_shop;
     use vctrTitleInfo;
     use vtTableAccess_ImagesInfo;
 
     // ++ TABLES ++ //
     
+    // 2018-02-10 if anything is still using this, it will error out
     protected function ItemInfoQuery() {
 	return $this->Engine()->Make('vcqtImagesInfo');
     }
@@ -686,9 +659,6 @@ class vcqrTitleInfo extends vcrShopTitle {
 
     public function CatNum() {
 	return $this->GetFieldValue('CatNum');
-    }
-    protected function TitleString() {
-	return $this->GetFieldValue('Name');
     }
     protected function QtyInStock() {
 	return $this->GetFieldValue('QtyInStock');
@@ -799,7 +769,7 @@ class vcqrTitleInfo extends vcrShopTitle {
 	  .$this->TitleHREF()
 	  .$this->CatNum()
 	  .' &ldquo;'
-	  .$this->TitleString()
+	  .$this->NameString()
 	  .'&rdquo;</a>: '
 	  .$this->RenderStatus_HTML_line()
 	  .'<br>'
@@ -821,7 +791,7 @@ class vcqrTitleInfo extends vcrShopTitle {
     protected function RenderSummary_inactive() {
 	$sText = $this->CatNum()
 	.' &ldquo;'
-	.$this->TitleString()
+	.$this->NameString()
 	.'&rdquo;'
 	;
 	return $sText;
@@ -830,12 +800,14 @@ class vcqrTitleInfo extends vcrShopTitle {
     // -- FIELD CALCULATIONS -- //
     // ++ ARRAYS ++ //
     
+    // 2018-02-10 if anything is still calling this, it will error out
     protected function ItemStats() {
 	return $this->Table()->ItemStats()[$this->KeyValue];
     }
+    /* 2018-02-08 This appears to be unused.
     protected function ItemsForSale() {
 	return $this->ItemStats()['QtyForSale'];
-    }
+    } */
     // ACTION: compile master array of all titles in recordset
     public function CompileMaster() {
 	// 2016-11-06 This should now accomplish the same thing as the old code:
@@ -908,6 +880,7 @@ class vcqrTitleInfo extends vcrShopTitle {
       ASSUMES: There is at least one row
       OUTPUT: via Stats_ForSaleText(), Stats_RetiredText()
     */
+      /* 2018-02-07 apparently nothing is using these?
     public function GatherStats() {
 	while ($this->NextRow()) {
 	    $sCatNum = $this->CatNum();
@@ -943,6 +916,7 @@ class vcqrTitleInfo extends vcrShopTitle {
 	}
 	return $this->$sStatsRetired;
     }
+    */
     /*----
       INPUT:
 	* $ar: output from $this->StatsArray_for*()

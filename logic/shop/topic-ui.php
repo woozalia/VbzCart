@@ -79,6 +79,7 @@ class vctShopTopics extends vctTopics {
 	$fpTopics = vcGlobals::Me()->GetWebPath_forTopicPages();
 	return "<a href='$fpTopics' title='topics: master index' class='dark-bg'>$htShow</a>";
     }
+    private $ctrlTree;
     public function TreeCtrl() {
 	if (is_null($this->ctrlTree)) {
 	    $this->ctrlTree = new fcDTreeAPI(vcGlobals::Me()->GetWebPath_DTree());
@@ -89,24 +90,6 @@ class vctShopTopics extends vctTopics {
     public function RenderPageHdr() {
 	$out = $this->TreeCtrl()->RenderPageHdr();
 	return $out;
-    }
-    // 2016-02-05 This appears to be unused.
-    public function DoIndex() {
-	throw new exception('Does anything actually call this?');
-	$objSection = new clsPageOutput();
-
-	$objTopics = $this->GetData('ID_Parent IS NULL',NULL,'Sort,Name,NameTree');
-	$isFirst = TRUE;
-	while ($objTopics->NextRow()) {
-	    if ($isFirst) {
-		$isFirst = FALSE;
-		$objSection->SectionHdr('Root Topics');
-	    } else {
-		$objSection->AddText($objTopics->Name.'<br>');
-	    }
-	}
-
-	return $objSection->out;
     }
     
     // -- WEB UI ELEMENTS -- //
@@ -182,10 +165,9 @@ class vcrShopTopic extends vcrTopic {
     // -- FIELD CALCULATIONS -- //
     // ++ WEB UI COMPONENTS ++ //
 
-    public function Tree_RenderTwig($iCntTitles) {
-	$cntTitles = $iCntTitles;
-	$txtNoun = ' title'.Pluralize($cntTitles).' available';	// for topic #'.$id;
-	$out = ' [<b><span style="color: #00cc00;" title="'.$cntTitles.$txtNoun.'">'.$cntTitles.'</span></b>]';
+    public function Tree_FormatTwigStats($qTitles) {
+	$txtNoun = ' title'.fcString::Pluralize($qTitles).' available';	// for topic #'.$id;
+	$out = ' [<b><span style="color: #00cc00;" title="'.$qTitles.$txtNoun.'">'.$qTitles.'</span></b>]';
 	return $out;
     }
     public function RenderBranch($iSep=" &larr; ") {
@@ -285,8 +267,24 @@ class vcrShopTopic extends vcrTopic {
 	    $htForSaleTxt = $arRes['act']['text'];
 	    $htForSaleImg = $arRes['act']['imgs'];
 	    $htRetiredTxt = $arRes['ret'];
-	
-	    $oHdr = new fcSectionHeader('&darr; Titles available');
+
+	    if (is_null($htForSaleTxt)) {
+		$htContent = '<span class=catalog-summary>No available items for this topic.</span>';
+	    } else {
+		$htContent =
+		  '<span class=catalog-summary>'.$htForSaleTxt.'</span>'
+		  .$htForSaleImg;
+	    }
+	    $oSection = new vcHideableSection('hide-available','Titles Available',$htContent);
+	    $ht .= $oSection->Render();
+
+	    /* 2018-02-14 old
+	    // available titles are always shown, so display a down arrow
+	    $oGlob = vcGlobalsApp::Me();
+	    $wsArrow = $oGlob->GetWebSpec_DownPointer();
+	    $htArrow = "<img src='$wsArrow'>";
+	    
+	    $oHdr = new fcSectionHeader($htArrow.' Titles available');
 	    $ht .= $oHdr->Render();
 	    if (is_null($htForSaleTxt)) {
 		$ht .= '<span class=catalog-summary>No available items in this topic.</span>';
@@ -295,12 +293,21 @@ class vcrShopTopic extends vcrTopic {
 		  '<span class=catalog-summary>'.$htForSaleTxt.'</span>'
 		  .$htForSaleImg;
 	    }
+	    */
 	    if (!is_null($htRetiredTxt)) {
-		$oHdr = new fcSectionHeader('&darr; Titles NOT available');
+		$htContent = "<span class=catalog-summary>$htRetiredTxt</span>";
+		$oSection = new vcHideableSection('show-retired','Titles NOT available',$htContent);
+		$oSection->SetDefaultHide(TRUE);
+		$ht .= $oSection->Render();
+	    /* 2018-02-14 old
+		$wsArrow = $oGlob->GetWebSpec_DownPointer();
+		$htArrow = "<img src='$wsArrow' alt='&darr; (down arrow)'>";
+		$oHdr = new fcSectionHeader($htArrow.' Titles NOT available');
 		$ht .=
 		  $oHdr->Render()
 		  .'<span class=catalog-summary>'.$htRetiredTxt.'</span>'
 		  ;
+	    */
 	    }
 	} else {
 	    $ht .= "\nThis topic currently has no titles.";

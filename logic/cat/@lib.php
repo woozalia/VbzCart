@@ -11,6 +11,8 @@ $om = new fcCodeModule(__FILE__, 'dept.logic.php');
   $om->AddClass('vctDepts');
   $om->AddClass('vtTableAccess_Department');
   $om->AddClass('vcrDept_shop');
+$om = new fcCodeModule(__FILE__, 'dept.query.php');
+  $om->AddClass('vctCatDepartments_queryable');
 
 $om = new fcCodeModule(__FILE__, 'image.php');
   $om->AddClass('vctImages');
@@ -34,14 +36,16 @@ $om = new fcCodeModule(__FILE__, 'item-opt.php');
 $om = new fcCodeModule(__FILE__, 'ship-cost.php');
   $om->AddClass('clsShipCosts');
 $om = new fcCodeModule(__FILE__, 'stats.php');
-  $om->AddClass('clsStatsMgr');
+  $om->AddClass('fcStatsMgr');
 
 $om = new fcCodeModule(__FILE__, 'supp.logic.php');
   $om->AddClass(KS_LOGIC_CLASS_LC_SUPPLIERS);
   $om->AddClass('vtTableAccess_Supplier');
 $om = new fcCodeModule(__FILE__, 'supp.ittyps.php');
   $om->AddClass('vcqtSuppliertItemTypes');
-
+$om = new fcCodeModule(__FILE__, 'supp.query.php');
+  $om->AddClass('vctCatSuppliers_queryable');
+  
 $om = new fcCodeModule(__FILE__, 'title.logic.php');
   $om->AddClass('vctTitles');
   $om->AddClass('vcrTitle');
@@ -49,6 +53,7 @@ $om = new fcCodeModule(__FILE__, 'title.logic.php');
 $om = new fcCodeModule(__FILE__, 'title.info.php');
   $om->AddClass('vtQueryableTable_Titles');
   $om->AddClass('vcqtTitlesInfo');
+  $om->AddClass('vtTitles_status');
 $om = new fcCodeModule(__FILE__, 'title-topic.php');
   $om->AddClass('vctTitlesTopics');
 

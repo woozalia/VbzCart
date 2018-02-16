@@ -8,8 +8,8 @@ HISTORY:
     to resolve dependency-order conflicts
   2011-11-06 Tentatively removed ActionKey from here; later determined that it doesn't belong.
 */
-class vctTopics extends vcShopTable {
-    protected $ctrlTree;
+class vctTopics extends vcBasicTable {
+
     protected $doBranch;
 
     // ++ SETUP ++ //
@@ -61,21 +61,21 @@ class vctTopics extends vcShopTable {
     /*----
       ACTION: loads title-per-topic statistics into memory
       PURPOSE: for speeding up indications of where actual stuff-for-sale may be found within topic listings
+      OUTPUT: array[ID_Topic] -> # of Titles for sale
       USED BY: Topic tree builder
     */
     public function LoadTitleStats() {
 //	$rs = $this->FetchRecords('SELECT * FROM qryTitleTopic_Title_avail');
-	$tTitleInfo = $this->TitleInfoQuery();
-	//$oq = $tTitleInfo->SQO_forTopicPage_all();
-	$oq = $tTitleInfo->SQO_active();
+	$tqTitle = $this->TitleInfoQuery();	// CLASS: vcqtTitlesInfo 
+	//$oq = $tqTitle->SQO_forTopicPage_all();
+	$oq = $tqTitle->SQO_active_byTopic();	// CLASS: fcSQL_Query
 	$sql = $oq->Render();
-	die('SQL: '.$sql);
-	$rs = $tTitleInfo->FetchRecords($sql);
+	$rs = $tqTitle->FetchRecords($sql);
 	
 	if ($rs->HasRows()) {
 	    while ($rs->NextRow()) {
 		$id = $rs->GetFieldValue('ID_Topic');
-		$ar[$id] = $rs->GetFieldValue('cntForSale');
+		$ar[$id] = $rs->GetFieldValue('QtyForSale');
 	    }
 	} else {
 	    $ar = NULL;
@@ -89,28 +89,26 @@ class vctTopics extends vcShopTable {
     /*----
       ACTION: Recursively adds an array of twigs to the given node
       INPUT:
-	iLayers[ID] = array of IDs of child objects
-	iLayers[ID parent][ID child] = object's Values()
+	arLayers = topic record values, in a tree:
+	  arLayers[ID] = array of IDs of child objects
+	  arLayers[ID parent][ID child] = object's Values()
+	onTwig = current twig in the tree used for rendering
+	arStats = title count by topic
+	  arStats[Topic ID] = number of titles in this immediate topic
     */
-    public function AddLayer(array $iLayers, fcTreeNode $iTwig, $iID, array $iTitleStats) {
-//	if (isset($iLayers[$iID])) {
-	if (array_key_exists($iID,$iLayers)) {
-	    $obj = $this->SpawnItem();
-	    $arLayer = $iLayers[$iID];
-	    foreach ($arLayer as $id => $row) {
-		$obj->Values($row);
-		$strShow = $obj->NameTree();
-		if (array_key_exists($id,$iTitleStats)) {
-		    $cntTitles = $iTitleStats[$id];
-		    $strShow .= $obj->Tree_RenderTwig($cntTitles);
-/*
-		    $txtNoun = ' title'.Pluralize($cntTitles).' available for topic #'.$id;
-		    $strShow .= ' [<b><span style="color: #00cc00;" title="'.$cntTitles.$txtNoun.'">'.$cntTitles.'</span></b>]';
-*/
+    public function AddLayer(array $arLayers, fcTreeNode $onTwig, $iID, array $arStats) {
+	if (array_key_exists($iID,$arLayers)) {		// if this topic has subtopics...
+	    $rc = $this->SpawnRecordset();			// create empty object to handle subtopic data
+	    $arLayer = $arLayers[$iID];				// get the list of subtopics for it
+	    foreach ($arLayer as $id => $row) {			// for each subtopic...
+		$rc->SetFieldValues($row);				// stuff subtopic data into object
+		$sSub = $rc->NameTree();				// get subtopic text for display
+		if (array_key_exists($id,$arStats)) {			// if there are stats for subtopic...
+		    $qTitles = $arStats[$id];					// retrieve them
+		    $sSub .= $rc->Tree_FormatTwigStats($qTitles);		// format them & add to display
 		}
-		//$objSub = $iTwig->Add($id,$strShow,$obj->ShopURL());
-		$objSub = $obj->Tree_AddTwig($iTwig,$strShow);
-		$this->AddLayer($iLayers,$objSub,$id,$iTitleStats);
+		$onSub = $rc->Tree_AddTwig($onTwig,$sSub);		// add display string to display tree
+		$this->AddLayer($arLayers,$onSub,$id,$arStats);		// check subtopic for subsubtopics
 	    }
 	}
     }
@@ -137,48 +135,13 @@ __END__;
 class vcrTopic extends vcShopRecordset {
     protected $didTitles,$hasTitles;
 
-    // ++ STATIC ++ //
-
-    static private $oStat = NULL;
-    static protected function Stats() {
-	if (is_null(self::$oStat)) {
-	    self::$oStat = new clsStatsMgr('vctItemsStat');
-	}
-	return self::$oStat;
-    }
-
-    // -- STATIC -- //
-    // ++ OPTIONS ++ //
+    // ++ SETTINGS ++ //
     
     public function doBranch($iOn=NULL) {
 	return $this->GetTableWrapper()->doBranch($iOn);
     }
     
-    // -- OPTIONS -- //
-    // ++ STATUS ACCESS ++ //
-
-    public function HasParent() {
-	return !is_null($this->ParentID());
-    }
-    /*----
-      RETURNS: Folder name to use for this topic
-    */
-    public function FldrName() {
-	return sprintf(KS_FMT_TOPICID,$this->GetKeyValue());
-    }
-    public function StatThis() {
-	$id = $this->GetKeyValue();
-	if (!self::Stats()->IndexExists($id)) {
-	    $rs = $this->ItemRecords();	// item records for this title
-	    self::Stats()->StatFor($id)->SumItems($rs);	// calculate stats
-	}
-	return self::Stats()->StatFor($id);
-    }
-    public function ItemsForSale() {
-	return $this->StatThis()->ItemsForSale();
-    }
-
-    // -- STATUS ACCESS -- //
+    // -- SETTINGS -- //
     // ++ FIELD VALUES ++ //
 
     public function ParentID() {
@@ -197,6 +160,16 @@ class vcrTopic extends vcShopRecordset {
     
     // -- FIELD VALUES -- //
     // ++ FIELD CALCULATIONS ++ //
+
+    public function HasParent() {
+	return !is_null($this->ParentID());
+    }
+    /*----
+      RETURNS: Folder name to use for this topic
+    */
+    public function FldrName() {
+	return sprintf(KS_FMT_TOPICID,$this->GetKeyValue());
+    }
     /*----
       RETURNS: Full name for this topic. If NameFull is not set, defaults to Name.
       NOTE: 2016-11-06 Earlier note on 'NameFull' says "sometimes '' gets saved as '' instead of NULL".
@@ -232,8 +205,33 @@ class vcrTopic extends vcShopRecordset {
 	}
 	return $out;
     }
-
+    
     // -- FIELD CALCULATIONS -- //
+    // ++ STATS ++ //
+    
+    static private $oStat = NULL;
+    static protected function GetStatsManager() {
+	if (is_null(self::$oStat)) {
+	    self::$oStat = new fcTreeStatsMgr('vctItemsStat');
+	}
+	return self::$oStat;
+    }
+    /* 2018-02-08 This appears to be no longer in use.
+    public function StatThis() {
+	throw new exception('2018-02-08 Does anything still use this?');
+	$id = $this->GetKeyValue();
+	if (!self::Stats()->IndexExists($id)) {
+	    $rs = $this->ItemRecords();	// item records for this title
+	    self::Stats()->StatFor($id)->SumItems($rs);	// calculate stats
+	}
+	return self::Stats()->StatFor($id);
+    } */
+    /* 2018-02-08 This may be no longer in use.
+    public function ItemsForSale() {
+	return $this->StatThis()->ItemsForSale();
+    } */
+
+    // -- STATUS ACCESS -- //
     // ++ CLASS NAMES ++ //
 
     protected function TitlesClass() {
@@ -426,7 +424,7 @@ __END__;
     // ++ ACTIONS ++ //
 
     public function Tree_AddTwig(fcTreeNode $iTwig,$iText) {
-	$id = $this->Value('ID');
+	$id = $this->GetFieldValue('ID');
 	$objSub = $iTwig->Add($id,$iText,$this->ShopURL());
 	return $objSub;
     }

@@ -6,6 +6,7 @@
     2012-05-08 split off base.cat.php from store.php
     2013-11-10 split off vbz-cat-supp.php from base.cat.php
     2016-12-03 trait for easier Table access in other classes
+    2018-02-14 moved vctCatSuppliers_queryable here
 */
 trait vtTableAccess_Supplier {
     protected function SuppliersClass() {
@@ -211,85 +212,19 @@ class vcrSupplier extends vcShopRecordset {
 	// 2016-11-07 This replaces the stuff below:
 	$rs = $this->SupplierItemTypeQuery()->FetchData_forExhibit_single($idSupp);
 	return $rs->CompileExhibitData_array();
-	
-/* 2016-11-07 old version
-	//$db = $this->Engine();
-	$sqlDpt = $this->DepartmentTable()->TableName_Cooked();
-	$sqlTtl = $this->TitleTable()->TableName_Cooked();
-	$sqlItm = $this->ItemTable()->TableName_Cooked();
-	$sqlItt = $this->ItemTypeTable()->TableName_Cooked();
-	$sqlStock = vcqtStockLinesInfo::SQL_forItemStatus();
-
-	$sql = <<<__END__
-SELECT
-  i.*,
-  t.ID_Dept,
-  it.NameSng,
-  it.NamePlr,
-  d.Name AS DeptName,
-  d.PageKey AS DeptPageKey,
-  d.CatKey AS DeptCatKey
-FROM (($sqlItm AS i
-JOIN $sqlTtl AS t ON i.ID_Title=t.ID)
-JOIN $sqlItt AS it ON i.ID_ItTyp=it.ID)
-JOIN $sqlDpt AS d ON t.ID_Dept=d.ID
-JOIN ($sqlStock) AS s ON s.ID_Item=i.ID
-WHERE (i.ID_Supp=$idSupp) AND (i.isAvail OR (s.QtyForSale>0))
-__END__;
-*/
-/* 2016-02-10 older version
-	$sql = <<<__END__
-SELECT
-  i.*,
-  t.ID_Dept,
-  it.NameSng,
-  it.NamePlr,
-  d.Name AS DeptName,
-  d.PageKey AS DeptPageKey,
-  d.CatKey AS DeptCatKey
-FROM (($sqlItm AS i
-LEFT JOIN $sqlTtl AS t ON i.ID_Title=t.ID)
-LEFT JOIN $sqlItt AS it ON i.ID_ItTyp=it.ID)
-LEFT JOIN $sqlDpt AS d ON t.ID_Dept=d.ID
-WHERE (i.ID_Supp=$idSupp) AND i.isForSale
-__END__;
-//*/
-//	$rs = $this->GetConnection()->FetchRecords($sql);
-	// recordset of all Items for this Supplier
-
-	/* 2016-11-07 moved to separate class
-	$arSIT = NULL;
-	$arDIT = NULL;
-	$arIT = array();
-	$arD = array();
-	while ($rs->NextRow()) {
-	    $idDept = $rs->Value('ID_Dept');
-	    $idItTyp = $rs->Value('ID_ItTyp');
-	    // these would normally generate an error for the first usage of each index
-	    @$arDIT[$idDept][$idItTyp]++;
-	    @$arSIT[$idItTyp]++;
-	    if (!array_key_exists($idItTyp,$arIT)) {
-		$arIT[$idItTyp] = array(
-		  'NameSng'	=> $rs->Value('NameSng'),
-		  'NamePlr'	=> $rs->Value('NamePlr')
-		  );
-	    }
-	    if (!array_key_exists($idDept,$arD)) {
-		$arD[$idDept] = array(
-		  'Name'	=> $rs->Value('DeptName'),
-		  'PageKey'	=> $rs->Value('DeptPageKey'),
-		  'CatKey'	=> $rs->Value('DeptCatKey')
-		  );
-	    }
-	}
-	$ar = array(
-	  's-it'=> $arSIT,
-	  'd-it'=> $arDIT,
-	  'it'	=> $arIT,
-	  'd'	=> $arD
-	  );
-	return $ar; */
     }
 
     // -- ARRAYS -- //
+}
+
+/*::::
+  HISTORY:
+    2018-02-09 extracted vctCatSuppliers_queryable from title.info.php
+      Not sure this is actually needed.
+    2018-02-14 Yes, we need it for access to SQO_Source() (in ftQueryableTable).
+      PHP was refusing to acknowledge that this class exists when it was registered in a separate file,
+      so I've moved it from supp.query.php to supp.logic.php.
+*/
+class vctCatSuppliers_queryable extends vctSuppliers {
+    use ftQueryableTable;
 }

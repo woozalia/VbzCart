@@ -23,9 +23,8 @@ $om = new fcCodeModule(__FILE__, 'vbz-page-cat.php');
   $om->AddClass('vcCatalogPage');
 $om = new fcCodeModule(__FILE__, 'vbz-page-ckout.php');
   $om->AddClass('vcPageCkout');
-/* 2016-12-20 obsolete
-$om = new fcCodeModule(__FILE__, 'vbz-page-login.php');
-  $om->AddClass('clsVbzPageLogin'); */
+$om = new fcCodeModule(__FILE__, 'vbz-page-home.php');
+  $om->AddClass('vcPageHome');
 $om = new fcCodeModule(__FILE__, 'vbz-page-search.php');
   $om->AddClass('vcPageSearch');
 $om = new fcCodeModule(__FILE__, 'vbz-page-shop.php');

@@ -8,9 +8,9 @@
   PURPOSE: base class for handling title-topic assignments
   HISTORY:
     2013-11-18 started as rewrite of three classes
-      clsTitleTopics_base
-      clsTitleTopic_Titles
-      clsTitleTopic_Topics
+      TitleTopics_base
+      TitleTopic_Titles
+      TitleTopic_Topics
 */
 class vctTitlesTopics extends fcTable_wName_wSource_wRecords {
 
@@ -20,7 +20,7 @@ class vctTitlesTopics extends fcTable_wName_wSource_wRecords {
 	return 'cat_title_x_topic';
     }
     protected function SingularName() {
-	return 'clsTitleTopic';
+	return 'vcrTitleTopic';
     }
 
     // -- CEMENT -- //
@@ -204,7 +204,7 @@ class vctTitlesTopics extends fcTable_wName_wSource_wRecords {
     // ++ ACTIONS ++ //
 
 }
-class clsTitleTopic extends fcDataRecord {
+class vcrTitleTopic extends fcDataRecord {
 
     // ++ FIELD VALUES ++ //
 

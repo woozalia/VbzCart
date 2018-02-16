@@ -22,41 +22,6 @@ class vcCatalogPage extends vcPage_shop {
     // -- SETUP -- //
     // ++ OVERRIDES ++ //
     
-// 2016-11-20 OLD CODE below
-
-    protected function HandleInput() {
-	die('THIS IS NOW HANDLED in the Content class.');
-	if ($this->strReq != '') {
-	    $sPath = $this->strReq;
-	    
-	    $arPath = fcString::Xplode($sPath);
-	    // we want to work from left to right, but array_pop() goes from right to left -- so...
-	    $arThap = array_reverse($arPath);
-	    // hand off the rest of the lookup to the Suppliers table object:
-	    $rcPage = $this->SupplierTable()->LookupExhibitRecord($arThap);
-
-	    // get all the pieces we need from the exhibit record:
-
-	    $oSkin = $this->GetSkinObject();
-	    
-	    if (is_null($rcPage)) {
-		$isFnd = FALSE;
-	    } else {
-		$isFnd = !$rcPage->IsNew();
-	    }
-	    
-	    if ($isFnd) {
-		$oSkin->SetTitleContextString($rcPage->ExhibitSuperTitle());
-		$oSkin->SetPageTitle($rcPage->ExhibitMainTitle());
-		$oSkin->Content('main',$rcPage->ExhibitContent());
-	    } else {
-		$oSkin->SetTitleContextString('Tomb of the...');
-		$oSkin->SetPageTitle('Unknown Page');
-	    }
-	} else {
-	    $this->DoCatHome();
-	}
-    }
     protected function BaseURL() {
 	return KWP_CAT_REL;
     }

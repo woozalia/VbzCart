@@ -63,3 +63,11 @@ class vcAppShop_topic extends vcAppShop {
 	return 'vcMenuKiosk_topic';
     }
 }
+class vcAppShop_home extends vcAppShop {
+    protected function GetPageClass() {
+	return 'vcPageHome';
+    }
+    protected function GetKioskClass() {
+	return 'vcMenuKiosk_catalog';
+    }
+}

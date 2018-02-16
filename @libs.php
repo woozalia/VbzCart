@@ -23,28 +23,25 @@ $om = new fcCodeModule(__FILE__, 'user.php');
   $om->AddClass('vcUserTable');
   $om->AddClass('vcUserRecord');
   $om->AddClass('clsEmailAuth');
-$om = new fcCodeModule(__FILE__, 'vbz-app.php');
+$om = new fcCodeModule(__FILE__, 'vbz-crypt.php');
+  $om->AddClass('vcCipher');
+
+$om = new fcCodeModule(__FILE__, 'vbz-data.php');
+  $om->AddClass('vcDBOFactory');
+  
+$om = new fcCodeModule(__FILE__, 'app/vbz-app.php');
   $om->AddClass('vcApp');
-$om = new fcCodeModule(__FILE__, 'vbz-app-admin.php');
+$om = new fcCodeModule(__FILE__, 'app/vbz-app-admin.php');
   $om->AddClass('vcAppAdmin');
-$om = new fcCodeModule(__FILE__, 'vbz-app-shop.php');
+$om = new fcCodeModule(__FILE__, 'app/vbz-app-shop.php');
+  $om->AddClass('vcAppShop_home');
   $om->AddClass('vcAppShop_catalog');
   $om->AddClass('vcAppShop_search');
   $om->AddClass('vcAppShop_cart');
   $om->AddClass('vcAppShop_topic');
-$om = new fcCodeModule(__FILE__, 'vbz-crypt.php');
-  $om->AddClass('vcCipher');
-
-
-//$om = new fcCodeModule(__FILE__, 'vbz-crypt.php');
-//  $om->AddClass('vbzCipher');
-$om = new fcCodeModule(__FILE__, 'vbz-data.php');
-  $om->AddClass('vcDBOFactory');
 
 // do this more elegantly later:
 require_once('cart/@libs.php');
 require_once('logic/@lib.php');
 require_once('page/@libs.php');
-require_once('ship/@libs.php');
-require_once('shop/@lib.php');
 //require_once('skin/@libs.php');

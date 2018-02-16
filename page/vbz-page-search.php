@@ -359,15 +359,13 @@ __END__;
 	if (is_null($sSearch)) {
 	    // nothing has been entered yet, so don't bother searching
 	    // LATER: print instructions or stats or something
-	    $out .= '<div class=content>Please enter some text to search for.</div>';
+	    $out = '<div class=content>Please enter some text to search for.</div>';
 	} else {
 	    $tTitles = $this->TitleInfoQuery();
-	    //$arTi1 = $tTitles->SearchRecords_forText($sSearch);
 	    $rsTi = $tTitles->Search_forText($sSearch);
 	    $arTi = $rsTi->asKeyedArray();
 	    
 	    $tTopics = $this->TopicTable();
-	    //$htTo = $tTopics->DoSearch($sSearch,'',', ');
 	    $rsTo = $tTopics->Search_forText($sSearch);
 
 	    // LIST TOPICS FOUND AS TEXT
@@ -376,6 +374,8 @@ __END__;
 		$oHdr = new fcSectionHeader('No matching topics found.');
 		$out = $oHdr->Render();
 	    } else {
+		$out = NULL;
+		
 		$htTo = NULL;
 		while ($rsTo->NextRow()) {
 		    if (!is_null($htTo)) {
@@ -396,10 +396,17 @@ __END__;
 
 		    }
 		}
+		
+		/*
 		$oHdr = new fcSectionHeader('&darr; Found Topics');
 		$out = $oHdr->Render()
 		  .'<p class="catalog-summary">'.$htTo.'</p>'
 		  ;
+		*/
+
+		$sContent = "<p class='catalog-summary'>$htTo</p>";
+		$oSection = new vcHideableSection('hide-found-topics','Found Topics',$sContent);
+		$out .= $oSection->Render();
 
 		// FIND TITLES FOR FOUND TOPICS
 
@@ -481,26 +488,32 @@ __END__;
 		// OUTPUT RESULTS
 		
 		if (is_null($htTiAct)) {
-		    $oHdr = new fcSectionHeader('No active titles found.');
+		    $oHdr = new fcSectionHeader('No matching active titles found.');
 		    $out .= $oHdr->Render();
 		} else {
-		    $oHdr = new fcSectionHeader('&darr; Found Titles - Available');
-		    $out .= $oHdr->Render()
-		    .'<p class="catalog-summary">'
+		    $sContent =
+		    '<p class="catalog-summary">'
 		    .$htTiAct
 		    .$htImgAct
-		    .'</p>';
+		    .'</p>'
+		    ;
+		
+		    $oSection = new vcHideableSection('hide-available','Found Titles - Available',$sContent);
+		    $out .= $oSection->Render();
 		}
 
 		if (!is_null($htTiRet)) {
-		    $oHdr = new fcSectionHeader('&darr; Found Titles - <b>Not</b> Available');
-		    $out .= $oHdr->Render()
-		      .'<p class="catalog-summary"><small>'
+		    $sHdr = 'Found Titles - <b>Not</b> Available';
+		    $sContent .=
+		      '<p class="catalog-summary"><small>'
 		      .'These titles are <b>not</b> currently available:<br>'
 		      .$htTiRet
 		      .'</small>'
 		      .'</p>'
 		      ;
+		    $oSection = new vcHideableSection('show-retired',$sHdr,$sContent);
+		    $oSection->SetDefaultHide(TRUE);
+		    $out .= $oSection->Render();
 		}
 	    }
 	}

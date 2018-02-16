@@ -232,13 +232,140 @@ __END__;
     // -- FIGURING -- //
 
 }
-class vcrTitle extends vcBasicRecordset {
+// PURPOSE: basic Title methods common to different Title class-families
+trait vtrTitle {
     use vtTableAccess_Supplier;
+
+    // ++ FIELD VALUES ++ //
+    
+    /*----
+      RETURNS: ID of this title's supplier
+      HISTORY:
+	2011-09-28 revised to get ID directly from the new ID_Supp field
+	  instead of having to look up the Dept and get it from there.
+	2015-11-12 Renamed Supplier_ID() to SupplierID() but added Supplier_ID()
+	  as an alias so I can tidy up the code LATER.
+	2018-02-10 removed Supplier_ID() and moved SupplierID() from vcrTitle to vtrTitle
+    */
+    public function SupplierID() {
+	return $this->GetFieldValue('ID_Supp');
+    }
+    public function DeptID() {
+	return $this->GetFieldValue('ID_Dept');
+    }
+    public function CatKey() {
+	return $this->GetFieldValue('CatKey');
+    }
+    // 2018-02-10 made PUBLIC, renamed from TitleString() to NameString(), and moved from vcqrTitleInfo to vtrTitle
+    public function NameString() {
+	return $this->GetFieldValue('Name');
+    }
+
+    // -- FIELD VALUES -- //
+    // ++ FIELD CALCULATIONS ++ //
+
+    /*----
+      NOTE: CatPage is NOT the same thing as CatNum separated by slashes instead of dashes.
+	The Department URL fragment can be different from the Department CatKey. Maybe this
+	should change in the future (maybe Departments actually should go away), but for now
+	that's the rule.
+
+      USED BY: shopping descendant class
+      TODO: 
+	* should probably use $rcDept->ShopURL() for department portion of URL
+	* should probably be renamed ShopURL()
+	* maybe should be moved into shopping class?
+    */
+    protected function CatPage() {
+	$rcDept = $this->DepartmentRecord();
+	$rcSupp = $this->SupplierRecord();
+	if (is_object($rcDept)) {
+	    $sDeptKey = $rcDept->PageKey_toUse();
+	} else {
+	    $sDeptKey = '-D!';
+	}
+	if (is_object($rcSupp)) {
+	    $sSuppKey = $rcSupp->CatKey();
+	} else {
+	    $sSuppKey = '-S!';
+	}
+	$sTitleKey = $this->CatKey();
+	$sCatPage = fcString::ConcatArray('/',array($sSuppKey,$sDeptKey,$sTitleKey));
+	return $sCatPage;
+    }
+    
+    // -- FIELD CALCULATIONS -- //
+    // ++ CLASSES ++ //
+
+    protected function DepartmentsClass() {
+	return 'vctDepts';
+    }
+
+    // -- CLASSES -- //
+    // ++ TABLES ++ //
+
+    protected function DepartmentTable($id=NULL) {
+	return $this->GetConnection()->MakeTableWrapper($this->DepartmentsClass(),$id);
+    }
+
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
+
+    private $rcSupp;
+    public function SupplierRecord() {
+	$doLoad = FALSE;
+	if (is_null($this->rcSupp)) {
+	    $doLoad = TRUE;
+	} else if (is_object($this->rcSupp)) {
+	    if ($this->SupplierID() != $this->rcSupp->GetKeyValue()) {
+		$doLoad = TRUE;
+	    }
+	} else {
+	    $doLoad = TRUE;
+	}
+	if ($doLoad) {
+	    $idSupp = $this->SupplierID();
+	    if (empty($idSupp)) {
+		$rcSupp = NULL;
+	    } else {
+		$rcSupp = $this->SupplierTable($idSupp);
+	    }
+	    $this->rcSupp = $rcSupp;
+	}
+	return $this->rcSupp;
+    }
+    // TODO: compare load times for cached and uncached versions
+    private $rcDept;
+    public function DepartmentRecord() {
+	$doLoad = FALSE;
+	if (is_null($this->rcDept)) {
+	    $doLoad = TRUE;
+	} else if (is_object($this->rcDept)) {
+	    if ($this->DeptID() != $this->rcDept->GetKeyValue()) {
+		$doLoad = TRUE;
+	    }
+	} else {
+	    $doLoad = TRUE;
+	}
+	if ($doLoad) {
+	    $idDept = $this->DeptID();
+	    if (empty($idDept)) {
+		$rcDept = NULL;
+	    } else {
+		$rcDept = $this->DepartmentTable($idDept);
+	    }
+	    $this->rcDept = $rcDept;
+	}
+	return $this->rcDept;
+    }
+    
+    // ++ RECORDS ++ //
+}
+class vcrTitle extends vcBasicRecordset {
+    use vtrTitle;
 
 // object cache
     private $oStats;
-    private $rcDept;
-    private $rcSupp;
 
 // options
     public $hideImgs;
@@ -254,16 +381,17 @@ class vcrTitle extends vcBasicRecordset {
     // -- SETUP -- //
     // ++ STATIC ++ //
 
+/* 2018-02-07 Seems this is no longer in use.
     // CALLED BY: Topic exhibit page
     static private $oStat = NULL;
     static protected function Stats() {
-	throw new exception('static::Stats() -- Does anyone actually call this?');
+	throw new exception('2018-02-07 Does anyone actually call this?');
 	if (is_null(self::$oStat)) {
-	    self::$oStat = new clsStatsMgr('vctItemsStat');
+	    self::$oStat = new fcTreeStatsMgr('vctItemsStat');
 	}
 	return self::$oStat;
     }
-
+*/
     // -- STATIC -- //
     // ++ FIELD VALUES ++ //
 
@@ -286,27 +414,6 @@ class vcrTitle extends vcBasicRecordset {
     }
     public function NotesString() {
 	return $this->Value('Notes');
-    }
-    /*----
-      RETURNS: ID of this title's supplier
-      HISTORY:
-	2011-09-28 revised to get ID directly from the new ID_Supp field
-	  instead of having to look up the Dept and get it from there.
-	2015-11-12 Renamed Supplier_ID() to SupplierID() but added Supplier_ID()
-	  as an alias so I can tidy up the code LATER.
-      TODO: Deprecate Supplier_ID().
-    */
-    public function Supplier_ID() {	// alias - deprecate later
-	return $this->SupplierID();
-    }
-    public function SupplierID() {
-	return $this->GetFieldValue('ID_Supp');
-    }
-    public function DeptID() {
-	return $this->GetFieldValue('ID_Dept');
-    }
-    public function CatKey() {
-	return $this->GetFieldValue('CatKey');
     }
     public function DateAdded() {
 	return $this->Value('DateAdded');
@@ -350,35 +457,6 @@ class vcrTitle extends vcBasicRecordset {
 	$sCatNum = fcString::ConcatArray('-',array($sSuppKey,$sDeptKey,$sTitleKey));
 	return $sCatNum;
     }
-    /*----
-      NOTE: CatPage is NOT the same thing as CatNum separated by slashes instead of dashes.
-	The Department URL fragment can be different from the Department CatKey. Maybe this
-	should change in the future (maybe Departments actually should go away), but for now
-	that's the rule.
-
-      USED BY: shopping descendant class
-      TODO: 
-	* should probably use $rcDept->ShopURL() for department portion of URL
-	* should probably be renamed ShopURL()
-	* maybe should be moved into shopping class?
-    */
-    protected function CatPage() {
-	$rcDept = $this->DepartmentRecord();
-	$rcSupp = $this->SupplierRecord();
-	if (is_object($rcDept)) {
-	    $sDeptKey = $rcDept->PageKey_toUse();
-	} else {
-	    $sDeptKey = '-D!';
-	}
-	if (is_object($rcSupp)) {
-	    $sSuppKey = $rcSupp->CatKey();
-	} else {
-	    $sSuppKey = '-S!';
-	}
-	$sTitleKey = $this->CatKey();
-	$sCatPage = fcString::ConcatArray('/',array($sSuppKey,$sDeptKey,$sTitleKey));
-	return $sCatPage;
-    }
     protected function Supplier_CatNum() {
 	return $this->Value('Supplier_CatNum');
     }
@@ -392,21 +470,20 @@ class vcrTitle extends vcBasicRecordset {
 	2014-08-19 a note on this date asks "is this redundant now?"
 	2016-02-10 Sadly, no; it's used by Topic pages. Maybe there's a better way?
     */
+    /* 2018-02-08 This seems to be unused.
     public function StatThis() {
+	throw new exception('2018-02-07 Does anything still call this?');
 	$id = $this->GetKeyValue();
 	if (!self::Stats()->IndexExists($id)) {
 	    $rs = $this->ItemRecords();	// item records for this title
 	    self::Stats()->StatFor($id)->SumItems($rs);	// calculate stats
 	}
 	return self::Stats()->StatFor($id);
-    }
+    } */
 
     // -- STATUS -- //
     // ++ CLASS NAMES ++ //
 
-    protected function DepartmentsClass() {
-	return 'vctDepts';
-    }
     protected function ItemsClass() {
 	return 'vctItems';
     }
@@ -423,9 +500,6 @@ class vcrTitle extends vcBasicRecordset {
     // -- CLASS NAMES -- //
     // ++ TABLES ++ //
 
-    protected function DepartmentTable($id=NULL) {
-	return $this->GetConnection()->MakeTableWrapper($this->DepartmentsClass(),$id);
-    }
     protected function ItemTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->ItemsClass(),$id);
     }
@@ -446,57 +520,6 @@ class vcrTitle extends vcBasicRecordset {
     public function ItemRecords() {
 	$id = $this->GetKeyValue();
 	return $this->ItemTable()->SelectRecords('ID_Title='.$id);
-    }
-    public function Dept() {
-	throw new exception ('Dept() is deprecated; use DepartmentRecord().');
-    }
-    // TODO: compare load times for cached and uncached versions
-    public function DepartmentRecord() {
-	$doLoad = FALSE;
-	if (is_null($this->rcDept)) {
-	    $doLoad = TRUE;
-	} else if (is_object($this->rcDept)) {
-	    if ($this->DeptID() != $this->rcDept->GetKeyValue()) {
-		$doLoad = TRUE;
-	    }
-	} else {
-	    $doLoad = TRUE;
-	}
-	if ($doLoad) {
-	    $idDept = $this->DeptID();
-	    if (empty($idDept)) {
-		$rcDept = NULL;
-	    } else {
-		$rcDept = $this->DepartmentTable($idDept);
-	    }
-	    $this->rcDept = $rcDept;
-	}
-	return $this->rcDept;
-    }
-    public function SuppObj() {
-	throw new exception('SuppObj() is deprecated; use SupplierRecord().');
-    }
-    public function SupplierRecord() {
-	$doLoad = FALSE;
-	if (is_null($this->rcSupp)) {
-	    $doLoad = TRUE;
-	} else if (is_object($this->rcSupp)) {
-	    if ($this->Supplier_ID() != $this->rcSupp->GetKeyValue()) {
-		$doLoad = TRUE;
-	    }
-	} else {
-	    $doLoad = TRUE;
-	}
-	if ($doLoad) {
-	    $idSupp = $this->Supplier_ID();
-	    if (empty($idSupp)) {
-		$rcSupp = NULL;
-	    } else {
-		$rcSupp = $this->SupplierTable($idSupp);
-	    }
-	    $this->rcSupp = $rcSupp;
-	}
-	return $this->rcSupp;
     }
     /*----
       PUBLIC because vcrTopic::FigurePage() calls it

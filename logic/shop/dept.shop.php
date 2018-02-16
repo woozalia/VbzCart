@@ -200,38 +200,59 @@ class vcrDept_shop extends clsDept {
 	    $ht = '';
 	    $oGlob = vcGlobalsApp::Me();
 	    if ($cntAct > 0) {
+		$sHdr = $cntAct.' Available Title'.fcString::Pluralize($cntAct);
+		$sContent = 
+		  '<table class="catalog-summary"><tr><td>'
+		  .$arRes['act']['text']
+		  .'</td></tr></table>'
+		  .$arRes['act']['imgs']
+		  ;
+		$oSection = new vcHideableSection('hide-available',$sHdr,$sContent);
+		$ht .= $oSection->Render();
+	    
+	    /* 2018-02-14 the old way
 		$wsArrow = $oGlob->GetWebSpec_DownPointer();
+		$htArrow = "<img src='$wsArrow' alt='&darr; (down arrow)'>";
 		$sTitle = $cntAct.' Available Title'.fcString::Pluralize($cntAct);
-		$oHdr = new fcSectionHeader("<img src='$wsArrow' alt='&darr; (down arrow)'> $sTitle");
+		$oHdr = new fcSectionHeader($htArrow.' '.$sTitle);
 		$ht .= $oHdr->Render()
 		  .'<table class="catalog-summary"><tr><td>'
 		  .$arRes['act']['text']
 		  .'</td></tr></table>'
 		  .$arRes['act']['imgs']
 		  ;
+	      */
 	    }
 	    if ($cntRet > 0) {
-		// TODO: images here should be hidden unless user unhides it by clicking on the arrow
-
+		$sHdr = $cntRet.' Unavailable Title'.fcString::Pluralize($cntRet);
+		$oSection = new vcHideableSection('show-retired',$sHdr,$arRes['ret']);
+		$oSection->SetDefaultHide(TRUE);
+		$ht .= $oSection->Render();
+	    
+	    /* 2018-02-14 should be redundant now
 		$oFormIn = fcHTTP::Request();
+		$sHdr = $cntRet.' Unavailable Title'.fcString::Pluralize($cntRet);
 		
 		$doRet = $oFormIn->KeyExists('ret');
 		if ($doRet) {
 		    $url = './';
 		    $sPopup = 'hide unavailable titles';
 		    $wsArrow = $oGlob->GetWebSpec_DownPointer();
+		    $htAlt = '&darr; (down arrow)';
 		    $htRet = $arRes['ret'];
 		} else {
 		    $url = '?ret';
 		    $sPopup = 'show unavailable titles';
 		    $wsArrow = $oGlob->GetWebSpec_RightPointer();
+		    $htAlt = '&rarr; (right arrow)';
 		    $htRet = '';
 		}
 		$sTitle = $cntRet.' Unavailable Title'.fcString::Pluralize($cntRet);
-		$htArrow = "<img src='$wsArrow' alt='&rarr; (right arrow)' title='$sPopup'>";
+		$htArrow = "<img src='$wsArrow' alt='$htAlt' title='$sPopup'>";
 		
 		$oHdr = new fcSectionHeader("<a href='$url'>$htArrow</a> $sTitle");
 		$ht .= $oHdr->Render().$htRet;
+	    */
 	    }
 	}
 	return $ht;

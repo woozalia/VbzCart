@@ -5,7 +5,15 @@
   HISTORY:
     2013-11-13 extracted from page-cat.php
 */
-/*%%%%
+trait vtTableAccess_Title_shop {
+    protected function TitlesClass() {
+	return 'vctShopTitles';
+    }
+    protected function TitleTable($id=NULL) {
+	return $this->GetConnection()->MakeTableWrapper($this->TitlesClass(),$id);
+    }
+}
+/*::::
   PURPOSE: extends clsTitles to handle store UI interactions
 */
 class vctShopTitles extends vctTitles {
@@ -21,12 +29,13 @@ class vctShopTitles extends vctTitles {
     // ++ RECORDS ++ //
     
     // PUBLIC so Supplier or Department object can call it
+    /* 2018-02-10 apparently this is not in use
     public function LookupExhibitRecord(array $arThap) {
 	$sNext = array_pop($arThap);
 	$anyMore = count($arThap) > 0;
 	// TODO: look for image sizes or whatever
 	throw new exception('Not written yet -- need to look up ['.$sNext.'] in title '.$this->NameString());
-    }
+    } */
 
     // -- RECORDS -- //
     // ++ SEARCHING ++ //
@@ -78,6 +87,7 @@ class vctShopTitles extends vctTitles {
 	array['retired.text'] = rendered text of unavailable items found
       2014-08-19 This may be obsolete.
     */
+    /* 2018-02-08 This seems to be no longer in use.
     public function DoSearch($sSearch) {
 	$ar = $this->SearchRecords_forText($sSearch);
 
@@ -111,12 +121,38 @@ class vctShopTitles extends vctTitles {
 	    $arOut = NULL;
 	}
 	return $arOut;
-    }
+    } */
 
     // -- SEARCHING -- //
 
 }
+// PURPOSE: shopping-related functions that admin classes also need
+trait vtrTitle_shop {
+    // TODO: come up with a better name
+    protected function ShopURL_part() {
+	return strtolower($this->CatPage('/'));
+    }
+    // PUBLIC so Image records can access it
+    public function ShopURL() {
+	$wpCat = vcGlobals::Me()->GetWebPath_forCatalogPages();
+	$wpInfo = $this->ShopURL_part();
+	return $wpCat.$wpInfo;
+    }
+    public function ShopLink($sShow,array $arAttr=NULL) {
+	$url = $this->ShopURL();
+	$htAttr = fcHTML::ArrayToAttrs($arAttr);
+	$htID = $this->RenderIDAttr();
+	return '<a'.$htAttr.' href="'.$url.'" id='.$htID.'>'.$sShow.'</a>';
+    }
+    // 2018-02-10 moved from vcrShopTitle to vtrTitle_shop and made it PROTECTED because nothing else is using it anymore
+    protected function RenderIDAttr() {
+	$id = $this->GetKeyValue();
+	return "title-$id";
+    }
+}
+
 class vcrShopTitle extends vcrTitle {
+    use vtrTitle_shop;
 
     // ++ CLASS NAMES ++ //
 
@@ -157,46 +193,6 @@ class vcrShopTitle extends vcrTitle {
     // -- RECORDS -- //
     // ++ URL CALCULATIONS ++ //
 
-    // TODO: rename this ShopURL_part()
-    public function URL_part() {
-	throw new exception('2017-03-16 Call ShopURL_part() instead.');
-    }
-    // TODO: come up with a better name
-    protected function ShopURL_part() {
-	return strtolower($this->CatPage('/'));
-    }
-    // TODO: rename this ShopURL(); eliminate iBase argument
-    public function URL($iBase /*=KWP_CAT_REL*/) {
-	throw new exception('2017-03-16 This really should not be in use anymore.');
-	return $iBase.$this->URL_part();
-    }
-    // PUBLIC so Image records can access it
-    public function ShopURL() {
-	$wpCat = vcGlobals::Me()->GetWebPath_forCatalogPages();
-	$wpInfo = $this->ShopURL_part();
-	return $wpCat.$wpInfo;
-    }
-    public function Link(array $iarAttr=NULL) {	// DEPRECATED - use ShopLink()
-	throw new exception('2017-03-16 Call ShopLink() instead.');
-	$strURL = $this->URL();
-	$htAttr = fcHTML::ArrayToAttrs($iarAttr);
-	return '<a'.$htAttr.' href="'.$strURL.'">';
-    }
-    public function ShopLink($sShow,array $arAttr=NULL) {
-	$url = $this->ShopURL();
-	$htAttr = fcHTML::ArrayToAttrs($arAttr);
-	$htID = $this->RenderIDAttr();
-	return '<a'.$htAttr.' href="'.$url.'" id='.$htID.'>'.$sShow.'</a>';
-    }
-    public function RenderIDAttr() {
-	$id = $this->GetKeyValue();
-	return "title-$id";
-    }
-    public function LinkAbs() {
-	throw new exception('2017-03-16 Is anything using this?');
-	$strURL = $this->URL(KWP_CAT);
-	return '<a href="'.$strURL.'">';
-    }
     public function LinkName() {
 	return $this->ShopLink($this->NameString());
     }
@@ -298,8 +294,10 @@ class vcrShopTitle extends vcrTitle {
     /*----
       HISTORY:
 	2017-03-17 written (currently used only by admin fx(), but why isn't it used for the shopping page?)
+	2018-02-15 made public for home page to use
+      PUBLIC so home page can use it to display stuff
     */
-    protected function RenderImages_forRow($sPopup,$sSize=vctImages::SIZE_SMALL) {
+    public function RenderImages_forRow($sPopup,$sSize=vctImages::SIZE_SMALL) {
 	$rsIm = $this->ImageRecords_forRow($sSize);
 	return $rsIm->RenderInline_rows($sPopup,$sSize);
     }

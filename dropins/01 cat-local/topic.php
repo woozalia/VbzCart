@@ -55,13 +55,13 @@ class vctAdminTopics extends vctShopTopics implements fiEventAware, fiLinkableTa
     // ++ TABLES ++ //
 
     protected function TitleTable($id=NULL) {
-	return $this->Engine()->Make($this->TitlesClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->TitlesClass(),$id);
     }
     protected function TitleInfoQuery() {
-	return $this->Engine()->Make($this->TitlesInfoClass());
+	return $this->GetConnection()->MakeTableWrapper($this->TitlesInfoClass());
     }
     protected function TopicInfoTable() {
-	return $this->Engine()->Make('vcqtTopicsInfo');
+	return $this->GetConnection()->MakeTableWrapper('vcqtTopicsInfo');
     }
 
     // -- TABLES -- //
@@ -95,10 +95,12 @@ __END__;
 
     public function ListTitles_unassigned() {
 
-	$tbl = $this->TopicInfoTable();
-	$rs = $tbl->TitleRecords_active_noTopic();
+	//$tbl = $this->TopicInfoTable();
+	//$rs = $tbl->TitleRecords_active_noTopic();
+	$tbl = $this->TitleInfoQuery();
+	$rs = $tbl->SelectRecords_active_noTopic();
 	if ($rs->HasRows()) {
-	    $out = "<ul>\n";
+	    $out = "<ul class=content>\n";
 	    while ($rs->NextRow()) {
 		$out .= $rs->RenderRow_forNoTopicList();
 	    }
@@ -110,10 +112,12 @@ __END__;
 	return $out;
     }
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
+	$oApp = fcApp::Me();
+	$oPathIn = $oApp->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
 	
 	// check for things that need to be done
-	$sDo = $oPage->PathArg('do');
+	$sDo = $oPathIn->GetString('do');
 	switch($sDo) {
 	  case 'rebuild':	// rebuild the tree
 	    $this->RenderTree(TRUE);
@@ -124,6 +128,21 @@ __END__;
 	    break;
 	}
 	
+	$oMenu = fcApp::Me()->GetHeaderMenu();
+	
+	$oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('view','View'));
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('flat','view topics as a flat list'));
+	    $doViewFlat = $ol->GetIsSelected();
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('tree','view topics as a tree'));	
+	    $doViewTree = $ol->GetIsSelected();
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('notopx','view active titles not assigned to any topics'));	
+	    $doViewNotopx = $ol->GetIsSelected();
+	$oMenu->SetNode($oGrp = new fcHeaderChoiceGroup('do','Do'));
+	  //$oGrp->SetChoice($ol = new fcHeaderChoice('rebuild','rebuild the topic tree'));	// 2018-02-09 obsolete, I think?
+	  $oGrp->SetChoice($ol = new fcHeaderChoice('new','add a new topic'));	
+	    $doNew = $ol->GetIsSelected();
+
+	/* 2018-02-09 old menu API
 	$arMenu = array(
 	  new clsAction_section('View'),
 	  new clsActionLink_option(
@@ -170,62 +189,77 @@ __END__;
 	    
 	  );
 	$oPage->PageHeaderWidgets($arMenu);
+	*/
 	  
 	$out = NULL;
 	
-	$sView = $oPage->PathArg('view');
-	switch($sView) {
-	  case 'tree':
-	    $this->TreeCtrl()->FileForCSS('dtree.css');
+	if ($doViewTree) {
+	    //$this->TreeCtrl()->FileForCSS('dtree.css');
+	    
+	    
+	    /* 2018-02-14 How about just calling BuiltTree() directly?
+	    // copied from shop/topic-ui:BuildTree()
+	    $oTree = $this->TreeCtrl();
+	    $oRoot = $oTree->RootNode();
+	    $oFakeRoot = $oRoot->Add(0,'Topics');
+	    $ar = $this->LoadTitleStats();	// 2018-02-09 works in shop/topic-ui, so must be in a different class
+	    $this->AddLayer($arLayer,$oFakeRoot,0,$ar);	// build the node tree
+	    $htTree .= $oRoot->RenderTree();
+	    */
+	    
+	    $htTree = $this->BuildTree();
+	    
 	    $out .=
 	      "\n<div class='auxiliary-info'>"
-	      .$oPage->ActionHeader('Search')
+	      .(new fcSectionHeader('Search'))->Render()
 	      .$this->HandleSearchForm()
 	      ."\n</div>"
-	      ."\n<table><tr><td>"
-	      .$oPage->ActionHeader('Topic Tree')
-	      .$this->RenderTree(FALSE)
+	      ."\n<table><tr><td class=content>"
+	      .(new fcSectionHeader('Topic Tree'))->Render()
+	      .$htTree
 	      ."\n</td></tr></table>"
 	      ;
-	    break;
-	  case 'flat':
+	}
+	if ($doViewFlat) {
+	    $oHdr = new fcSectionHeader('Search');
 	    $rs = $this->SelectRecords();
 	    $out .=
 	      "\n<div class='auxiliary-info'>"
-	      .$oPage->ActionHeader('Search')
+	      .$oHdr->Render()
 	      .$this->HandleSearchForm()
 	      ."\n</div>"
 	      .$rs->AdminRows()
 	      ;
-	    break;
-	  case 'notopx':
+	}
+	if ($doViewNotopx) {
+	    $oHdr = new fcSectionHeader('Unassigned Titles');
 	    $out .=
 	      "\n"
 	      //.'<div class="auxiliary-info"><h3>Unassigned Titles</h3>'
-	      .$oPage->ActionHeader('Unassigned Titles')
+	      .$oHdr->Render()
 	      .$this->ListTitles_unassigned()
 	      //."\n</div>"
 	      ;
-	    break;
 	}
-
-//	$htLink = $this->SelfLink('rebuild tree','rebuild the topic tree from source data',array('rebuild'=>TRUE));
-//	    $out .= "\n".'[<a href="'.$htLink.'">rebuild tree</a>]';
-//	$out .= "\n[$htLink]";
+	
+	// TODO: implement "new"
 
 	return $out;
     }
     // ACTION: Displays search form and (if requested) does search and displays results
     protected function HandleSearchForm() {
-	$oReq = clsHTTP::Request();
-	$sFind = $oReq->GetText('txtFind');
+	$oApp = fcApp::Me();
+	$oPathIn = $oApp->GetKioskObject()->GetInputObject();
+	$oFormIn = fcHTTP::Request();
+	
+	$sFind = $oFormIn->GetString('txtFind');
 	$htFind = htmlspecialchars($sFind);
 	$out = 
 	  "\n<form method=post>"
 	  ."\nSearch for: <input name=txtFind value='$htFind'><input type=submit name=btnFind value='Search...'>"
 	  ."\n</form>"
 	  ;
-	if ($oReq->GetBool('btnFind')) {
+	if ($oFormIn->GetBool('btnFind')) {
 	    $rs = $this->Search_forText($sFind);
 	    if ($rs->HasRows()) {
 		$out .= $rs->AdminRows();
@@ -346,7 +380,7 @@ class vcrAdminTopic extends vcrShopTopic implements fiLinkableRecord {
 	    }
 	    break;
 	  default:
-	    $val = $this->Value($sField);
+	    $val = $this->GetFieldValue($sField);
 	}
 	return "<td>$val</td>";
     }
@@ -446,7 +480,7 @@ class vcrAdminTopic extends vcrShopTopic implements fiLinkableRecord {
     // ++ ACTIONS ++ //
 
     public function Tree_AddTwig(fcTreeNode $iTwig,$iText) {
-	$id = $this->Value('ID');
+	$id = $this->GetKeyValue();
 	$objSub = $iTwig->Add($id,$iText,$this->SelfURL());
 	return $objSub;
     }
@@ -462,7 +496,7 @@ class vcrAdminTopic extends vcrShopTopic implements fiLinkableRecord {
 	}
 	return $out;
     }
-    public function Tree_RenderTwig($iCntTitles) {
+    public function Tree_FormatTwigStats($iCntTitles) {
 	$cntTitles = $iCntTitles;
 	$txtNoun = ' title'.fcString::Pluralize($cntTitles).' available';	// for topic #'.$id;
 	$out = ' [<b><span style="color: #00cc00;" title="'.$cntTitles.$txtNoun.'">'.$cntTitles.'</span></b>]';

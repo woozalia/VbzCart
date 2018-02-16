@@ -11,4 +11,6 @@ $om = new fcCodeModule(__FILE__, 'folder.logic.php');
 require_once('cat/@lib.php');
 require_once('cust/@lib.php');
 require_once('order/@lib.php');
+require_once('ship/@libs.php');
+require_once('shop/@lib.php');
 require_once('stock/@lib.php');

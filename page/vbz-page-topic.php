@@ -23,103 +23,6 @@ class vcPageTopic extends vcPage_shop {
 
     // -- SETUP -- //
 
-/* 2017-05-27 old stuff before page restructuring
-    private $idTopic;
-
-    // ++ CEMENTING ++ //
-
-    protected function BaseURL() {
-	return KWP_SHOP_TOPICS;
-    }
-    protected function MenuPainter_new() {
-	// TODO: figure out if catalog pages actually need a menu painter
-    }
-    protected function PreSkinBuild() {}	// TODO: may not be needed
-    protected function PostSkinBuild() {}	// TODO: may not be needed
-    protected function MenuHome_new() {}	// ditto
-
-    // -- CEMENTING -- //
-    // ++ TABLES ++ //
-    
-    protected function TopicTable($id=NULL) {
-	return $this->GetConnection()->MakeTableWrapper('vctShopTopics',$id);
-    }
-
-    private $rcTopic;
-    protected function SetTopicRecord(vcrTopic $rc) {
-	$this->rcTopic = $rc;
-    }
-    protected function GetTopicRecord() {
-	return $this->rcTopic;
-    }
-
-    protected function Topics($id=NULL) {
-	return $this->TopicTable($id);
-    }
-    /*-----
-      IMPLEMENTATION: URL data is topic ID
-    */ /* old code cont.
-    protected function ParseInput() {
-	$sReq = self::GetPathInfo();
-	$sTopic = trim($sReq,'/');
-	$idTopic = (int)$sTopic;
-//	echo "REQ=[$strReq] TOPIC=[$idTopic]";
-	$this->idTopic = $idTopic;
-    }
-    public function HandleInput() {
-	$idTopic = $this->idTopic;
-	$oSkin = $this->GetSkinObject();
-	if (empty($idTopic)) {
-	    $this->SetTopicRecord(NULL);
-	    $oSkin->PageTitle('Topic Index');
-	    //$this->NameStr('catalog topic index');
-	} else {
-	    $rcTopic = $this->Topics($idTopic);
-	    $this->SetTopicRecord($rcTopic);
-	    if ($rcTopic->IsNew()) {
-		$oSkin->SetTitleContextString('Tomb of the...');
-		$oSkin->SetPageTitle('Unknown Topic');
-		//$this->NameStr('topic not found');
-		//$this->NameStr('topic does not exist');
-	    } else {
-		$sFull = $rcTopic->NameFull();
-		$oSkin->SetPageTitle('Topic: '.$sFull);
-		//$this->NameStr($oTopic->NameMeta());
-		$oSkin->AddNavItem('<b>Topic</b>: ',$rcTopic->NameString());
-		if ($rcTopic->HasParent()) {
-		    $sVal = $rcTopic->ParentRecord()->NameString();
-		    $url = $rcTopic->ShopURL();
-		    $sPop = $sFull;
-		} else {
-		    $sVal = '<i>(root)</i>';
-		    $url = NULL;
-		    $sPop = NULL;
-		}
-		$oSkin->AddNavItem('<b>Parent</b>: ',$sVal,$url,$sPop);
-	    }
-	}
-
-	// MAIN CONTENT
-	
-	$oTopic = $this->GetTopicRecord();
-	if (is_null($oTopic)) {
-	    $ht = $this->Topics()->RenderTree(FALSE);
-	} else {
-	    // NOTE: most of the page is built here
-	    $ht = $oTopic->RenderPage();
-	}
-	//$out = "\n<table class=catalog-content><tr><td>$ht</td></tr></table>";
-	$out = $ht;
-	$oSkin->Content('main',$out);
-    }
-    protected function CreateContent() {
-    }
-
-    protected function RenderHtmlHeaderSection() {
-	$out = parent::RenderHtmlHeaderSection();
-	$out .= $this->Data()->Topics()->RenderPageHdr();
-	return $out;
-    } */
 }
 
 class vcTag_html_topic extends vcTag_html_shop {
@@ -161,6 +64,7 @@ class vcPageContent_topic extends vcPageContent_shop {
 	$sTopic = fcApp::Me()->GetKioskObject()->GetInputString();
 	
 	$this->SetTopicRecord(NULL);	// default if valid topic not found
+	$htAboveTitle = NULL;
 	if (fcString::IsBlank($sTopic)) {
 	    // not sure if this ever happens
 	    $sTitle = 'topics';
@@ -175,8 +79,10 @@ class vcPageContent_topic extends vcPageContent_shop {
 		    $this->SetError("There is no topic #$id in the database.");
 		} else {
 		    $this->SetTopicRecord($rcTopic);
-		    $sTitle = 'topic '.$id;
-		    $htTitle = "Topic #$id";
+		    $sName = $rcTopic->NameString();
+		    $sTitle = "(tp$id) $sName";
+		    $htTitle = $sName;
+		    $htAboveTitle = "Topic #$id:";
 		}
 	    } else {
 		$htTopic = fcHTML::FormatString_SafeToOutput($sTopic);
@@ -191,6 +97,9 @@ class vcPageContent_topic extends vcPageContent_shop {
 	//$oPage->SetPageTitle($sTitle);
 	$oPage->SetBrowserTitle($sTitle);
 	$oPage->SetContentTitle($htTitle);
+	if (!is_null($htAboveTitle)) {
+	    $oPage->SetContentTitleContext($htAboveTitle);
+	}
     }
     public function Render() {
 	return $this->RenderExhibit();
@@ -238,7 +147,10 @@ class vcPageContent_topic extends vcPageContent_shop {
 		$sErr = $this->GetError();
 		$out = "<div class=content>$sErr</div>";
 	    } else {
-		$out = $this->TopicTable()->RenderTree(FALSE);
+		$out = '<table style="background: white;"><tr><td>'
+		  .$this->TopicTable()->RenderTree(FALSE)
+		  .'</td></tr></table>'
+		  ;
 	    }
 	} else {
 	    $out = $rc->RenderPage();
