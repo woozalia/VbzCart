@@ -255,6 +255,7 @@ __END__;
     /*----
       ASSUMES: item.isAvail means "available from active catalog source"
     */
+    /* 2018-02-16 seems to be unused
     public function SQL_byItemType_active() {
 	$sqlStock = vcqtStockLinesInfo::SQL_forItemStatus();
 	
@@ -269,7 +270,7 @@ __END__;
 
 	return $sql;
 
-    }
+    } */
     
     // -- RECORDS -- //
     // ++ ARRAYS ++ //

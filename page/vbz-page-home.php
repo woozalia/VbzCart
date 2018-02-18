@@ -134,7 +134,7 @@ class vcPageContent_home extends vcPageContent_shop {
 <table><tr><td width=30% class=content>
 <h1>So...</h1>
 <p>...if <i>you</i> had an online store that was mostly printed t-shirts &ndash; some <a href="/topic/0524">fantasy</a> art (<a href="/topic/0670">light</a>, <a href="/topic/0671">dark</a>) a lot of classic rock bands like <a href="/topic/1213">Pink Floyd</a> and <a href="/topic/0584">The Grateful Dead</a> &ndash; and a few other gift items and generally a pretty eclectic range, and you were planning to expand into more practical areas while ultimately creating <a href="/wiki/The_Virtual_Bazaar_Manifesto">a distributed network of small retailers working together to destroy the plutonomy</a>, what would <i>you</i> put on the front page?</p>
-</td><td>
+</td><td style="background-color: rgba(0,0,64,0.8);">
 $sItems
 </td></tr></table>
 __END__
@@ -155,8 +155,10 @@ __END__
 	$nToGet = 10;	// change as needed
 	
 	$sPlur = fcString::Pluralize($q);
-	$out = "<div class=content>There are currently <b>$q</b> different title$sPlur in stock.<br>Here are $nToGet of them. (Reload the page for more.)</div><br>";
+	$out = "<div class=content>There are currently <b>$q</b> different title$sPlur in stock.<br>Here are as many as $nToGet of them. (Reload the page for more.)</div><br>";
 
+//	$out .= "<b>SQL AVAIL</b>: ".$rs->sql.'<br>';
+	
 	// copy data to array
 	while ($rs->NextRow()) {
 	    $arTitles[] = $rs->GetFieldValues();
@@ -165,8 +167,37 @@ __END__
 	$arRand = array_rand($arTitles,$nToGet);
 	shuffle($arRand);	// array_rand returns chosen items in order, so randomize
 
-	$tTitles = $this->TitleTable();
-	$tTiInfo = $this->TitleInfoQuery();	// TODO: use this
+	// load up information about each of the titles
+	
+	$sqlIDs = NULL;
+	// build a list of the IDs
+	foreach($arRand as $idx => $idxRand) {
+	    $arTitle = $arTitles[$idxRand];
+	    $idTitle = $arTitle['ID_Title'];
+	    $sqlIDs .= is_null($sqlIDs)?($idTitle):(','.$idTitle);
+	}
+	// fetch extended status information for all titles listed
+	$sqlFilt = "ID_Title IN ($sqlIDs)";
+	$tTiInfo = $this->TitleInfoQuery();	// (vcqtTitlesInfo)
+	
+	/*
+	$sql = $tTiInfo->SQL_ExhibitInfo($sqlFilt);
+	$sql2 = $tTiInfo->SQL_forStockStatus_byTitle();
+	$out.= "<br><b>SQL 1</b>: $sql<br><b>SQL 2</b>: $sql2<br>";
+	*/
+	$sql = $tTiInfo->SQL_forStockStatus_byTitle($sqlFilt);
+	$rs = $tTiInfo->FetchRecords($sql);	// (vcqrTitleInfo)
+	//$out .= "<b>SQL FINAL</b>: $sql<br>";
+	
+	// display the results
+	while ($rs->NextRow()) {
+	    $out .= $rs->RenderImages_withLink_andSummary();
+	}
+
+	/*
+	//$tTitles = $this->TitleTable();
+	
+	$sqlIDs = NULL;
 	for($idx=0; $idx<$nToGet; $idx++) {
 	    $idxTitle = $arRand[$idx];
 	    $arTitle =	$arTitles[$idxTitle];
@@ -174,6 +205,7 @@ __END__
 	    $qSale =	$arTitle['QtyForSale'];
 	    $rc = 	$tTitles->GetRecord_forKey($idTitle);	// Title record object
 //	    $out .= fcArray::Render($arTitle);
+	    $sqlIDs .= is_null($sqlIDs)?($idTitle):(','.$idTitle);
 	    
 	    $sTitle = $rc->NameString();
 	    $sPopup = "&ldquo;$sTitle&rdquo; - $qSale in stock";
@@ -181,7 +213,11 @@ __END__
 	    $htTitle = $rc->ShopLink($htImgs);
 	    $out .= $htTitle;
 	}
-	
+	$sqlFilt = "ID_Title IN ($sqlIDs)";
+	$sql = $tTiInfo->SQL_ExhibitInfo($sqlFilt);
+	// debugging
+	$out .= "<b>SQL</b>: ".$sql;
+	*/
 	return $out; //.'<br><br><b>SQL</b>:'.$sql;
     }
 }

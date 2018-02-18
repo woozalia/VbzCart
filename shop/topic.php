@@ -14,6 +14,7 @@ class vctShopTopics extends vctTopics {
     }
     
     // -- SETUP -- //
+    // ++ WEB UI ELEMENTS ++ //
 
     /*----
       ACTION: Searches all topics for a match to the given search text
@@ -28,12 +29,8 @@ class vctShopTopics extends vctTopics {
 	$out = $rs->RenderThumbs();
 	return $out;
     }
-    
-    // ++ WEB UI ELEMENTS ++ //
-
     // PURPOSE: update title stats for each topic and build the dynamic treeview
     protected function BuildTree() {
-
 	// build reference array for tree structure (this part *could* go in the logic class)
 	
 	$rs = $this->GetRecords_forTree();
@@ -62,17 +59,8 @@ class vctShopTopics extends vctTopics {
     /*----
       USED BY: both store UI and admin UI
     */
-    public function RenderTree($iRebuild) {
-    /*
-	$objCache = new vcCacheFile();
-	$fnBase = $this->ClassSng().'.tree';
-	if ($iRebuild || !$objCache->Exists($fnBase)) {
-	*/
-	    $out = $this->BuildTree();		// build the topic tree display
-	/*    $objCache->Write($fnBase,$out);	// save it to the cache
-	} else {
-	    $out = $objCache->Read($fnBase);	// rad the topic tree display from the cache
-	}*/
+    public function RenderTree() {
+	$out = $this->BuildTree();		// build the topic tree display
 	return $out;
     }
     public function IndexLink($htShow) {
@@ -113,15 +101,12 @@ class vcrShopTopic extends vcrTopic {
 
     // -- CLASS NAMES -- //
     // ++ QUERIES ++ //
-    /*
-    protected function ImageInfoQuery() {
-	return $this->GetConnection()->MakeTableWrapper('vcqtImagesInfo');
-    }*/
+
     protected function ItemInfoQuery() {
 	return $this->Engine()->Make('vcqtItemsInfo');
     }
     protected function TitleInfoQuery() {
-	return $this->GetConnection()->MakeTableWrapper('vcqtTitlesInfo');
+	return $this->GetConnection()->MakeTableWrapper('vcqtTitlesInfo_forTopic_shop');
     }
     
     // -- QUERIES -- //
@@ -207,19 +192,29 @@ class vcrShopTopic extends vcrTopic {
     // -- WEB UI COMPONENTS -- //
     // ++ SHOPPING WEB UI PAGES ++ //
 
+    // PURPOSE: Renders a single-Topic exhibit page
     public function RenderPage() {
 	$arPth = $this->BranchArray();		// path from this to root
 	$rsSer = $this->SeriesRecords();	// topics at same level as this one
 	$rsSub = $this->KidsRecords();		// topics under this one
 	
 	$idTopic = $this->GetKeyValue();
-	$arTitles = $this->TitleInfoQuery()->StatsArray_forTopic($idTopic);
+	$tq = $this->TitleInfoQuery();
+	
+	// VERSION 2
+
+	$htImgs = $tq->RenderImages_forTopic($idTopic);
+	
+	// VERSION 1
+
+	/*
+	$arTitles = $tq->StatsArray_forTopic($idTopic);
 	
 	$rsImg = $this->ImageInfoQuery()->GetRecords_forThumbs_forTopic($idTopic);
 	$arTitles = $rsImg->Collate_byTitle($arTitles);
 	
-	
 	$rc = $this->GetTableWrapper()->SpawnRecordset();	// we need to show info about other topics
+	*/
 
 	// TOPIC SERIES
 
@@ -257,12 +252,13 @@ class vcrShopTopic extends vcrTopic {
 	    $ht .= "\n</td></tr></table>";
 	}
 
+	/* VERSION 1 part 2
 	// TITLES
 	//$arTitlesData = $arTitles['data'];
 	$rcImg = $this->ImageInfoQuery()->SpawnRecordset();	// blank for receiving array data
 
 	if (count($arTitles) > 0) {
-	    $rcTitle = $this->TitleInfoQuery()->SpawnRecordset();
+	    $rcTitle = $tq->SpawnRecordset();
 	    $arRes = $rcTitle->RenderTitleResults($arTitles);
 	    $htForSaleTxt = $arRes['act']['text'];
 	    $htForSaleImg = $arRes['act']['imgs'];
@@ -278,41 +274,21 @@ class vcrShopTopic extends vcrTopic {
 	    $oSection = new vcHideableSection('hide-available','Titles Available',$htContent);
 	    $ht .= $oSection->Render();
 
-	    /* 2018-02-14 old
-	    // available titles are always shown, so display a down arrow
-	    $oGlob = vcGlobalsApp::Me();
-	    $wsArrow = $oGlob->GetWebSpec_DownPointer();
-	    $htArrow = "<img src='$wsArrow'>";
-	    
-	    $oHdr = new fcSectionHeader($htArrow.' Titles available');
-	    $ht .= $oHdr->Render();
-	    if (is_null($htForSaleTxt)) {
-		$ht .= '<span class=catalog-summary>No available items in this topic.</span>';
-	    } else {
-		$ht .=
-		  '<span class=catalog-summary>'.$htForSaleTxt.'</span>'
-		  .$htForSaleImg;
-	    }
-	    */
 	    if (!is_null($htRetiredTxt)) {
 		$htContent = "<span class=catalog-summary>$htRetiredTxt</span>";
 		$oSection = new vcHideableSection('show-retired','Titles NOT available',$htContent);
 		$oSection->SetDefaultHide(TRUE);
 		$ht .= $oSection->Render();
-	    /* 2018-02-14 old
-		$wsArrow = $oGlob->GetWebSpec_DownPointer();
-		$htArrow = "<img src='$wsArrow' alt='&darr; (down arrow)'>";
-		$oHdr = new fcSectionHeader($htArrow.' Titles NOT available');
-		$ht .=
-		  $oHdr->Render()
-		  .'<span class=catalog-summary>'.$htRetiredTxt.'</span>'
-		  ;
-	    */
 	    }
+	    $ht .= "<h2>TAKE 2</h2>".$out;
 	} else {
 	    $ht .= "\nThis topic currently has no titles.";
 	}
+	*/
+	$ht .= $htImgs;
 	return $ht;
+    }
+    protected function RenderImages_v1() {
     }
     /*----
       RETURNS: Parent topic, formatted for store display page

@@ -300,12 +300,16 @@ trait vtrTitle {
     protected function DepartmentsClass() {
 	return 'vctDepts';
     }
+    abstract protected function ImagesClass();
 
     // -- CLASSES -- //
     // ++ TABLES ++ //
 
     protected function DepartmentTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->DepartmentsClass(),$id);
+    }
+    protected function ImageTable($id=NULL) {
+	return $this->GetConnection()->MakeTableWrapper($this->ImagesClass(),$id);
     }
 
     // -- TABLES -- //
@@ -358,8 +362,13 @@ trait vtrTitle {
 	}
 	return $this->rcDept;
     }
+    public function ImageRecords_forRow($sSize) {
+	$tImgs = $this->ImageTable();
+	$rsImgs = $tImgs->ActiveRecords_forTitle($this->GetKeyValue(),$sSize);
+	return $rsImgs;
+    }
     
-    // ++ RECORDS ++ //
+    // -- RECORDS -- //
 }
 class vcrTitle extends vcBasicRecordset {
     use vtrTitle;
@@ -487,14 +496,14 @@ class vcrTitle extends vcBasicRecordset {
     protected function ItemsClass() {
 	return 'vctItems';
     }
-    protected function ImagesClass() {
-	return 'vctImages';
-    }
     protected function TopicsClass() {
 	return 'vctTopics';
     }
     protected function XTopicsClass() {
 	return 'vctTitlesTopics';
+    }
+    protected function ImagesClass() {
+	return 'vctImages';
     }
 
     // -- CLASS NAMES -- //
@@ -502,9 +511,6 @@ class vcrTitle extends vcBasicRecordset {
 
     protected function ItemTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->ItemsClass(),$id);
-    }
-    protected function ImageTable($id=NULL) {
-	return $this->GetConnection()->MakeTableWrapper($this->ImagesClass(),$id);
     }
     protected function TopicTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->TopicsClass(),$id);
@@ -530,11 +536,6 @@ class vcrTitle extends vcBasicRecordset {
     public function ImageRecords_forRows($sSize) {
 	$tImgs = $this->ImageTable();
 	$rsImgs = $tImgs->Records_forTitles_SQL($this->FetchKeyValues_asSQL(),$sSize);
-	return $rsImgs;
-    }
-    public function ImageRecords_forRow($sSize) {
-	$tImgs = $this->ImageTable();
-	$rsImgs = $tImgs->ActiveRecords_forTitle($this->GetKeyValue(),$sSize);
 	return $rsImgs;
     }
     public function ImageRecords_forRows_thumb() {

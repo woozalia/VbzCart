@@ -41,7 +41,7 @@ class vctTopics extends vcBasicTable {
     // ++ TABLES ++ //
     
     protected function TitleInfoQuery() {
-	return $this->GetConnection()->MakeTableWrapper('vcqtTitlesInfo');
+	return $this->GetConnection()->MakeTableWrapper('vcqtTitlesInfo_forTopics');
     }
 
     // -- TABLES -- //
@@ -65,9 +65,7 @@ class vctTopics extends vcBasicTable {
       USED BY: Topic tree builder
     */
     public function LoadTitleStats() {
-//	$rs = $this->FetchRecords('SELECT * FROM qryTitleTopic_Title_avail');
 	$tqTitle = $this->TitleInfoQuery();	// CLASS: vcqtTitlesInfo 
-	//$oq = $tqTitle->SQO_forTopicPage_all();
 	$oq = $tqTitle->SQO_active_byTopic();	// CLASS: fcSQL_Query
 	$sql = $oq->Render();
 	$rs = $tqTitle->FetchRecords($sql);

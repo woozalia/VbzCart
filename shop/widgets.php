@@ -83,8 +83,9 @@ class vcHideableSection {
     }
     
     protected function GetURL_forLink() {
+	//echo fcArray::Render($_SERVER);
 	$url = $this->IsKeyFound()
-	  ?$_SERVER['SCRIPT_URI']	// flip to default URL
+	  ?$_SERVER['REDIRECT_URL']	// flip to default URL
 	  :$this->GetURLFragment()	// flip to toggle URL
 	  ;
 	return $url;

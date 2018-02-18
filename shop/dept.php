@@ -5,6 +5,7 @@
   HISTORY:
     2016-01-24 split off from vbz-cat-dept.php
 */
+$t = new vcqtTitlesInfo_forDept();	// DEBUG
 
 class vctDepts_shop extends vctDepts {
     use ftQueryableTable;
@@ -53,7 +54,7 @@ class vcrDept_shop extends clsDept {
 	return 'vcqtImagesInfo';
     }*/
     protected function TitlesInfoClass() {
-	return 'vcqtTitlesInfo';
+	return 'vcqtTitlesInfo_forDept_shop';
     }
     
     // -- CLASSES -- //
@@ -182,11 +183,18 @@ class vcrDept_shop extends clsDept {
 	$idDept = $this->GetKeyValue();
 	
 	$tInfo = $this->TitleInfoQuery();
+	//$rs = $tInfo->SQL_forDeptPage_wTitleInfo($idDept,TRUE);
+	$ht = $tInfo->RenderImages_forDept($idDept);
+
+	return $ht;
+	
+	// 2018-02-17 old version
 	
 	$arData = $tInfo->StatsArray_forDept($idDept);
 	$rsImg = $this->ImageInfoQuery()->GetRecords_forThumbs_forDept($this->GetKeyValue());
 	$arData = $rsImg->Collate_byTitle($arData);
 	$rcTitle = $tInfo->SpawnRecordset();
+	$rcTitle->sql = $rsImg->sql;	// for debugging
 	$arRes = $rcTitle->RenderTitleResults($arData);
 
 	//$cntAct = count($arRes['act']['text']);

@@ -10,7 +10,6 @@ define('KS_LOGIC_CLASS_LC_ITEM_OPTIONS','vctItemOptions');
 $om = new fcCodeModule(__FILE__, 'dept.logic.php');
   $om->AddClass('vctDepts');
   $om->AddClass('vtTableAccess_Department');
-  $om->AddClass('vcrDept_shop');
 $om = new fcCodeModule(__FILE__, 'dept.query.php');
   $om->AddClass('vctCatDepartments_queryable');
 
@@ -54,6 +53,12 @@ $om = new fcCodeModule(__FILE__, 'title.info.php');
   $om->AddClass('vtQueryableTable_Titles');
   $om->AddClass('vcqtTitlesInfo');
   $om->AddClass('vtTitles_status');
+$om = new fcCodeModule(__FILE__, 'title.dept.info.php');
+  $om->AddClass('vcqtTitlesInfo_forDept');
+$om = new fcCodeModule(__FILE__, 'title.topic.info.php');
+  $om->AddClass('vcqtTitlesInfo_forTopic');
+$om = new fcCodeModule(__FILE__, 'title.topics.info.php');
+  $om->AddClass('vcqtTitlesInfo_forTopics');
 $om = new fcCodeModule(__FILE__, 'title-topic.php');
   $om->AddClass('vctTitlesTopics');
 

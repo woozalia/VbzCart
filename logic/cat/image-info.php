@@ -100,12 +100,6 @@ class vcqtImagesInfo extends vctImages_StoreUI {
 	  ...but is this really the function we should be using?
     */
     protected function SQO_forSize_forTopic_all($sSizeKey,$idTopic) {
-	/*
-	$oq = $this->TitleInfoQuery()->SQO_forTopicPage_all($idTopic);
-	
-	$sroImg = new fcSQL_TableSource($this->Name(),'im');
-	$oq->Select()->Source()->AddElement(new fcSQL_JoinElement($sroImg,'im.ID_Title=t.ID'));
-	/*/
 	$qo = $this->SQO_forSize($sSizeKey,"tt.ID_Topic=$idTopic");
 	
 	$qosTT = new fcSQL_TableSource('cat_title_x_topic','tt');

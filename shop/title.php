@@ -128,6 +128,16 @@ class vctShopTitles extends vctTitles {
 }
 // PURPOSE: shopping-related functions that admin classes also need
 trait vtrTitle_shop {
+
+    // ++ CLASSES ++ //
+    
+    protected function ImagesClass() {
+	return 'vctImages_StoreUI';
+    }
+
+    // -- CLASSES -- //
+    // ++ OUTPUT CALCULATIONS ++ //
+    
     // TODO: come up with a better name
     protected function ShopURL_part() {
 	return strtolower($this->CatPage('/'));
@@ -149,6 +159,18 @@ trait vtrTitle_shop {
 	$id = $this->GetKeyValue();
 	return "title-$id";
     }
+    /*----
+      HISTORY:
+	2017-03-17 written (currently used only by admin fx(), but why isn't it used for the shopping page?)
+	2018-02-15 made public for home page to use
+      PUBLIC so home page can use it to display stuff
+    */
+    public function RenderImages_forRow($sPopup,$sSize=vctImages::SIZE_SMALL) {
+	$rsIm = $this->ImageRecords_forRow($sSize);
+	return $rsIm->RenderInline_rows($sPopup,$sSize);
+    }
+    
+    // -- OUTPUT CALCULATIONS -- //
 }
 
 class vcrShopTitle extends vcrTitle {
@@ -161,9 +183,6 @@ class vcrShopTitle extends vcrTitle {
     }
     protected function DepartmentsClass() {
 	return KS_CLASS_SHOP_DEPARTMENTS;
-    }
-    protected function ImagesClass() {
-	return 'vctImages_StoreUI';
     }
     protected function TopicsClass() {
 	return 'vctShopTopics';
@@ -286,31 +305,12 @@ class vcrShopTitle extends vcrTitle {
       WAS PUBLIC because vctShopTitles::DoSearch() calls it; should probably be PROTECTED
       RETURNS: rendering of images (of the given size) for all titles in the current recordset
     */
+    /* 2018-02-16 Tentatively, this isn't the right functionality for anything.
     public function RenderImages_forRows($sPopup,$sSize=vctImages::SIZE_THUMB) {
 	$rsIm = $this->ImageRecords_forRows($sSize);
 	//return $rsIm->RenderRecordset_Titles_inline($this);
 	return $rsIm->RenderInline_rows($sPopup,$sSize);
-    }
-    /*----
-      HISTORY:
-	2017-03-17 written (currently used only by admin fx(), but why isn't it used for the shopping page?)
-	2018-02-15 made public for home page to use
-      PUBLIC so home page can use it to display stuff
-    */
-    public function RenderImages_forRow($sPopup,$sSize=vctImages::SIZE_SMALL) {
-	$rsIm = $this->ImageRecords_forRow($sSize);
-	return $rsIm->RenderInline_rows($sPopup,$sSize);
-    }
-    /*----
-      PUBLIC because vctShopTitles::DoSearch() calls it
-      RETURNS: rendering of images (of the given size) for the current recordset title
-    */
-    /* 2016-02-22 this functionality should be moved to vcqrTitleInfo
-    public function RenderImages_forRow($sSize=clsImages::SIZE_THUMB) {
-	$rsIm = $this->ImageRecords_forRow($sSize);
-	//return $rsIm->RenderRecordset_Titles_inline($this);
-	return $rsIm->RenderInline_rows();
-    }//*/
+    } */
     /*----
       HISTORY:
 	2014-08-17 TitlesTopics::TopicRecords_forID (formerly TopicRecords) now actually does

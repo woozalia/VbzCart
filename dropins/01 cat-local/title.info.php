@@ -8,7 +8,6 @@
 
 class vcqtaTitlesInfo extends vctAdminTitles {
     use vtQueryableTable_Titles;
-    use vtTitles_status;
 
     // ++ SETUP ++ //
 

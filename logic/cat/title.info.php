@@ -61,116 +61,164 @@ trait vtQueryableTable_Titles {
     
     // -- SQO PIECES -- //
 }
-trait vtTitles_status {
-    // ++ SQO FULL ++ //
-
-    /*----
-      RETURNS: SQO for Titles with at least one active Item
-	SELECT OUTPUT: title ID, quantity active
-    */
-    protected function SQO_active() {
-	$qo = $this->ItemInfoQuery()->SQO_forSale();
-	$qo->Select()->Fields(new fcSQL_Fields(array(
-	      't.ID',
-	      'QtyForSale' => 'SUM(sl.Qty)'	// alias => source
-	      )
-	    )
-	  );
-	$qo->Terms()->UseTerm(new fcSQLt_Group(array('i.ID_Title')));
-	$qst = new fcSQL_TableSource($this->TableName(),'t');
-	$qo->Select()->Source()->AddElements(
-	  array(
-	    new fcSQL_JoinElement($qst,'i.ID_Title=t.ID'),
-	    )
-	  );
-	return $qo;
-    }
-    public function SQO_active_byTopic() {
-	$sqoTi = $this->SQO_active();
-	$sqosTT = new fcSQL_TableSource('cat_title_x_topic','tt');
-	$sqoTo = new fcSQL_Query(		// query
-	  new fcSQL_Select(				// +select
-	    new fcSQL_JoinSource(array(				// +source
-		new fcSQL_JoinElement(new fcSQL_SubQuerySource($sqoTi,'ti')),	// sub-source: SQO_active
-		new fcSQL_JoinElement($sqosTT,'ti.ID = tt.ID_Title')		// sub-source: titles_x_topics
-	      )),						// -source
-	    new fcSQL_Fields(array(				// +fields, +array
-		'tt.ID_Topic',
-		'QtyForSale'	=> 'SUM(ti.QtyForSale)',
-		'QtyTitles'	=> 'COUNT(ti.ID)'
-	      ))						// -array, -fields
-	    ),							// -select
-	    new fcSQL_Terms(array(				// +terms
-		new fcSQLt_Group(array('tt.ID_Topic'))
-	      ))						// -terms
-	    );						// -query
-	return $sqoTo;
-    }
-
-    // ++ SQO FULL ++ //
-}
 
 //class vcqtTitlesInfo extends vctShopTitles {
 //class vcqtTitlesInfo extends fcUsableTable {
 class vcqtTitlesInfo extends vctTitles {
     use vtQueryableTable_Titles;
-    use vtTitles_status;
     use vtTableAccess_Supplier,vtTableAccess_ItemType;
   
-    // ++ CEMENTING ++ //
+    // ++ SETUP ++ //
 
+    // CEMENT
     protected function SingularName() {
 	return 'vcqrTitleInfo';
     }
 
-    // -- CEMENTING -- //
-    // ++ SQL CALCULATION ++ //
+    // -- SETUP -- //
+    // ++ SQL ++ //
 
-    /*----
-      PURPOSE: loads data needed to display catalog views for this department
-      HISTORY
-	2010-11-12 disabled automatic cache update
-	2010-11-16 changed sorting field from cntInPrint to cntForSale
-	2011-02-02 using _dept_ittyps now instead of qryItTypsDepts_ItTyps
-	  Also added "AND (cntForSale)" to WHERE clause -- not listing titles with nothing to sell
-	2013-11-18 rewriting
-	2016-02-28
-	  * moved Data_forStore() from dept.shop to title.info
-	  * split into SQO_forDeptExhibit() and GetRecords_forDeptExhibit()
-	  * TODO: possibly this could be better integrated with other SQO methods
-    */
-    protected function SQO_forDeptExhibit($idDept) {
-	$db = $this->Engine();
-
-	// TABLE SOURCEs
-	$osItem = new fcSQL_TableSource($this->ItemTable()->Name(),'i');
-	$osTitle = new fcSQL_TableSource($this->Name(),'t');
-	$osItTyp = new fcSQL_TableSource($this->ItemTypeTable()->Name(),'it');
-	// query object
-	$oq = vcqtStockLinesInfo::SQO_forItemStatus();
-	// add JOIN elements to JOIN SOURCE
-	$oj = $oq->Select()->Source();
-	$oj->AddElement(new fcSQL_JoinElement($osItem,'sl.ID_Item=i.ID'));
-	$oj->AddElement(new fcSQL_JoinElement($osTitle,'i.ID_Title=t.ID'));
-	$oj->AddElement(new fcSQL_JoinElement($osItTyp,'i.ID_ItTyp=it.ID'));
-	$oq->Select()->Fields()->SetFields(
-	  array(
-	    'i.ID_Title',
-	    'i.ID_ItTyp',
-	    'i.PriceSell',
-	    'i.ItOpt_Sort',
-	    'i.CatSfx',
-	    't.CatKey',
-	    'it.NameSng',
-	    'it.NamePlr',
-	    't.Name',
-	    't.CatKey',
-	    )
-	  );
-	$oq->Terms()->Filters()->AddCond('t.ID_Dept='.$idDept);
-	$oq->Terms()->UseTerm(new fcSQLt_Sort(array('t.CatKey','i.ItOpt_Sort')));
-	return $oq;
+    // TESTED 2018-02-16
+    protected function SQL_forStockStatus_byLine() {
+	$fs = __DIR__.'/qryStockStatus_byLine.sql';
+	$sql = file_get_contents($fs);
+	return $sql;
     }
+    // TESTED 2018-02-16
+    protected function SQL_forStockStatus_byItem() {
+	$sqlCore = $this->SQL_forStockStatus_byLine();
+	
+	$sql = <<<__END__
+SELECT 
+  ID_Item,
+  QtyInStock,
+  i.PriceSell,
+  i.CatSfx,
+  i.ID_Title,
+  i.ID_ItTyp,
+  i.ID_ItOpt
+FROM
+  (SELECT 
+    ID_Item,
+    SUM(QtyForSale) AS QtyInStock
+  FROM ($sqlCore) AS sl
+  GROUP BY ID_Item) AS si
+LEFT JOIN cat_items AS i ON i.ID=si.ID_Item	
+__END__;
+	return $sql;
+    }
+    // NOT TESTED
+    public function SQL_forStockStatus_byTitle($sqlFilt) {
+	$sqlWhere = is_null($sqlFilt)?'':"WHERE $sqlFilt";
+	$sqlCore = $this->SQL_forStockStatus_byItem();
+	$sql = <<<__END__
+SELECT
+  t.ID,
+  t.ID_Dept,
+  t.ID_Supp,
+  QtyInStock,
+  PriceMin,
+  PriceMax,
+  t.Name,
+  t.CatKey,
+  ItTypes,
+  ItOptions
+FROM
+  (SELECT
+    ID_Title,
+    SUM(QtyInStock) AS QtyInStock,
+    MIN(PriceSell) AS PriceMin,
+    MAX(PriceSell) AS PriceMax,
+    GROUP_CONCAT(DISTINCT itt.NameSng ORDER BY itt.Sort SEPARATOR ', ') AS ItTypes,
+    GROUP_CONCAT(DISTINCT iop.CatKey ORDER BY iop.Sort SEPARATOR ',') AS ItOptions
+  FROM ($sqlCore) AS si
+  JOIN cat_ittyps AS itt ON si.ID_ItTyp=itt.ID
+  JOIN cat_ioptns AS iop ON si.ID_ItOpt=iop.ID
+  GROUP BY ID_Title) AS st
+LEFT JOIN cat_titles AS t ON t.ID=st.ID_Title
+$sqlWhere
+__END__;
+	return $sql;
+    }
+    /*----
+      PURPOSE: Generate records for all titles,	as constrained by $sqlFilt, containing
+	(where available)the information typically displayed with active Titles.
+      NOTE: It took considerable jiggering around to get this query to the point where
+	it both renders in a reasonable amount of time AND gets the right answer, so
+	for now I'm not going to even try to retrofit it into a SQO -- though possibly
+	the Stock Info class would work better with the stock query as it is given here.
+      HISTORY:
+	2016-03-06 shop-search needs ID_Dept
+    */
+    public function SQL_ExhibitInfo($sqlFilt) {
+	$sqlWhere = is_null($sqlFilt)?NULL:"WHERE $sqlFilt";
+	$sqlCatNum = self::SQLfrag_CatNum();
+	$sqlCatPath = self::SQLfrag_CatPath();
+	return <<<__END__
+SELECT 
+    t.ID, t.ID_Dept, ID_Supp, t.Name, t.CatKey, QtyAvail, QtyInStock,
+    PriceMin,
+    PriceMax,
+    ItOptions,
+    $sqlCatNum AS CatNum,
+    $sqlCatPath AS CatPath
+FROM
+    `cat_titles` AS t
+        JOIN cat_depts AS d ON t.ID_Dept=d.ID
+        JOIN cat_supp AS s ON t.ID_Supp=s.ID
+        JOIN
+    (SELECT 
+        ID_Title,
+        COUNT(IsAvail) AS QtyAvail,
+        SUM(IF(isStock,Qty,0)) AS QtyInStock,
+	MIN(PriceSell) AS PriceMin,
+        MAX(PriceSell) AS PriceMax,
+        GROUP_CONCAT(DISTINCT CatKey ORDER BY Sort SEPARATOR ', ') AS ItOptions
+    FROM
+        cat_items AS i
+    JOIN cat_ioptns AS io ON i.ID_ItOpt=io.ID
+    JOIN (SELECT 
+        sl.ID_Item,
+            sl.Qty,
+            sb.isForSale,
+            sb.isEnabled,
+            sb.WhenVoided,
+            ((sl.Qty > 0)
+                AND sb.isForSale
+                AND sb.isEnabled
+                AND (sb.WhenVoided IS NULL)) AS isStock
+    FROM
+        stk_lines AS sl
+    LEFT JOIN `stk_bins` AS sb ON sl.ID_Bin = sb.ID) AS sl ON sl.ID_Item = i.ID
+    GROUP BY ID_Title) AS i ON i.ID_Title = t.ID
+$sqlWhere
+__END__;
+    }
+    
+    protected function SQL_Title_CatNums() {
+	$sql = <<<__END__
+SELECT t.ID, CONCAT_WS('-',s.CatKey,d.CatKey,t.CatKey) AS CatNum
+FROM cat_titles AS t
+  LEFT JOIN cat_depts AS d ON t.ID_Dept=d.ID
+  LEFT JOIN cat_supp AS s ON t.ID_Supp=s.ID
+__END__;
+      return $sql;
+    }
+    /* 2018-02-16 seems to be unused (was incomplete anyway)
+    // RETURNS: SQL for Title-based recordset with ItemType availability information
+    protected function SQL_byItemType_active() {
+	$qt = $this->ItemInfoQuery();
+	$sqlItems = $qt->SQL_byItemType_active();
+	
+	$sql = <<<__END__
+SELECT * FROM cat_titles AS t LEFT JOIN ($sqlItems) AS i ON i.ID_Title = i.ID GROUP BY 
+__END__;
+	die('WORKING HERE: '.__FILE__.' line '.__LINE__);
+    } */
+
+    // -- SQL -- //
+    // ++ SQO ++ //
+
     // RETURNS: SQO for all Titles, with availability fields
     public function SQO_availability() {
 	$qo = $this->ItemInfoQuery()->SQO_Stats('ID_Title');
@@ -201,7 +249,7 @@ class vcqtTitlesInfo extends vctTitles {
 	  'CountForSale' => 'COUNT((Qty>0) OR isAvail)',
 	  'PriceMin' => 'MIN(PriceSell)',
 	  'PriceMax' => 'MAX(PriceSell)',
-	  'CatOpts' => "GROUP_CONCAT(DISTINCT io.CatKey ORDER BY io.Sort SEPARATOR ', ')"
+	  'ItOptions' => "GROUP_CONCAT(DISTINCT io.CatKey ORDER BY io.Sort SEPARATOR ', ')"
 	);
     }
     protected function Fields_all_forCompile_array() {
@@ -282,140 +330,7 @@ class vcqtTitlesInfo extends vctTitles {
     }
     
     // // -- DEPARTMENT PAGE -- // //
-    // // ++ TOPIC EXHIBIT ++ // //
-    
-    /*
-      PRODUCES: record for each Title that has at least one Item for sale,
-	with summary of what's available (options, price range) --
-	filtered for the given Topic.
-      NOTE: We could possibly allow more general filtering than just by Topic,
-	but the filter would have to be constructed so as not to return multiple
-	Titles because that would mess up the Option listing.
-      PUBLIC so admin version of this query-table can build on it
-    */
-    public function SQO_forTopicPage_active($idTopic) {
-	if (is_null($idTopic)) {
-	    // include all Titles, then filter for no Topic
-	    $sqlTopicJoin = 'LEFT JOIN';
-	    $arTopicFilt = array('tt.ID_Topic IS NULL');
-	} else {
-	    // include only Titles assigned to the Topic given
-	    $sqlTopicJoin = 'JOIN';
-	    $arTopicFilt = array('tt.ID_Topic='.$idTopic);
-	}
-	
-	$oq = $this->ItemInfoQuery()->SQO_forSale();
-	
-	$sroTitle = new fcSQL_TableSource($this->Name(),'t');
-	$sroTT = new fcSQL_TableSource('cat_title_x_topic','tt');
-	$sroItOpt = new fcSQL_TableSource('cat_ioptns','io');
-	
-	$oq->Select()->Source()->AddElements(
-	  array(
-	    new fcSQL_JoinElement($sroTitle,'i.ID_Title=t.ID'),
-	    new fcSQL_JoinElement($sroTT,'i.ID_Title=tt.ID_Title',$sqlTopicJoin),
-	    new fcSQL_JoinElement($sroItOpt,'i.ID_ItOpt=io.ID','LEFT JOIN')	// include optionless items
-	  )
-	);
-	$oqf = $oq->Select()->Fields();
-	$oqf->ClearFields();
-	$oqf->SetFields($this->Fields_active_forCompile_array());
-	$oq->Terms()->UseTerm(new fcSQLt_Group(array('i.ID_Title')));
-	
-	$oq->Terms()->UseTerm(new fcSQLt_Filt('AND',$arTopicFilt));
-	
-	return $oq;
-    }
-    /*----
-      HISTORY:
-	2016-04-10 Fixed the filter to exclude removed stock and stock in disabled bins
-    */
-    protected function SQL_forTopicPage_active($idTopic) {
-    
-	return <<<__END__
-SELECT 
-    t.ID,
-    SUM(sl.Qty) AS QtyInStock,
-    COUNT((Qty > 0) OR isAvail) AS CountForSale,
-    MIN(PriceSell) AS PriceMin,
-    MAX(PriceSell) AS PriceMax,
-    GROUP_CONCAT(DISTINCT io.CatKey
-        ORDER BY io.Sort
-        SEPARATOR ', ') AS CatOpts
-FROM
-    `cat_items` AS i
-        JOIN
-    `cat_titles` AS t ON i.ID_Title = t.ID
-        JOIN
-    `cat_title_x_topic` AS tt ON i.ID_Title = tt.ID_Title
-        LEFT JOIN
-    `cat_ioptns` AS io ON i.ID_ItOpt = io.ID
-	LEFT JOIN
-    `stk_lines` AS sl ON sl.ID_Item = i.ID
-        JOIN
-    `stk_bins` AS sb ON sl.ID_Bin = sb.ID
-
-WHERE
-    (tt.ID_Topic = $idTopic) AND (sl.Qty > 0) AND (sb.isEnabled)
-GROUP BY i.ID_Title
-__END__;
-    }
-    /*----
-      PRODUCES: record for each Title for the given Topic, regardless of availability
-	OR, if idTopic is NULL, a record for each Title that is not assigned to any title
-	(also regardless of availability).
-      PURPOSE: It turns out that in order to produce a recordset only of Titles with NO
-	active Items, we'd basically have to do the Item-Stock query all over again.
-	This seems wasteful of CPU (...although it may ultimately turn out to be
-	more efficient, but for now I'm guessing it isn't) -- so what we do instead
-	is subtract that already-generated list from this one in code.
-	
-	Meanwhile, we can use this recordset to look up CatNums so we don't have to duplicate
-	that effort in the active-titles recordset. Hurrah!
-      NOTE: This is at least much simpler than the 'active' query because we don't even
-	need to look at Item (or Stock or Options) information; we just need to join
-	with Departments and Suppliers to get the CatNum.
-      HISTORY:
-	2017-05-28 made it explicit that $idTopic can be NULL
-    */
-    public function SQO_forTopicPage_all($idTopic=NULL) {
-	if (is_null($idTopic)) {
-	    // include all Titles, then filter for no Topic
-	    $sqlTopicJoin = 'LEFT JOIN';
-	    $arTopicFilt = array('tt.ID_Topic IS NULL');
-	} else {
-	    // include only Titles assigned to the Topic given
-	    $sqlTopicJoin = 'JOIN';
-	    $arTopicFilt = array('tt.ID_Topic='.$idTopic);
-	}
-    
-	$sroThis = new fcSQL_TableSource($this->TableName(),'t');
-	$sroTT = new fcSQL_TableSource('cat_title_x_topic','tt');
-	$sroDept = new fcSQL_TableSource($this->DepartmentTable()->TableName(),'d');
-	$sroSupp = new fcSQL_TableSource($this->SupplierTable()->TableName(),'s');
-	
-	$arJT = array(
-	  new fcSQL_JoinElement($sroThis),	// Titles
-	  new fcSQL_JoinElement($sroTT,'t.ID=tt.ID_Title',$sqlTopicJoin),
-	  new fcSQL_JoinElement($sroDept,'t.ID_Dept=d.ID'),
-	  new fcSQL_JoinElement($sroSupp,'t.ID_Supp=s.ID')
-	  );
-	$qJoin = new fcSQL_JoinSource($arJT);
-	$qjSel = new fcSQL_Select($qJoin);
-	$qjf = $qjSel->Fields();
-	$qjf->ClearFields();
-	$qjf->SetFields($this->Fields_all_forCompile_array());
-	$qTerms = new fcSQL_Terms(
-	  array(
-	    new fcSQLt_Filt('AND',$arTopicFilt)
-	    )
-	  );
-	$oq = new fcSQL_Query($qjSel,$qTerms);
-	
-	return $oq;
-    }
-    
-    // // -- TOPIC EXHIBIT -- // //
+    // // ++ OTHER ++ // //
 
     // USED BY ItemInfoTable
     public function SQO_Title_CatNums(fcSQL_Terms $qTerms=NULL) {
@@ -435,82 +350,10 @@ __END__;
 	return $oq;
     }
     
-    /*----
-      PURPOSE: Generate records for all titles,	as constrained by $sqlFilt, containing
-	(where available)the information typically displayed with active Titles.
-      NOTE: It took considerable jiggering around to get this query to the point where
-	it both renders in a reasonable amount of time AND gets the right answer, so
-	for now I'm not going to even try to retrofit it into a SQO -- though possibly
-	the Stock Info class would work better with the stock query as it is given here.
-      HISTORY:
-	2016-03-06 shop-search needs ID_Dept
-    */
-    public function SQL_ExhibitInfo($sqlFilt) {
-	$sqlWhere = is_null($sqlFilt)?NULL:"WHERE $sqlFilt";
-	$sqlCatNum = self::SQLfrag_CatNum();
-	$sqlCatPath = self::SQLfrag_CatPath();
-	return <<<__END__
-SELECT 
-    t.ID, t.ID_Dept, ID_Supp, t.Name, t.CatKey, QtyAvail, QtyInStock,
-    PriceMin,
-    PriceMax,
-    CatOpts,
-    $sqlCatNum AS CatNum,
-    $sqlCatPath AS CatPath
-FROM
-    `cat_titles` AS t
-        JOIN cat_depts AS d ON t.ID_Dept=d.ID
-        JOIN cat_supp AS s ON t.ID_Supp=s.ID
-        JOIN
-    (SELECT 
-        ID_Title,
-        COUNT(IsAvail) AS QtyAvail,
-        SUM(IF(isStock,Qty,0)) AS QtyInStock,
-	MIN(PriceSell) AS PriceMin,
-        MAX(PriceSell) AS PriceMax,
-        GROUP_CONCAT(DISTINCT CatKey ORDER BY Sort SEPARATOR ', ') AS CatOpts
-    FROM
-        cat_items AS i
-    JOIN cat_ioptns AS io ON i.ID_ItOpt=io.ID
-    JOIN (SELECT 
-        sl.ID_Item,
-            sl.Qty,
-            sb.isForSale,
-            sb.isEnabled,
-            sb.WhenVoided,
-            ((sl.Qty > 0)
-                AND sb.isForSale
-                AND sb.isEnabled
-                AND (sb.WhenVoided IS NULL)) AS isStock
-    FROM
-        stk_lines AS sl
-    LEFT JOIN `stk_bins` AS sb ON sl.ID_Bin = sb.ID) AS sl ON sl.ID_Item = i.ID
-    GROUP BY ID_Title) AS i ON i.ID_Title = t.ID
-$sqlWhere
-__END__;
-    }
-    
-    protected function SQL_Title_CatNums() {
-	$sql = <<<__END__
-SELECT t.ID, CONCAT_WS('-',s.CatKey,d.CatKey,t.CatKey) AS CatNum
-FROM cat_titles AS t
-  LEFT JOIN cat_depts AS d ON t.ID_Dept=d.ID
-  LEFT JOIN cat_supp AS s ON t.ID_Supp=s.ID
-__END__;
-      return $sql;
-    }
-    // RETURNS: SQL for Title-based recordset with ItemType availability information
-    protected function SQL_byItemType_active() {
-	$qt = $this->ItemInfoQuery();
-	$sqlItems = $qt->SQL_byItemType_active();
-	
-	$sql = <<<__END__
-SELECT * FROM cat_titles AS t LEFT JOIN ($sqlItems) AS i ON i.ID_Title = i.ID GROUP BY 
-__END__;
-	die('WORKING HERE: '.__FILE__.' line '.__LINE__);
-    }
 
-    // -- SQL CALCULATION -- //
+    // // -- OTHER -- // //
+
+    // -- SQO -- //
     // ++ ARRAYS ++ //
 
     // USED BY: Department exhibit page
@@ -519,14 +362,6 @@ __END__;
 	$oqAll = $this->SQO_forDeptPage_all($idDept);
 
 	return $this->CompileResults($oqAll->Render(),$oqAct->Render());
-    }
-    // USED BY: Topic exhibit page
-    public function StatsArray_forTopic($idTopic) {
-	//$oqAct = $this->SQO_forTopicPage_active($idTopic);
-	$sqlAct = $this->SQL_forTopicPage_active($idTopic);
-	$oqAll = $this->SQO_forTopicPage_all($idTopic);
-	
-	return $this->CompileResults($oqAll->Render(),$sqlAct);
     }
     /*----
       INPUT: SQL to retrieve Title records with additional info
@@ -593,8 +428,8 @@ trait vctrTitleInfo {
     
     // PURPOSE: Some queries calculate this, and some don't; let's fail gracefully.
     protected function CatOptString($sPfx=' : ') {
-	if ($this->FieldIsSet('CatOpts')) {
-	    return $sPfx.$this->GetFieldValue('CatOpts');
+	if ($this->FieldIsSet('ItOptions')) {
+	    return $sPfx.$this->GetFieldValue('ItOptions');
 	} else {
 	    return NULL;
 	}
@@ -664,11 +499,18 @@ class vcqrTitleInfo extends vcBasicRecordset {
 	return $this->GetFieldValue('QtyInStock');
     }
     protected function QtyAvailable() {
+	throw new exception('Call CountForSale() instead of QtyAvailable().');	// 2018-02-17
 	return $this->GetFieldValue('QtyAvail');
+    }
+    protected function CountForSale() {
+	return $this->GetFieldValue('CountForSale');
+    }
+    protected function CatalogTypesList() {
+	return $this->GetFieldValue('ItTypes');
     }
     // NOTE: This is a calculated field.
     protected function CatalogOptionsList() {
-	return $this->GetFieldValue('CatOpts');
+	return $this->GetFieldValue('ItOptions');
     }
     
     // -- FIELD VALUES -- //
@@ -677,8 +519,9 @@ class vcqrTitleInfo extends vcBasicRecordset {
     protected function TitleQuoted() {
 	return '&ldquo;'.$this->TitleString().'&rdquo;';
     }
+    // 2018-02-17 This may be overcalculating: doesn't CountForSale() include QtyInStock()>0?
     public function IsForSale() {
-	return ($this->QtyInStock() > 0) || ($this->QtyAvailable() > 0);
+	return ($this->QtyInStock() > 0) || ($this->CountForSale() > 0);
     }
     /*
       INPUT: recordset data from $this->Table()->ExhibitRecords()
@@ -729,14 +572,20 @@ class vcqrTitleInfo extends vcBasicRecordset {
 	$htHref = "<a href='$url'>";
 	return $htHref;
     }
-    protected function RenderStatus_HTML_line() {
-	$qInStock = $this->QtyInStock();
-	$out = "\n"
-	  .$this->RenderPriceRange()
-	  .' ('
+    protected function RenderCatalogSummary_HTML() {
+	$out = 
+	  $this->CatalogTypesList()
+	  .' - '
 	  .$this->CatalogOptionsList()
+	  .' ('
+	  .$this->RenderPriceRange()
 	  .')'
 	  ;
+	return $out;
+    }
+    protected function RenderStatus_HTML_line() {
+	$qInStock = $this->QtyInStock();
+	$out = $this->RenderCatalogSummary_HTML();
 	if ($qInStock > 0) {
 	    $out .= " &ndash; $qInStock in stock";
 	}
@@ -787,6 +636,20 @@ class vcqrTitleInfo extends vcBasicRecordset {
 	  .'</tr>'
 	  ;
 	return $out;
+    }
+    /*----
+      HISTORY:
+	2018-02-16 created for home page random-titles display
+    */
+    public function RenderImages_withLink_andSummary() {
+	$htTitle = $this->NameString();
+	$htStatus = $this->RenderCatalogSummary_HTML();
+	$qStock = $this->QtyInStock();
+	$htStock = "$qStock in stock";
+	$htPopup = "&ldquo;$htTitle&rdquo;%attr%\n$htStatus\n$htStock";
+	$htImgs = $this->RenderImages_forRow($htPopup,vctImages::SIZE_THUMB);
+	$htTitle = $this->ShopLink($htImgs);
+	return $htTitle;
     }
     protected function RenderSummary_inactive() {
 	$sText = $this->CatNum()
@@ -974,6 +837,33 @@ class vcqrTitleInfo extends vcBasicRecordset {
     
     // -- ARRAYS -- //
     // ++ UI ELEMENTS ++ //
+    
+    public function RenderImages() {
+	$outYes = $outNo = NULL;
+	while ($this->NextRow()) {
+	    $htTitle = $this->RenderImages_withLink_andSummary();
+	    if ($this->IsForSale()) {
+		$outYes .= $htTitle;
+	    } else {
+		$outNo .= $htTitle;
+	    }
+	}
+	
+	if (is_null($outYes)) {
+	    $htYes = 'There are currently no titles available for this topic.';
+	} else {
+	    $oSection = new vcHideableSection('hide-available','Titles Available',$outYes);
+	    $htYes = $oSection->Render();
+	}
+	if (is_null($outNo)) {
+	    $htNo = NULL;	// no point in mentioning lack of unavailable titles
+	} else {
+	    $oSection = new vcHideableSection('show-retired','Titles NOT available',$outNo);
+	    $oSection->SetDefaultHide(TRUE);
+	    $htNo = $oSection->Render();
+	}
+	return $htYes.$htNo;
+     }
     
     // 2016-04-10 Not sure if this is actually useful. Changed to FALSE.
     static private $bRendOpt_UseTable=FALSE;

@@ -261,8 +261,6 @@ __END__;
 	$out = NULL;
 	$this->RewindRows();
 	while ($this->NextRow()) {
-	    // 2017-04-26 How would this ever work? Call arguments don't match fx() parameters.
-	    //$out .= "\n".$this->RenderInline_row($arAttr,$sSizeKey);
 	    $out .= "\n".$this->RenderInline_row($sTitle,$sSizeKey,$arAttr);
 	}
 	return $out;
@@ -270,35 +268,42 @@ __END__;
     /*----
       QUESTION: Does anyone actually pass anything in $arAttr? (TODO)
       INPUT: $sTitle - Title description (append view string to this)
+      HISTORY:
+	2018-02-17 adding in template option %attr% for more flexible format
     */
     public function RenderInline_row($sTitle, $sSizeKey, array $arAttr=NULL) {
-	/*
-	$rcTi = $this->TitleInfoQuery()->GetRecord('ID='.$this->TitleID());
-
-	$arAtHr = NULL;	// attributes for <a href>
-	$arAtIm = NULL;	// attributed for <img>
-
-	$htTiID = $rcTi->RenderIDAttr();
-	$arAtHr['id'] = $htTiID;
-
-	$arAtIm['title'] = $rcTi->ImageTitle();
-	//*/
 	
-	// ++RenderSingle() -- eventually should replace this code
+	// ++RenderSingle() -- eventually should replace this code (2018-02-17 why?)
+	
 	//$sSzKey = $this->Value('Ab_Size');
 	$arAtIm['class'] = 'image-title-'.$sSizeKey;
 	$sView = $this->GetFieldValue('AttrDispl');
-	if (!empty($sView)) {
-	    $sTitle .= ' - '.$sView;
+	
+	$ksAttrKey = '%attr%';
+	
+	// if attrib key not found, put it at the end
+	if (strpos($sTitle,$ksAttrKey) === FALSE) {
+	    $sTitle .= $ksAttrKey;
 	}
+
+	// format the attrib replacement string
+	if (empty($sView)) {
+	    $sAttr = '';
+	} else {
+	    $sAttr = " ($sView)";
+	}
+	
+	// replace the attrib key
+	$sTitle = str_replace($ksAttrKey,$sAttr,$sTitle);
+	
 	$arAtIm['title'] = $sTitle;
 	$arAtIm['src'] = $this->WebSpec();
 	$htAtIm = fcHTML::ArrayToAttrs($arAtIm);
 
 	$htImg = "\n<img$htAtIm />";
+
 	// --RenderSingle()
 	
-	//$htTi = $rcTi->ShopLink($htImg,$arAtHr);
 	return $htImg;
     }
     /*----

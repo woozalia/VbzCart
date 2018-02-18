@@ -163,8 +163,11 @@ class vcNavElement_search extends fcPageElement {
 
 	  <form action="/search/">
 	    Search $statsQtyTitlesAvail items:<br>
-	    <input size=10 name=search><input type=submit value="Go"><br>
-	    <small><a href="/search/">advanced</a></small>
+	    <input size=10 name=search>
+	    <table width=100%><tr>
+	      <td><small><a href="/search/">advanced</a></small></td>
+	      <td align=right><input type=submit value="Go"></td>
+	      </tr></table>
 	  </form>
 __END__;
     }
@@ -217,8 +220,8 @@ class vcNavFolder_catLinks extends vcNavFolder {
 	$oGlob = vcGlobals::Me();
 	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forCatalogPages(),
 	  'Suppliers','our suppliers, and what we carry from each one'));
-	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forStockPages(),
-	  'Stock',"what's currently in stock"));
+/*	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forStockPages(),
+	  'Stock',"what's currently in stock")); */
 	$this->SetNode(new vcNavItem_catLink($oGlob->GetWebPath_forTopicPages(),
 	  'Topics','topic master index (topics are like category tags)'));
     }

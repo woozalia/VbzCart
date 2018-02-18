@@ -28,6 +28,7 @@ $om = new fcCodeModule(__FILE__, 'vbz-crypt.php');
 
 $om = new fcCodeModule(__FILE__, 'vbz-data.php');
   $om->AddClass('vcDBOFactory');
+  $om->AddClass('vcBasicTable');
   
 $om = new fcCodeModule(__FILE__, 'app/vbz-app.php');
   $om->AddClass('vcApp');
@@ -44,4 +45,5 @@ $om = new fcCodeModule(__FILE__, 'app/vbz-app-shop.php');
 require_once('cart/@libs.php');
 require_once('logic/@lib.php');
 require_once('page/@libs.php');
+require_once('shop/@lib.php');
 //require_once('skin/@libs.php');
