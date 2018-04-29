@@ -56,7 +56,7 @@ class vcCartDataFieldGroup {
 	return $this->oForm;
     }
     public function GetFormArray() {
-	return $this->FormObject()->RecordValues_asNative_get();
+	return $this->FormObject()->GetRecordValues_asNative();
     }
     private $arMissed;
     protected function AddMissing(array $ar=NULL) {
@@ -114,15 +114,15 @@ class vcCartDataFieldGroup {
 	$oForm = $this->FormObject();
 	// see NOTE - clear the output array before copying received data:
 	//$this->GetDataBlob()->ClearArray();
-	foreach ($oForm->FieldArray() as $key => $oField) {
+	foreach ($oForm->GetFieldArray() as $key => $oField) {
 	    $this->CopyFieldToArray($oField);
 	}
     }
     // NOTE: Copies only the fields for which there are objects defined
-    // TODO: Is this the same functionality as $this->FormObject()->Load()?
+    // TODO: Is this the same functionality as $this->FormObject()->LoadFields_fromBlob()?
     protected function CopyArrayToFields() {
 	$oForm = $this->FormObject();
-	foreach ($oForm->FieldArray() as $key => $oField) {
+	foreach ($oForm->GetFieldArray() as $key => $oField) {
 	    $this->CopyArrayToField($oField);
 	}
     }

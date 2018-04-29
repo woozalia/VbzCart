@@ -6,7 +6,23 @@
     2013-11-15 finally merging clsPageCat into clsVbzPage_Cat
       Renamed page-cat.php to vbz-page-cat.php
     2016-11-22 massive rewrite of page generation system
+    2018-02-25 moved vcAppShop_catalog and vcMenuKiosk_catalog here
 */
+class vcAppShop_catalog extends vcAppShop {
+    protected function GetPageClass() {
+	return 'vcCatalogPage';
+    }
+    protected function GetKioskClass() {
+	return 'vcMenuKiosk_catalog';
+    }
+}
+
+class vcMenuKiosk_catalog extends fcMenuKiosk_autonomous {
+    public function GetBasePath() {
+	return vcGlobals::Me()->GetWebPath_forCatalogPages();
+    }
+}
+
 /*::::
   PURPOSE: Handles display of catalog page types
 */
@@ -42,9 +58,11 @@ class vcCatalogPage extends vcPage_shop {
     
 // SIDEBAR INFO for different page subtypes
 
+    // NOTE (2018-02-18): This is not currently being used, but we will probably want to fix it up and use it agian.
     private function DoCatIndicia() {
 	$this->GetSkinObject()->AddNavItem('<b>Section</b>: ','by supplier',KWP_CAT_REL);
     }
+    // NOTE (2018-02-18): This is not currently being used, but we will probably want to fix it up and use it agian.
     private function DoSuppIndicia(vcrSupplier $rcSupp,$isFinal=true) {
 	$this->DoCatIndicia();
 	$sLabel = '<b>Supplier</b>: ';
@@ -55,6 +73,7 @@ class vcCatalogPage extends vcPage_shop {
 	    $this->GetSkinObject()->AddNavItem($sLabel,$iSupp->Link(),NULL);
 	}
     }
+    // NOTE (2018-02-18): This is not currently being used, but we will probably want to fix it up and use it agian.
     private function DoDeptIndicia(clsDept $rcDept,$isFinal=true) {
 	$this->DoSuppIndicia($rcDept->SupplierRecord(),false);
 	if ($isFinal) {
@@ -64,7 +83,9 @@ class vcCatalogPage extends vcPage_shop {
 	}
 	$this->GetSkinObject()->AddNavItem('<b>Dept.</b>: ',$sVal);
     }
+    // NOTE (2018-02-18): This is not currently being used, but we will probably want to fix it up and use it agian.
     private function DoTitleIndicia(vcrTitle $rcTitle) {
+	throw new exception('2018-02-18 Does anything still call this?');
 	$this->DoDeptIndicia($rcTitle->DepartmentRecord(),false);
 
 	$this->GetSkinObject()->AddNavItem('<b>Title</b>: ',$rcTitle->Value('Name'));
@@ -80,6 +101,7 @@ class vcCatalogPage extends vcPage_shop {
 	//$this->strSideXtra	= '<dt><b>Cat #</b>: '.$this->strReq;
     } */
     private function DoCatHome() {
+	throw new exception('2018-02-18 Pretty sure we do not need this anymore.');
 	$this->DoCatIndicia();
 	$oSkin = $this->GetSkinObject();
 	$oSkin->SetTitleContextString('hello and welcome to the...');
@@ -129,13 +151,13 @@ class vcPageContent_catalog extends vcPageContent_shop {
     }
     
     // -- FRAMEWORK -- //
-    // ++ MAIN CONTENT API ++ //
+    // ++ EVENTS ++ //
 
     protected function OnRunCalculations() {
 	$this->FigureExhibitPage_fromInput();
     }
     
-    // -- MAIN CONTENT API -- //
+    // -- EVENTS -- //
     // ++ INPUT CALCULATIONS ++ //
 
     protected function FigureExhibitPage_fromInput() {

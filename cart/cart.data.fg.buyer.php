@@ -196,7 +196,7 @@ class vcCartData_Buyer extends vcCartData_Contact {
 	$this->InvokeNameAddressFields();
 
 	// copy blob data to field objects
-	$this->FormObject()->Load();
+	$this->FormObject()->LoadFields_fromBlob();
     }
     protected function LoadContactFields() {
       	$this->OrderMessageField();	// add this field to the standard ones
@@ -285,8 +285,6 @@ class vcCartData_Buyer extends vcCartData_Contact {
     }
     protected function RenderPayCardNumberSection($doEdit) {
 	$oForm = $this->FormObject();
-	// 2016-06-17 I'm thinking that the next line actually isn't doing anything useful. Commenting it out.
-	//$oForm->Load();	// TODO: this isn't a record form, but we still need to load it somehow
 	$oTplt = $this->PayCardNumberTemplate($doEdit);
 	$arCtrls = $oForm->RenderControls($doEdit);
 	$oTplt->VariableValues($arCtrls);

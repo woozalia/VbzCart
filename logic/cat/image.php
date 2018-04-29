@@ -39,21 +39,6 @@ class vctImages extends vcShopTable {
     }
     
     // -- SETUP -- //
-    // ++ KLUGES ++ //
-    
-    /* 2017-07-29 I don't think these are needed anymore (no more caching)
-    public function Update(array $iSet,$iWhere) {
-	$iSet['WhenEdited'] = 'NOW()';
-	parent::Update($iSet,$iWhere);
-	$this->Touch(__METHOD__.' WHERE='.$iWhere);
-    }
-    public function Insert(array $iData) {
-	$iData['WhenAdded'] = 'NOW()';
-	parent::Insert($iData);
-	$this->Touch(__METHOD__);
-    } */
-    
-    // -- KLUGES -- //
     // ++ RECORDS ++ //
 
     public function GetImageRecord_byTitle_andCatKey($idTitle,$sCatKey) {

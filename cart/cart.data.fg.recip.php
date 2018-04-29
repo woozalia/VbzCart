@@ -80,15 +80,17 @@ class vcCartData_Recip extends vcCartData_NameAddress {
       NOTE: See notes for vcCartData_Buyer::Value_forBillInType()
       PUBLIC so Cart object can access it during conversion to Order
     */
-    public function Value_forShipInType($s=NULL) {
+    public function SetValue_forShipInType($s) {
+	throw new exception('2018-03-14 Is this ever called?');
 	$sfName = $this->FieldName_forShipIntype();
-	if (!is_null($s)) {
-	    $this->SetValue($sfName,$s);
-	}
+	$this->SetValue($sfName,$s);
+    }
+    public function GetValue_forShipInType() {
+	$sfName = $this->FieldName_forShipIntype();
 	return $this->GetValue($sfName);
     }
     public function Value_forShipInType_isNew() {
-	$sIntype = $this->Value_forShipInType();
+	$sIntype = $this->GetValue_forShipInType();
 	return is_null($sIntype) || ($sIntype == KS_FORM_INTYPE_NEWENTRY);
     }
     public function GetValue_forDestinationMessage() {
@@ -164,7 +166,7 @@ class vcCartData_Recip extends vcCartData_NameAddress {
 	$this->DestinationMessageField();
 
 	// copy blob data to field objects
-	$this->FormObject()->Load();
+	$this->FormObject()->LoadFields_fromBlob();
     }
 
     // -- FIELD OBJECTS -- //
@@ -199,10 +201,11 @@ class vcCartData_Recip extends vcCartData_NameAddress {
     public function RenderShipping($doEdit) {
 	$this->LoadShippingFields();
 	if ($this->AppObject()->UserIsLoggedIn()) {
-	    $sIntype = $this->Value_forShipInType();
+	    $sIntype = $this->GetValue_forShipInType();
+	    echo "SINTYPE=[$sIntype]";
 	    $doOld = ($sIntype == self::KS_INTYPE_EXISTING);
 	    // sometimes this doesn't get set automatically (BUG - TODO) ... 2016-06-19 might be fixed now; TODO: test
-	    $this->IntypeField()->SetValue($sIntype);
+	    $this->IntypeField()->SetValue($sIntype,TRUE);
 	} else {
 	    $doOld = FALSE;
 	}

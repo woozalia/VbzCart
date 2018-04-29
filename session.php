@@ -22,51 +22,56 @@ class vcUserSession extends fcrUserSession {
     
     // ++ SETUP ++ //
 
+    /* 2018-02-24 I think this is redundant now.
     protected function InitVars() {
 	parent::InitVars();
 	$this->ClearCartRecord();
-    }
+    } */
     public function InitNew() {
 	parent::InitNew();
 	$this->SetFieldValues(array('ID_Cart'=>NULL));
     }
 
     // -- SETUP -- //
-    // ++ CLASS NAMES ++ //
+    // ++ CLASSES ++ //
 
     /*----
       NOTE: This doesn't actually work the way it should, because it is
 	first called *before* the dropins are loaded.
+      HISTORY:
+	2018-02-27 For now, dropins just kind of aren't loaded... so use the base class.
     */
     protected function UsersClass() {
-	if (fcDropInManager::IsModuleLoaded('vbz.users')) {
-	    return KS_CLASS_ADMIN_USER_ACCOUNTS;
-	} else {
+	//if (vcApp::Me()->GetDropinManager()->HasModule('vbz.users')) {
+	//    return KS_CLASS_ADMIN_USER_ACCOUNTS;
+	//} else {
 	    return 'vcUserTable';
-	}
+	//}
     }
     protected function CartsClass() {
 	return 'vctShopCarts';	// this is a bit of a kluge
     }
 
-    // -- CLASS NAMES -- //
-    // ++ DATA TABLE ACCESS ++ //
+    // -- CLASSES -- //
+    // ++ TABLES ++ //
 
     protected function CartTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->CartsClass(),$id);
     }
 
-    // -- DATA TABLE ACCESS -- //
+    // -- TABLES -- //
     // ++ FIELD ACCESS ++ //
 
     protected function OrderID() {
 	return $this->Value('ID_Order');
     }
     protected function GetCartID() {
-	return $this->GetFieldValue('ID_Cart');
+	//return $this->GetFieldValue('ID_Cart');
+	return $this->GetStashValue('cart id');
     }
     protected function SetCartID($id) {
-	$this->SetFieldValue('ID_Cart',$id);
+	//$this->SetFieldValue('ID_Cart',$id);
+	$this->SetStashValue('cart id',$id);
     }
     protected function WhenCreated() {
 	return $this->Value('WhenCreated');
@@ -97,26 +102,43 @@ class vcUserSession extends fcrUserSession {
       //--status--//
       //++records++//
 
-    private $rcCart;
-    /*----
-      RETURNS: The current cart record, regardless of status.
-	Only returns NULL if Cart ID is not set.
-    */
-    protected function CartRecord_asSet() {
-	$rcCart = $this->rcCart;
-	if (is_null($rcCart)) {
-	    if (!$this->IsNew()) {
-		$idCart = $this->GetCartID();
-		if (!is_null($idCart)) {
-		    $rcCart = $this->CartTable($idCart);
-		    $this->rcCart = $rcCart;
-		}
-	    }
+    private $rcCart = NULL;
+    protected function IsCartCached() {
+	return !is_null($this->rcCart);
+    }
+    protected function GetCartRecord_cached() {
+	return $this->rcCart;
+    }
+    protected function SetCartRecord(vcrCart $rc=NULL) {
+	$this->rcCart = $rc;
+	if (is_null($rc)) {
+	    $this->SetCartID(NULL);
+	} else {
+	    $this->SetCartID($rc->GetKeyValue());
 	}
-	return $rcCart;
+    }
+    protected function SetCartRecord_fromCurrentID() {
+	$idCart = $this->GetCartID();		// get its Cart ID
+	if (!is_null($idCart)) {			// if it has one, anyway...
+	    $rcCart = $this->CartTable($idCart);		// fetch the Cart record
+	    $this->SetCartRecord($rcCart);				// cache it here
+	}
     }
     /*----
-      ACTION: return an object for the current cart ID if it is usable.
+      RETURNS: The current known cart record, regardless of status.
+	Does not check for validity, but does fetch record to cache if no record cached.
+	Only returns NULL if record not cached and Cart ID is not set.
+    */
+    protected function GetCartRecord_ifKnown() {
+	if (!$this->IsCartCached()) {	// Cart record not cached?
+	    if (!$this->IsNew()) {		// Session record has been created?
+		$this->SetCartRecord_fromCurrentID();	// fetch/cache the Cart record
+	    }
+	}
+	return $this->rcCart;
+    }
+    /*----
+      ACTION: return an object for the current cart ID if it is writeable.
 	If the cart ID is NULL or if the cart is voided, returns NULL.
       ASSUMES: If there is a cart object already, it is the correct one for this session.
       HISTORY:
@@ -124,57 +146,70 @@ class vcUserSession extends fcrUserSession {
 	  Calling $this->HasValue('ID_Cart') causes an error.
 	2014-09-23 Now checks cart status and returns NULL for voided cart.
     */
-    public function CartRecord_Current() {
-	$rcCart = $this->CartRecord_asSet();
-	if (is_null($rcCart)) {
-	    $this->rcCart = NULL;
-	} else {
-	    if ($rcCart->IsVoided()) {
-		$this->rcCart = NULL;
+    public function GetCartRecord_ifWriteable() {
+	$rcCart = $this->GetCartRecord_ifKnown();
+	if (!is_null($rcCart)) {
+//	    if ($rcCart->IsVoided()) {	// existing cart is void, so...
+	    if ($rcCart->IsLocked()) {	// existing cart is not writeable, so...
+		$this->SetCartRecord(NULL);	// ...make note that we don't have a writeable cart
+		$rcCart = NULL;
 	    }
 	}
-	return $this->rcCart;
+	return $rcCart;
     }
     /*----
-      ACTION: Return a cart object. If there isn't an associated cart yet, or if
-	the current one isn't usable, create a new one.
-      NOTE 1: This is actually a store UI function, even though it returns an object.
-	If any non-store-UI code needs to get a cart object, they should get it more
-	  directly (via Order, Session, etc.)
-      NOTE 2: The above note does not make any sense. I suspect that it represents
-	bad conceptual design. If the two methods serve different purposes, they should
-	be named differently.
-      ASSUMES: If there is a cart object already, it is the correct one for this session
-	-- unless the order has been locked, in which case we'll get a new one.
+      ACTION: get the Cart record-object for this Session
+	If there isn't already a Cart or it's not writeable,
+	  create one and update the Session record.
     */
-    public function CartRecord_required() {
-// if there's a cart for this session, load it; otherwise create a new one but don't save it:
-
-	$rcCart = $this->CartRecord_Current();
-	//if (is_null($rcCart) || !$rcCart->HasRows() || $rcCart->IsLocked()) {
-	if (is_null($rcCart) || $rcCart->IsLocked()) {
-	    // if no cart, or cart is locked, get a new one:
+    public function GetCartRecord_toWrite() {
+	$rcCart = $this->GetCartRecord_ifWriteable();
+	if (is_null($rcCart)) {	// If current Cart is not writeable...
+	echo 'GOT TO '.__FILE__.' line '.__LINE__.'<br>';
+	    // ...then create a new one:
 	    $idSess = $this->GetKeyValue();
 	    $idCart = $this->CartTable()->Create($idSess);
+	echo "SESSION ID=[$idSess] CART ID=[$idCart]<br>";
 	    $this->SetCartID($idCart);
+	    $this->SetCartRecord_fromCurrentID();
+	    $rc = $this->GetCartRecord_cached();
 	    $this->Save();
-	    $rcCart = $this->CartRecord_Current();
-	    $this->rcCart = $rcCart;
 	}
 	return $rcCart;
     }
 
+    /*----
+      ACTION: Return a cart object. If there isn't an associated cart yet, or if
+	the current one isn't usable, create a new one.
+      ASSUMES: If there is a cart object already, it is the correct one for this session
+	-- unless the order has been locked, in which case we'll get a new one.
+    */
+    /* 2018-02-26 Redundant now.
+    public function CartRecord_required() {
+// if there's a cart for this session, load it; otherwise create a new one but don't save it:
+	$rcCart = $this->GetCartRecord_ifWriteable();
+	if (is_null($rcCart)) {	// if current cart is not writeable...
+	    // ...get a new one:
+	    $idSess = $this->GetKeyValue();
+	    $idCart = $this->CartTable()->Create($idSess);
+	    $this->SetCartID($idCart);
+	    $this->SetCartRecord_fromCurrentID();
+	}
+	return $this->rcCart;
+    } */
+
       //--records--//
       //++actions++//
 
+    /* 2018-02-24 I think this is redundant now too.
     protected function ClearCartRecord() {
-	$this->rcCart = NULL;
-    }
+	$this->SetCartRecord(NULL);
+    } */
     /*----
       ACTION: Permanently detach the cart from this session.
     */
     public function DropCart() {
-	$oCart = $this->CartRecord_Current();
+	$oCart = $this->GetCartRecord_ifWriteable();
 	$oCart->DoVoid();
 	$ar = array('ID_Cart'=>'NULL');
 	$this->Update($ar);

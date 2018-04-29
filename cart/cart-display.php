@@ -147,7 +147,6 @@ abstract class vcCartDisplay_full_HTML extends vcCartDisplay_full {
 	return KHT_CART_FTR;
     }
     static protected function RenderFormHeader() {
-	//$urlCart = KWP_CART_REL;
 	$out = <<<__END__
 <form method=post id=cart>
   <table class=border id=cart-table>

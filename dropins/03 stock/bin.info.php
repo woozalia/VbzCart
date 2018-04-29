@@ -115,23 +115,6 @@ class vcqrAdminStockBinInfo extends vcqrStockBinInfo implements fiLinkableRecord
 		$htPlace = '<th>where</th>';
 	    }
 
-/* 2017-09-06 old table layout
-	    $out .= <<<__END__
-<table class=listing>
-  <tr>
-    <th>ID</th>
-    <th>status</th>
-    $htPlace
-    <th>code</th>
-    <th>qtys</th>
-    <th>description</th>
-    <th>when<br>created</th>
-    <th>when<br>tainted</th>
-    <th>when<br>counted</th>
-    <th>when<br>voided</th>
-  </tr>
-__END__;
-*/
 	    $out .= <<<__END__
 <table class=listing>
   <tr>
@@ -176,6 +159,7 @@ __END__;
 		    }
 		    $id = $row['ID'];
 		    $htID = '<nobr><input type=checkbox name="bin['.$id.']">'.$id.'</nobr>';
+		    
 		    $htCode = $this->SelfLink_name();
 		    $htWhenMade = fcDate::NzDate($row['WhenCreated']);
 		    $htWhenVoid = fcDate::NzDate($row['WhenVoided']);

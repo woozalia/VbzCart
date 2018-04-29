@@ -35,4 +35,5 @@ $om = new fcCodeModule(__FILE__, 'cart-display-line.php');
 $om = new fcCodeModule(__FILE__, 'cart-lines.php');
   $om->AddClass('vctShopCartLines');
 $om = new fcCodeModule(__FILE__, 'cart-log.php');
-  $om->AddClass('clsCartLog');
+  $om->AddClass('vctCartLog');
+  $om->AddClass('vcrCartEvent');

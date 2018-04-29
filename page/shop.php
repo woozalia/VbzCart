@@ -7,7 +7,21 @@
     2013-11-22 clsVbzPage_Browse extracted from vbz-page.php into vbz-page-browse.php
     2016-11-22 major rewrite underway for new page-rendering system
     2016-11-23 renamed file from vbz-page-browse.php to vbz-page-shop.php, class from vcBrowsePage to vcPage_shop
+    2018-02-25 moved vcAppShop here
 */
+/*::::
+  ABSTRACT: n/i - GetPageClass()
+*/
+abstract class vcAppShop extends fcAppStandardBasic {
+    use vtApp;
+
+    protected function GetSessionsClass() {
+	return 'vcUserSessions';
+    }
+    protected function GetCartsClass() {
+	return 'vctShopCarts';
+    }
+}
 class vcpePageHeader_shop extends vcPageHeader {
 
     // ++ OUTPUT ++ //
@@ -259,8 +273,7 @@ class vcNavbar_shop extends fcMenuFolder {
 	  ->SetValue('Wiki pages:');
 	// TODO: more elements?
     }
-    protected function OnRunCalculations() {
-    }
+    protected function OnRunCalculations() {}
 
     // -- CEMENTING -- //
     // ++ OUTPUT ++ //
@@ -288,89 +301,7 @@ __END__;
     }
     
     // -- OUTPUT -- //
-    // ++ OUTPUT ++ //
-/* 2016-12-04 adapted
-    public function Render_OLD() {
-	$oNav = $this->GetNavbarObject();
-	$oNav->Decorate("\n<br> ...",'','');
-	$htBar = $oNav->Render();
 
-	if (is_null($htBar)) {
-	    $htThisPage = NULL;
-	} else {
-	    $htThisPage = '<b>This Page</b>'.$htBar.'<br>';
-	}
-
-	$kwpShopSupp = KWP_SHOP_SUPP;
-	$kwpShopStock = KWP_SHOP_STOCK;
-	$kwpShopTpix = KWP_SHOP_TOPICS;
-	$kwpWiki = KURL_WIKI_PUBLIC;
-	$kwpHelpHome = KWP_HELP_HOME;
-	$kwpHelpAbout = KWP_HELP_ABOUT;
-	$kwpHelpCont = KWP_HELP_CONTACT;
-	$kwpCommunity = KURL_WIKI_PUBLIC.'VBZwiki_talk:Community_portal';
-	// TODO: work out a good way of compiling stats, and get numbers from there
-	//$statsQtyTitlesAvail = $this->Data()->StkItems()->Count_inStock();
-	$statsQtyTitlesAvail = 'all';	// kluge
-
-	// all of the following should eventually be part of the navbar, except maybe the search form
-
-	$urlEmail = KURL_EMAIL;
-	$urlCart = KWP_CART;
-
-	$ht = <<<__END__
-<!-- BEGIN NAVBAR -->
-<table class=border align=left cellpadding=3 bgcolor="#000000">
-  <tr><td>
-    <table class=sidebar bgcolor="#ffffff" cellpadding=5>
-      <tr><td>
-	<table border=0 class=menu-title width="100%">
-	  <tr><td class=menu-title><a href="/">Home</a></td></tr>
-	</table>
-	<span class=menu-text>
-	  <form action="/search/">
-	    Search $statsQtyTitlesAvail items:<br>
-	    <input size=10 name=search><input type=submit value="Go"><br>
-	    <small><a href="/search/">advanced</a></small>
-	  </form>
-	  $htThisPage
-	  <b>Indexes</b>
-	  <br> ...<a href="$kwpShopSupp" title="list of suppliers and what we carry from each one">Suppliers</a>
-	  <!-- <br> ...<a href="$kwpShopStock" title="what\'s currently in stock">Stock</a> -->
-	  <br> ...<a href="$kwpShopTpix" title="topic master index (topics are like category tags)">Topics</a>
-	  <p></p>
-	  [[ <a href="$kwpWiki" title="vbz wiki homepage"><b>wiki</b></a> ]]<br>
-	  -- [[ <a href="$kwpHelpHome" title="help main index"><b>Help</b></a> ]]<br>
-	  -- [[ <a href="$kwpHelpAbout" title="about vbz.net (probably more than you want to know)"><b>About</b></a> ]]<br>
-	  -- [[ <a href="$kwpHelpCont" title="contact vbz.net (several different methods)"><b>Contact</b></a> ]]<br>
-	  -- [[ <a href="$kwpCommunity" title="leave your comments and suggestions"><b>Comments</b></a> ]]<br>
-	  <p></p>
-	  <a href="$urlEmail" title="web form for sending us email">email form</a><br>
-	  <a href="$urlCart" title="your shopping cart">shopping cart</a>
-	</span>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-<!-- END NAVBAR -->
-__END__;
-
-	return $ht;
-    }
-*/
-    // -- OUTPUT -- //
-    // ++ OBJECTS ++ //
-/* 2016-12-04 no longer needd
-    private $oNav;
-    protected function GetNavbarObject() {
-	if (empty($this->oNav)) {
-	    $this->oNav = new fcNavbar_flat();
-	}
-	return $this->oNav;
-    }
-    */
-
-    // -- OBJECTS -- //
 }
 /*::::
   HISTORY:

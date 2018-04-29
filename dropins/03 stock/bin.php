@@ -46,6 +46,13 @@ class vctAdminStockBins extends vctStockBins implements fiEventAware, fiLinkable
     }
 
     // -- TABLES -- //
+    // ++ CLASSES ++ //
+
+    protected function GetEventsClass() {
+	return KS_CLASS_EVENT_LOG_ADMIN;
+    }
+
+    // -- CLASSES -- //
     // ++ RECORDS ++ //
 
     /*----
@@ -218,16 +225,13 @@ class vcrAdminStockBin extends vcrAdminStockBin_trait implements fiLinkableRecor
     public function Render() {
 	return $this->AdminPage();
     }
-    /*----
-      PURPOSE: execution method called by dropin menu
-    */ /*
-    public function MenuExec(array $arArgs=NULL) {
-	return $this->AdminPage();
-    } */
 
     // -- EVENTS -- //
-    // ++ CLASS NAMES ++ //
+    // ++ CLASSES ++ //
 
+    protected function GetEventsClass() {
+	return KS_CLASS_EVENT_LOG_ADMIN;
+    }
     protected function CTitlesClass() {
 	if (fcDropInManager::IsModuleLoaded('vbz.lcat')) {
 	    return KS_CLASS_CATALOG_TITLES;
@@ -246,7 +250,7 @@ class vcrAdminStockBin extends vcrAdminStockBin_trait implements fiLinkableRecor
 	return KS_CLASS_STOCK_LINES;
     }
 
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
 
     protected function CItemTable($id=NULL) {
@@ -312,10 +316,11 @@ class vcrAdminStockBin extends vcrAdminStockBin_trait implements fiLinkableRecor
 	return $this->Value('WhenCounted');
     }
 
-    // -- FIELD ACCESS -- //
+    // -- FIELD VALUES -- //
     // ++ FIELD CALCULATIONS ++ //
     
     public function NameLong() {
+	throw new exception('2018-04-22 If anything is still calling this, it will need updating.');
 	$out = $this->Value('Code');
 	$txtDescr = $this->Value('Descr');
 	if (!is_null($txtDescr)) {

@@ -8,26 +8,28 @@
     2013-09-25 split most of clsPageUser into clsPageLogin
     2013-10-10 split clsPageUser off to page-user.php to reduce unnecessary lib loading
     2016-12-21 chopped out some disused classes (preserved in "NOT USED/user.php")
+    2018-02-27 vcUserTable now derived from fctUserAccts, not fctUserAccts_admin
 */
 
 /*::::
   ROLE: this talks to the database (all rows in table)
 */
-class vcUserTable extends fctUserAccts_admin {
+class vcUserTable extends fctUserAccts {
 
-    // ++ OVERRIDES ++ //
+    // ++ SETUP ++ //
 
+    // OVERRIDE
     protected function SingularName() {
 	return 'vcUserRecord';
     }
 
-    // -- OVERRIDES -- //
+    // -- SETUP -- //
 
 }
 /*::::
   ROLE: this talks to the database (single row in table)
 */
-class vcUserRecord extends frcUserAcct {
+class vcUserRecord extends fcrUserAcct {
 
     // ++ CLASSES ++ //
     
@@ -77,6 +79,7 @@ class vcUserRecord extends frcUserAcct {
 	}
     } */
     public function AuthValid($iPass) {
+	throw new exception('2018-02-27 Is anything still using this? Seems probably obsolete.');
 	// get salt for this user
 	$sSalt = $this->Value('PassSalt');
 
@@ -84,5 +87,17 @@ class vcUserRecord extends frcUserAcct {
 	$sHashed = clsVbzUserTable::HashPass($sSalt,$iPass);
 	// see if it matches
 	return ($sHashed == $this->Value('PassHash'));
+    }
+    /*----
+      NOTE: This is a kluge. 
+	It's used for the checkout pages, so we can greet logged-in users.
+	We don't have the dropins loaded during the checkout, so can't access the proper
+	  self-linking functions. (This needs some thought. We really don't *need*
+	  the dropins; all we need to know is the URL for the user profile. Maybe that
+	  should be another type of shopping page, outside of admin space.)
+	For now, this isn't even a link, because we don't really have a suitable profile page.
+    */
+    public function SelfLink_name() {
+	return $this->FullName();
     }
 }

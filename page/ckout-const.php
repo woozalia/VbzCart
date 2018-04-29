@@ -7,6 +7,8 @@
     2013-11-10 renamed from cart-const.php to vbz-const-ckout.php
     2016-03-08 Commented out KSF_CART_RECIP_SHIP_ZONE, added KSF_CART_SHIP_ZONE
       We don't need to calculate anything based on the payment address.
+    2018-02-19 Moved KSF_CART_SHIP_ZONE to cart.const.php because checkout doesn't seem to use it.
+
   USED BY:
     cart.php uses KSF_CART_RECIP_SHIP_ZONE
     cart-data.php (OBSOLETE) uses all of them (I think)
@@ -30,7 +32,6 @@
 
 define('KSF_SHIP_IS_CARD'	,'ship-is-billing');	// TRUE = shipping address same as billing/card
 define('KSF_SHIP_MESSAGE'	,'ship-message');
-define('KSF_CART_SHIP_ZONE'	,'ship-zone');
 
 // == common prefixes
 

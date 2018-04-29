@@ -10,6 +10,12 @@
     2013-09-16 clsVbzSkin_Standard renamed clsVbzPage_Standard
     2013-09-17 clsVbzPage_Standard renamed clsVbzPage_Browse
     2016-11-21 complete rework in progress
+    2016-12-30 created app/vbz-app.php
+      Reworking Ferreteria's App class a bit means it makes more sense to have
+      a descendant type for shopping as well as the admin one that already existed.
+    2017-04-17 Removing vtLoggableShopObject from vbz-app.php because the only content was SystemEventsClass()
+      and I'm also removing that. We're going to go to the App object to retrieve the event log now.
+    2018-02-25 moved contents of vbz-app.php into page/vbz-page-*.php files as appropriate
 */
 class vcpeMessage_error extends fcpeSimple {
     public function Render() {
@@ -67,60 +73,6 @@ abstract class vcPageContent extends fcPageContent {
     }
     
     // -- FRAMEWORK -- //
-    // ++ INPUT-TO-OUTPUT STATES ++ //
-
-    /*----
-      PURPOSE: Adds a string to the main content.
-	If the page is redirected before rendering, the content will be saved with the Session record
-	and displayed after the redirect.
-    */
-    /* 2017-01-31 This is all in base class or ftContentMessages now
-    protected function AddString($s) {
-	$sSaved = $this->GetValue();
-	$sSaved .= $s;
-	$this->SetValue($sSaved);
-    }
-    protected function AddStatusMessage($sMsg,$sType) {
-	$urlIcon = KWP_ICON_ALERT;
-	$ht = '<center>'
-	  ."<div class=message><table class='$sType-message'>"
-	  ."<tr><td valign=middle><img src='$urlIcon' alt=alert title='$sType message indicator' /></td>"
-	  ."<td valign=middle>$sMsg</td>"
-	  .'</tr></table></div>'
-	  .'</center>'
-	  ;
-	$this->AddString($ht);
-    }
-    public function AddErrorMessage($s) {
-	$this->AddStatusMessage($s,'error');
-    }
-    public function AddWarningMessage($s) {
-	$this->AddStatusMessage($s,'warning');
-    }
-    public function AddSuccessMessage($s) {
-	$this->AddStatusMessage($s,'success');
-	echo 'CONTENTS INSIDE '.$this->FigurePath().':ProcessInput():['.$this->GetValue().']<br>';
-    }
-*/    
-    // -- INPUT-TO-OUTPUT STATES -- //
-    // ++ NEW PAGE ELEMENTS ++ //
-    
-      //++classes++//
-
-/* 2017-02-09 Apparently this isn't how it works anymore.
-    protected function Class_forErrorMessage() {
-	return 'vcpeMessage_error';
-    }
-    protected function Class_forWarningMessage() {
-	return 'vcpeMessage_warning';
-    }
-    protected function Class_forSuccessMessage() {
-	return 'vcpeMessage_success';
-    }
-*/    
-      //--classes--//
-    // -- NEW PAGE ELEMENTS -- //
-
 }
 abstract class vcPageHeader extends fcContentHeader {
 
@@ -142,14 +94,19 @@ abstract class vcPageHeader extends fcContentHeader {
     This includes things to all pages across the site.
     Specifies all the bits that we'll want to have, but doesn't fill them in
     The only content generated is for error messages (exception handling).
+  HISTORY:
+    2018-03-16 Descending from fcPage_standard instead of fcPage_login (and explicitly
+      using the ftPageMessages trait) so that checkout pages  have more control
+      over whether/where/how to display the login widget. This may mean that
+      admin pages need to descend from a different class...
+    2018-03-07 Reverted the above because it makes things even more confusing and causes an error.
 */
 abstract class vcPage extends fcPage_login {
+//abstract class vcPage extends fcPage_standard {
+    use ftPageMessages;
     
     // ++ INTERNAL VALUES ++ //
-/*
-    protected function GetStyleFolder() {
-	return KWP_STYLE_SHEETS;
-    }*/
+
     /* 2017-01-14 This is if you want the browser title to be prefixed by the site name.
       I think in the long run, this should be a user-preference; some users may end up
       with very narrow tabs, so a clue about what page they're on may be more important
@@ -187,42 +144,6 @@ abstract class vcPage extends fcPage_login {
 
       //--objects--//
     // -- NEW PAGE ELEMENTS -- //
-    // ++ FRAMEWORK ++ //
-
-      //++carts++//
-
-    /*----
-      RETURNS: the current cart record, if usable; otherwise NULL.
-    */
-    public function CartRecord_current_orNull() {
-	$rcSess = $this->GetSessionRecord();
-	return $rcSess->CartRecord_Current();
-    }
-    /*----
-      RETURNS: A cart record. If the current one is not usable,
-	then a new one is created.
-    */
-    public function CartRecord_required() {
-	throw new exception('2016-11-01 Does anyone actually call this? If so, rename it to CartRecord_orNew().');
-	$rcSess = $this->GetSessionRecord();
-	return $rcSess->CartRecord_required();
-    }
-    protected function CartID() {
-	throw new exception('Is anything still calling this? CartObj() is no longer defined, even...');
-	$rcCart = $this->CartObj(FALSE);
-	if (is_null($rcCart)) {
-	    throw new exception('Page is trying to access cart ID with no cart loaded.');
-	} else {
-	    return $rcCart->GetKeyValue();
-	}
-    }
-    public function HasCart() {
-	return $this->GetSessionRecord()->HasCart();
-    }
-    
-      //--carts--//
-
-    // -- FRAMEWORK -- //
     // ++ KLUGEY OUTPUT ++ //
 
     // PUBLIC so figuring code can call it:

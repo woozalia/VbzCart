@@ -8,6 +8,7 @@
       We probably need a more specific term to replace "Places". "Rooms"? "Areas"?
     2016-12-11 adapting to revised dropin system
     2017-01-01 adapting again
+    2018-05-19 fcForm_StockLine apparently no longer exists
 */
 
 // CONSTANTS
@@ -116,7 +117,7 @@ $arDropin = array(
     'bin.form.php'	=> array('vcForm_Bin','vtAdminStockBin'),
     'bin.info.php'	=> array(KS_CLASS_STOCK_BINS_INFO,KS_CLASS_STOCK_BIN_INFO),
     'line.php'		=> array(KS_CLASS_STOCK_LINES),
-    'line.form.php'	=> 'fcForm_StockLine',
+    //'line.form.php'	=> 'fcForm_StockLine',
     'line-info.php'	=> array(KS_CLASS_STOCK_LINES_INFO,KS_CLASS_STOCK_LINE_INFO),
     'place.php'		=> array(KS_CLASS_STOCK_PLACES),
     'whse.logic.php'	=> array(KS_LOGIC_CLASS_STOCK_WAREHOUSES),

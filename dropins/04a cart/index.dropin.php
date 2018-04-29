@@ -13,9 +13,9 @@ define('KS_PAGE_KEY_CART_FIELD','cart-field');
 
 // -- classes
 define('KS_CLASS_ADMIN_CARTS',		'vctAdminCarts');
-define('KS_CLASS_ADMIN_CART_LINES',	'VCT_CartLines_admin');
-define('KS_CLASS_ADMIN_CART_EVENTS',	'VCT_CartLog_admin');
-define('KS_CLASS_ADMIN_CART_EVENT',	'VCR_CartEvent_admin');
+define('KS_CLASS_ADMIN_CART_LINES',	'vctAdminCartLines');
+define('KS_CLASS_ADMIN_CART_EVENTS',	'vctAdminCartLog');
+define('KS_CLASS_ADMIN_CART_EVENT',	'vcrAdminCartEvent');
 
 // MENU
 

@@ -62,8 +62,6 @@ trait vtQueryableTable_Titles {
     // -- SQO PIECES -- //
 }
 
-//class vcqtTitlesInfo extends vctShopTitles {
-//class vcqtTitlesInfo extends fcUsableTable {
 class vcqtTitlesInfo extends vctTitles {
     use vtQueryableTable_Titles;
     use vtTableAccess_Supplier,vtTableAccess_ItemType;
@@ -149,17 +147,24 @@ __END__;
 	the Stock Info class would work better with the stock query as it is given here.
       HISTORY:
 	2016-03-06 shop-search needs ID_Dept
+	2018-04-18 added SQL code so we can get ItTypes:
+	  JOIN cat_ittyps AS itt ON i.ID_ItTyp=itt.ID 
+	  GROUP_CONCAT(DISTINCT itt.NameSng ORDER BY itt.Sort SEPARATOR ', ') AS ItTypes,
+	  This makes it even more similar to SQL_forStockStatus_byTitle().
+	    How are they different? Why don't they share code?
+	  Also changed QtyAvail to CountForSale for consistency with Topic exhibit query.
     */
     public function SQL_ExhibitInfo($sqlFilt) {
 	$sqlWhere = is_null($sqlFilt)?NULL:"WHERE $sqlFilt";
 	$sqlCatNum = self::SQLfrag_CatNum();
 	$sqlCatPath = self::SQLfrag_CatPath();
 	return <<<__END__
-SELECT 
-    t.ID, t.ID_Dept, ID_Supp, t.Name, t.CatKey, QtyAvail, QtyInStock,
+/*ExhibitInfo*/ SELECT 
+    t.ID, t.ID_Dept, ID_Supp, t.Name, t.CatKey, CountForSale, QtyInStock,
     PriceMin,
     PriceMax,
     ItOptions,
+    ItTypes,
     $sqlCatNum AS CatNum,
     $sqlCatPath AS CatPath
 FROM
@@ -169,13 +174,15 @@ FROM
         JOIN
     (SELECT 
         ID_Title,
-        COUNT(IsAvail) AS QtyAvail,
+        COUNT(IsAvail) AS CountForSale,
         SUM(IF(isStock,Qty,0)) AS QtyInStock,
 	MIN(PriceSell) AS PriceMin,
         MAX(PriceSell) AS PriceMax,
-        GROUP_CONCAT(DISTINCT CatKey ORDER BY Sort SEPARATOR ', ') AS ItOptions
+        GROUP_CONCAT(DISTINCT CatKey ORDER BY io.Sort SEPARATOR ', ') AS ItOptions,
+	GROUP_CONCAT(DISTINCT itt.NameSng ORDER BY itt.Sort SEPARATOR ', ') AS ItTypes
     FROM
         cat_items AS i
+    JOIN cat_ittyps AS itt ON i.ID_ItTyp=itt.ID
     JOIN cat_ioptns AS io ON i.ID_ItOpt=io.ID
     JOIN (SELECT 
         sl.ID_Item,
@@ -498,13 +505,20 @@ class vcqrTitleInfo extends vcBasicRecordset {
     protected function QtyInStock() {
 	return $this->GetFieldValue('QtyInStock');
     }
+    
+    // 2018-04-16 Apparently some queries generate one and some generate the other. TODO: FIX THIS
+    
     protected function QtyAvailable() {
-	throw new exception('Call CountForSale() instead of QtyAvailable().');	// 2018-02-17
-	return $this->GetFieldValue('QtyAvail');
+	//throw new exception('Call CountForSale() instead of QtyAvailable().');	// 2018-02-17
+	return $this->GetFieldValue('CountForSale');					// 2018-04-18 was QtyAvail
     }
     protected function CountForSale() {
+	throw new exception('Call QtyAvailable() instead of CountForSale().');	// 2018-04-16
 	return $this->GetFieldValue('CountForSale');
     }
+    
+    // --
+    
     protected function CatalogTypesList() {
 	return $this->GetFieldValue('ItTypes');
     }
@@ -521,7 +535,7 @@ class vcqrTitleInfo extends vcBasicRecordset {
     }
     // 2018-02-17 This may be overcalculating: doesn't CountForSale() include QtyInStock()>0?
     public function IsForSale() {
-	return ($this->QtyInStock() > 0) || ($this->CountForSale() > 0);
+	return ($this->QtyInStock() > 0) || ($this->QtyAvailable() > 0);
     }
     /*
       INPUT: recordset data from $this->Table()->ExhibitRecords()

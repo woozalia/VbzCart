@@ -81,8 +81,15 @@ class vcHideableSection {
 	// key present? yes = show if hide-by-default : no = show if not hide-by-default
 	return $this->IsKeyFound()?($this->bHideDefault):(!$this->bHideDefault);
     }
-    
+    /*----
+      HISTORY:
+	2018-04-18 modifying to work better when there are other things in the ?query.
+	  Let's use a key=value format instead of just binary ?key presence/absence thing.
+    */
     protected function GetURL_forLink() {
+    
+	// WORKING HERE
+    
 	//echo fcArray::Render($_SERVER);
 	$url = $this->IsKeyFound()
 	  ?$_SERVER['REDIRECT_URL']	// flip to default URL
