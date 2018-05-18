@@ -5,12 +5,14 @@
     2010-10-15 Extracted shopping cart classes from SpecialVbzAdmin.php
     2011-12-24 DataScripting brought closer to sanity; mostly working.
     2014-01-15 adapting as a drop-in module
+    2018-02-21 making it work again after more Ferreteria changes
 */
 class vctAdminCarts extends vctShopCarts implements fiEventAware, fiLinkableTable {
     use ftLinkableTable;
 
     // ++ SETUP ++ //
 
+    // OVERRIDE
     protected function SingularName() {
 	return 'vcrAdminCart';
     }
@@ -32,52 +34,65 @@ class vctAdminCarts extends vctShopCarts implements fiEventAware, fiLinkableTabl
     } */
 
     // -- EVENTS -- //
+    // ++ CLASSES ++ //
+
+    protected function GetEventsClass() {
+	return 'vctAdminCartLog';
+    }
+
+    // -- CLASSES -- //
     // ++ ADMIN UI ++ //
 
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-
-	//$this->Name('qryCarts_info');
-	$rs = $this->GetData(NULL,NULL,'ID DESC');
+	$rs = $this->SelectRecords(NULL,'ID DESC');
 	$out = $rs->AdminLines();
 	return $out;
     }
 
     // -- ADMIN UI -- //
 }
-class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
+class vcrAdminCart extends vcrShopCart implements fiLinkableRecord, fiEventAware {
     use ftLinkableRecord;
     use ftShowableRecord;
+    use ftExecutableTwig;
 
-    private $rcCust;
-    private $htOut;
+    // ++ EVENTS ++ //
 
-    // ++ SETUP ++ //
+    protected function OnCreateElements() {}
+    protected function OnRunCalculations() {
+	$id = $this->GetKeyValue();
+	$sTitle = 'cart.'.$id;
+	$htTitle = 'Cart ID '.$id;
     
-    protected function InitVars() {
-	parent::InitVars();
-	$this->rcCust = NULL;
-	$this->htOut = NULL;
+	$oPage = fcApp::Me()->GetPageObject();
+	$oPage->SetBrowserTitle($sTitle);
+	$oPage->SetContentTitle($htTitle);
     }
-    
-    // -- SETUP -- //
-    // ++ DROP-IN API ++ //
-
     /*----
       PURPOSE: execution method called by dropin menu
     */
-    public function MenuExec(array $arArgs=NULL) {
+    public function Render() {
 	return $this->AdminPage();
     }
 
-    // -- DROP-IN API -- //
-    // ++ CLASS NAMES ++ //
+    // -- EVENTS -- //
+    // ++ CLASSES ++ //
 
+    // OVERRIDE
+    protected function GetEventsClass() {
+	return KS_CLASS_ADMIN_CART_EVENTS;
+    }
     protected function OrdersClass() {
 	return KS_CLASS_ORDERS;
     }
+    /*----
+      HISTORY:
+	2018-02-21 I seem to have dropped feature-registration from the modloader,
+	  so now checking for the KS_CLASS_ADMIN_USER_SESSIONS class instead.
+    */
     protected function SessionsClass() {
-	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+	//if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+	if (class_exists(KS_CLASS_ADMIN_USER_SESSIONS)) {
 	    return KS_CLASS_ADMIN_USER_SESSIONS;
 	} else {
 	    return 'vcUserSession';
@@ -95,20 +110,25 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     protected function FieldsClass() {
 	return KS_CLASS_ADMIN_CART_FIELDS;
     }
-    protected function EventsClass() {
-	return $this->AppObject()->EventsClass();
-    }
 
-    // -- CLASS NAMES -- //
+    // -- CLASSES -- //
     // ++ TABLES ++ //
     
-/* Defined parentally:
+/* INHERITED:
     protected function OrderTable($id=NULL)
     protected function CustomerTable($id=NULL)
 */
     protected function SessionTable($id=NULL) {
-	return $this->Engine()->Make($this->SessionsClass(),$id);
+	return $this->GetConnection()->MakeTableWrapper($this->SessionsClass(),$id);
     }
+    // 2018-02-21 for when we eventually bring the Cart Log into the EventPlex
+/*    protected function EventTable() {
+	return fcApp::Me()->EventTable();
+    }*/
+    /* 2018-02-22 Not the way to do it.
+    protected function EventTable() {
+	return $this->CartLog();	// 2018-02-21 Will this even work?
+    } */
 
     // -- TABLES -- //
     // ++ RECORDS ++ //
@@ -119,6 +139,7 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
 	  if FALSE, just set the index from ID_Cust
 	  if TRUE, load the corresponding customer record
     */
+    private $rcCust=NULL;
     public function CustomerRecord($doLoad) {
 	$idCust = $this->CustomerID();
 	if ($doLoad) {
@@ -133,8 +154,8 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
 		}
 	    }
 	    if ($doLoad) {
-		$this->rcCust = $this->CustomerTable()->SpawnItem();
-		$this->rcCust->GetKeyValue($idCust);
+		$this->rcCust = $this->CustomerTable()->SpawnRecordset();
+		$this->rcCust->SetKeyValue($idCust);
 	    }
 	}
 	return $this->rcCust;
@@ -143,7 +164,7 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
       RETURNS: Record for the Session ID stored in this record, as opposed to the record for the currently active Session.
     */
     protected function StoredSessionRecord() {
-	$id = $this->SessionID();
+	$id = $this->GetSessionID();
 	if (is_null($id)) {
 	    return NULL;
 	} else {
@@ -155,16 +176,19 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     // ++ FIELD VALUES ++ //
     
     protected function WhenCreated() {
-	return $this->Value('WhenCreated');
+	return $this->GetFieldValue('WhenCreated');
     }
     protected function WhenExported() {
-	return $this->Value('WhenPorted');
+	return $this->GetFieldValue('WhenPorted');
     }
     protected function WhenUpdated() {
-	return $this->Value('WhenUpdated');
+	return $this->GetFieldValue('WhenUpdated');
+    }
+    protected function WhenVoided() {
+	return $this->GetFieldValue('WhenVoided');
     }
     protected function FieldData() {
-	return $this->Value('FieldData');
+	return $this->GetFieldValue('FieldData');
     }
     protected function FieldDataLength() {
 	return strlen($this->FieldData());	// does strlen() work on blobs?
@@ -174,7 +198,7 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     // ++ FIELD CALCULATIONS ++ //
     
     protected function StoredSessionLink() {
-	$id = $this->SessionID();
+	$id = $this->GetSessionID();
 	if (is_null($id)) {
 	    return '<i>NULL</i>';
 	} else {
@@ -198,6 +222,7 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
 	In the base class, this is stubbed off.
 	Admin-UI class should not call this.
     */
+    private $htOut=NULL;
     protected function AdminEcho($sText) {
 	$this->htOut .= $sText;
     }
@@ -225,11 +250,12 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     /*---
       PURPOSE: Display the cart's events as a table
     */
+    /* 2018-02-22 call EventListing() instead
     public function RenderEventRows() {
 	$tbl = $this->EventTable();
 	$rs = $tbl->SelectRecords('ID_Cart='.$this->GetKeyValue());
 	return $rs->AdminTable();
-    }
+    } */
     /*----
       ACTION: Render links for importing cart into an order
       HISTORY:
@@ -295,7 +321,14 @@ class vcrAdminCart extends vcrShopCart implements fiLinkableRecord {
     public function AdminLines() {
 	if ($this->HasRows()) {
 	    $out = <<<__END__
-KEY: <b>S</b>=Session | <b>O</b>=Order | <b>C</b>=Customer | <b>#D</b>= # of Data lines | <b>#I</b> = # of Items in cart
+<span class=content>
+KEY:
+<b>S</b>=Session |
+<b>O</b>=Order |
+<b>C</b>=Customer |
+<b>#D</b>= # of Data lines |
+<b>#I</b> = # of Items in cart
+</span>
 <table class=listing>
   <tr>
     <th>ID</th>
@@ -310,11 +343,8 @@ KEY: <b>S</b>=Session | <b>O</b>=Order | <b>C</b>=Customer | <b>#D</b>= # of Dat
     <th>#I</th>
   </tr>
 __END__;
-	    $isOdd = TRUE;
 	    while ($this->NextRow()) {
-		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
-		$isOdd = !$isOdd;
-		$out .= $this->AdminLine($wtStyle);
+		$out .= $this->AdminLine();
 	    }
 	    $out .= "\n</table>";
 	} else {
@@ -322,19 +352,27 @@ __END__;
 	}
 	return $out;
     }
-    protected function AdminLine($cssStyle) {
+    /*----
+      HISTORY:
+	2018-02-21 I seem to have dropped feature-registration support in the modloader, 
+	  so checking for the class instead.
+    */
+    private $isOdd = TRUE;
+    protected function AdminLine() {
+	$this->isOdd = !$this->isOdd;
 	$id = $this->GetKeyValue();
 	$wtID = $this->SelfLink();
 
-	$htWhenCre = $this->Value('WhenCreated');
+	$htWhenCre = $this->WhenCreated();
 	$htWhenPort = $this->WhenExported();
-	$htWhenUpd = $this->Value('WhenUpdated');
-	$htWhenVoid = $this->Value('WhenVoided');
+	$htWhenUpd = $this->WhenUpdated();
+	$htWhenVoid = $this->WhenVoided();
 	$htDataBytes = $this->FieldDataLength();
 	$htItemCount = $this->LineCount();
 
 	// TODO: This should probably be cached
-	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+//	if (fcDropInManager::IsFeatureLoaded(KS_FEATURE_USER_SESSION_ADMIN)) {
+	if (class_exists('fctUserSessions')) {
 	    $wtSess = $this->StoredSessionLink();
 	} else {
 	    $wtSess = $this->SessionID();
@@ -350,8 +388,10 @@ __END__;
 	$rcCust = $this->CustomerRecord(FALSE);
 	$wtCust = $rcCust->SelfLink();
 
+	$cssClass = $this->isOdd?'odd':'even';
+	
 	$out = <<<__END__
-  <tr style="$cssStyle">
+  <tr class="$cssClass">
     <td>$wtID</td>
     <td>$htWhenCre</td>
     <td>$htWhenPort</td>
@@ -367,14 +407,14 @@ __END__;
 	return $out;
     }
     public function AdminPage() {
-	$oPage = $this->Engine()->App()->Page();
-	$id = $this->GetKeyValue();
+	$oPathIn = fcApp::Me()->GetKioskObject()->GetInputObject();
 
+	$id = $this->GetKeyValue();
 	if ($id == 0) {
 	    throw new exception('Object has no ID');
 	}
 
-	$sDo = $oPage->PathArg('do');
+	$sDo = $oPathIn->GetString('do');
 
 	$out = NULL;
 	$doShow = FALSE;	// by default, don't show the record data after an action
@@ -383,7 +423,7 @@ __END__;
 	    $out = '<pre>'.$this->RenderOrder_Text().'</pre>';
 	    break;
 	  case 'use.ord':
-	    $idOrd = $oPage->PathArg('ord');
+	    $idOrd = $oPathIn->GetInt('ord');
 	    $rcOrd = $this->OrderTable($idOrd);
 	    $out = 'Exporting Cart '
 	      .$this->SelfLink()
@@ -442,7 +482,8 @@ __END__;
 	    $doShow = TRUE;
 	}
 	if ($doShow) {
-	    $out = $oPage->SectionHeader('Cart');
+	    $oHdr = new fcSectionHeader('Cart');
+	    $out = $oHdr->Render();
 	    $arLink = array('do'=>'text');
 	    $htText = '['.$this->SelfLink('as text','show the cart as plain text',$arLink).']';
 
@@ -459,8 +500,8 @@ __END__;
 	    $htSess = $this->StoredSessionLink();
 	    $htCust = $this->CustomerRecord(FALSE)->SelfLink();
 
-	    if (is_null($this->Value('ID_Order'))) {
-		$url = $oPage->SelfURL(array('do'=>'find-ord'));
+	    if (!$this->HasOrder()) {
+		$url = $this->SelfURL(['do'=>'find-ord']);
 		$htOrd = fcHTML::BuildLink($url,'find order!');
 	    } else {
 		$rcOrder = $this->OrderRecord();
@@ -485,25 +526,30 @@ __END__;
   <tr><td align=right><b>Field Data</b>:</td>	<td>$htFields</td></tr>
 </table>
 __END__;
-	    $sFields = $this->Value('FieldData');
+	    $sFields = $this->GetSerialBlob();
 	    if (is_null($sFields)) {
 		$htFields = NULL;
 	    } else {
 		$arFields = unserialize($sFields);
-		$htFields = $oPage->SectionHeader('Fields')
+		$oHdr = new fcSectionHeader('Fields');
+		$htFields =
+		  $oHdr->Render()
+		  .'<table class=content><tr><td>'
 		  .fcArray::Render($arFields)
+		  .'</td></tr></table>'
 		  ;
 	    }
 
+	    $oHdr = new fcSectionHeader('Items');
+	      $htHdrItems = $oHdr->Render();
+	    $oHdr = new fcSectionHeader('Cart Events');
+	      $htHdrCEv = $oHdr->Render();
+
 	    $out .=
-	      $oPage->SectionHeader('Items')
+	      $htHdrItems
 	      .$this->RenderItemRows()
-	      //.$oPage->SectionHeader('Fields')
-	      //.$this->RenderFieldsRows()
 	      .$htFields
-	      .$oPage->SectionHeader('Cart Events')
-	      .$this->RenderEventRows()
-	      //.$oPage->SectionHeader('Events - system')
+	      .$htHdrCEv
 	      .$this->EventListing()
 	      ;
 	} // END if($doShow)

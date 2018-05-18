@@ -10,6 +10,8 @@ class vcqtTitlesInfo_forDept extends vcqtTitlesInfo {
       NOTES:
 	This is just SQL_forTopicPage() with minor tweaks.
 	It *could* be moved up to vcqtTitleInfo if any other subclasses need it.
+      HISTORY:
+	2018-05-13 cat_ittyps and cat_ioptns need to be *LEFT* JOIN or else a lot of stuff gets left out. Fixed.
     */
     protected function SQL_forInfo($doInactive) {
 	$sqlActive = $doInactive?'':' AND (CountForSale > 0)';
@@ -25,8 +27,8 @@ SELECT
 FROM
     `cat_items` AS i
     JOIN `cat_titles` AS t ON i.ID_Title = t.ID
-    JOIN cat_ittyps AS itt ON i.ID_ItTyp=itt.ID
-    JOIN `cat_ioptns` AS io ON i.ID_ItOpt = io.ID
+    LEFT JOIN cat_ittyps AS itt ON i.ID_ItTyp=itt.ID
+    LEFT JOIN `cat_ioptns` AS io ON i.ID_ItOpt = io.ID
     LEFT JOIN `stk_lines` AS sl ON sl.ID_Item = i.ID
     JOIN`stk_bins` AS sb ON sl.ID_Bin = sb.ID
 WHERE

@@ -101,14 +101,14 @@ class vcrOrder extends vcBasicRecordset {
     private $rcCart;	// shopping cart
     private $rcCard;	// payment card
 
-    // ++ INITIALIZATION ++ //
+    // ++ EVENTS ++ //
 
     protected function InitVars() {
 	$this->rcCart = NULL;
 	$this->rcCard = NULL;
     }
 
-    // -- INITIALIZATION -- //
+    // -- EVENTS -- //
     // ++ SPECIALIZED EVENT LOGGING ++ //
 
     protected function StartEvent_Simple($iCode,$iDescr,$iWhere) {
@@ -153,7 +153,7 @@ class vcrOrder extends vcBasicRecordset {
     }
 
     // -- CLASS NAMES -- //
-    // ++ DATA TABLE ACCESS ++ //
+    // ++ TABLES ++ //
 
     protected function CartTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->CartsClass(),$id);
@@ -174,8 +174,8 @@ class vcrOrder extends vcBasicRecordset {
 	return $this->GetConnection()->MakeTableWrapper($this->MessagesClass(),$id);
     }
 
-    // -- DATA TABLE ACCESS -- //
-    // ++ DATA RECORD ACCESS ++ //
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
 
     protected function CartRecord() {
 	if ($this->HasCart()) {
@@ -227,7 +227,7 @@ class vcrOrder extends vcBasicRecordset {
 	return $this->CardTable($idCard);
     }
 
-    // -- DATA RECORD ACCESS -- //
+    // -- RECORDS -- //
     // ++ FIELDS ++ //
 
       //++local++//

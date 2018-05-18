@@ -217,7 +217,7 @@ class vcrCust extends vcrContact_trait {
 	return 'vctCustCards';
     }
     protected function CartsClass() {
-	return 'vctCarts_ShopUI';
+	return 'vctShopCarts';
     }
 
     // -- CLASSES ++ //

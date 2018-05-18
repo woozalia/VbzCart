@@ -37,17 +37,14 @@ class vctCarts extends vcShopTable {
 	been assigned to the session, a new one. Will not drop
 	an existing cart even if it is invalid in some way.
     */
-    protected function CartRecord_required_allow_invalid() {
-	$rcSess = $this->SessionRecord();
-	$rcCart = $rcSess->CartRecord_Current();
-	if (is_null($rcCart)) {
-	    $rcCart = $rcSess->CartRecord_required();
-	}
+    protected function GetCartRecord_toWrite() {
+	$rcSess = $this->SessionRecord();		// use framework to get active  Session record
+	$rcCart = $rcSess->GetCartRecord_toWrite();	// ask Session record for a writeable Cart record
 	return $rcCart;
     }
-    protected function CartRecord_optional_allow_invalid() {
+    protected function GetCartRecord_ifWriteable() {
 	$rcSess = $this->SessionRecord();
-	$rcCart = $rcSess->CartRecord_Current();
+	$rcCart = $rcSess->GetCartRecord_ifWriteable();
 	return $rcCart;
     }
     /*----
@@ -57,7 +54,7 @@ class vctCarts extends vcShopTable {
     */
     protected function CartRecord_current() {
 	$rcSess = $this->SessionRecord();
-	return $rcSess->CartRecord_Current();
+	return $rcSess->GetCartRecord_ifWriteable();
     }//*/
 
     // -- RECORDS -- //
@@ -98,26 +95,23 @@ class vctCarts extends vcShopTable {
 }
 class vcrCart extends vcShopRecordset {
     use ftLoggableRecord;
-    //use ftFrameworkAccess;
 
-    //protected $hasDetails;	// customer details have been loaded?
-
-    // ++ SETUP ++ //
+    // ++ EVENTS ++ //
 
     protected function InitVars() {
 	parent::InitVars();
 	$this->ClearShipZone();
-	//$this->hasDetails = FALSE;
     }
 	
-    // -- SETUP -- //
-    // ++ SPECIALIZED LOGGING ++ //
+    // -- EVENTS -- //
+    // ++ DB WRITE ++ //
 
     public function LogEvent($sCode,$sDescr) {
-	$this->CartLog()->Add($this,$sCode,$sDescr);
+	//$this->CartLog()->Add($this,$sCode,$sDescr);
+	throw new exception('Call CreateEvent() instead.');
     }
 
-    // -- SPECIALIZED LOGGING -- //
+    // -- DB WRITE -- //
     // ++ FIELD VALUES ++ //
 
     protected function SetOrderID($id) {
@@ -132,7 +126,7 @@ class vcrCart extends vcShopRecordset {
 	return $this->GetFieldValue('ID_Sess');
     }
     protected function CustomerID() {
-	return $this->Value('ID_Cust');
+	return $this->GetFieldValue('ID_Cust');
     }
     protected function AddrID() {
 	return $this->Value('ID_Addr');
@@ -141,7 +135,7 @@ class vcrCart extends vcShopRecordset {
 	return $this->GetFieldValue('WhenCreated');
     }
     protected function WhenOrdered() {
-	return $this->Value('WhenOrdered');
+	return $this->GetFieldValue('WhenPorted');
     }
     protected function WhenVoided() {
 	return $this->GetFieldValue('WhenVoided');
@@ -238,9 +232,10 @@ class vcrCart extends vcShopRecordset {
     protected function CustomerAddressesClass() {
 	return 'vctMailAddrs';
     }
-    protected function CartLogClass() {
-	return 'clsCartLog';
-    }
+    /* 2018-02-22 This shouldn't be a thing anymore.
+    protected function CartLogClass() {		// TODO: shouldn't this just be EventsClass()?
+	return 'vcCartLog';
+    } */
 
     // -- CLASS NAMES -- //
     // ++ TABLES ++ //
@@ -266,9 +261,10 @@ class vcrCart extends vcShopRecordset {
     protected function PhoneTable() {
 	return $this->GetConnection()->MakeTableWrapper($this->CustomerPhonesClass());
     }
+    /* 2018-02-22 This shouldn't be a thing anymore.
     protected function CartLog() {
 	return $this->GetConnection()->MakeTableWrapper($this->CartLogClass());
-    }
+    } */
 
     // -- TABLES -- //
     // ++ DATA OBJECTS ++ //
@@ -374,10 +370,10 @@ class vcrCart extends vcShopRecordset {
 
     // -- RECORDS -- //
     // ++ ACTIONS ++ //
-
+/*
     protected function LogCartEvent($sCode,$sDescr) {
 	$this->CartLog()->Add($this,$sCode,$sDescr);
-    }
+    }*/
     protected function CheckForDBError($sAction) {
 	$db = $this->GetConnection();
 	if (!$db->IsOkay()) {
@@ -412,7 +408,6 @@ class vcrCart extends vcShopRecordset {
     public function AddItem($sCatNum,$nQty) {
 	$t = $this->LineTable();
 	$t->MakeLine($this->GetKeyValue(),$sCatNum,$nQty);
-	
     }
     /*----
       ACTION:

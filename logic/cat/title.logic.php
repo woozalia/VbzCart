@@ -75,7 +75,7 @@ class vctTitles extends vcBasicTable {
       RULES: Title URLs always follow the catalog # format, even if there are Folder Departments.
     */
     public function GetRecord_bySupplier_andCatKey($idSupp,$sKey) {
-	$sqlCatKey = $this->GetConnection()->Sanitize_andQuote(strtoupper($sKey));
+	$sqlCatKey = $this->GetConnection()->SanitizeValue(strtoupper($sKey));
 	$sqlThis = $this->TableName_Cooked();
 	$sqlDept = $this->DepartmentTable()->TableName_Cooked();
 

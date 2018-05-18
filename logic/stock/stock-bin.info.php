@@ -8,9 +8,15 @@ class vcqtStockBinsInfo extends fcTable_wSource_wRecords {
 
     // ++ SETUP ++ //
 
-    // CEMENT
+    /*----
+      CEMENT
+      HISTORY:
+	2018-04-23 This originally returned "ID_Bin", but at least one query returns that field as "ID".
+	  So I'm changing this to "ID", and any queries that return "ID_Bin" should be changed to return
+	  "ID" instead.
+    */
     public function GetKeyName() {
-	return 'ID_Bin';
+	return 'ID';
     }
     // CEMENT
     protected function SingularName() {

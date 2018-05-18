@@ -226,6 +226,9 @@ class vcrAdminSupplier extends vcrSupplier implements fiLinkableRecord, fiEventA
     // -- EVENTS -- //
     // ++ CLASSES ++ //
 
+    protected function GetEventsClass() {
+	return KS_CLASS_EVENT_LOG_ADMIN;
+    }
     protected function ItemsClass() {
 	return KS_ADMIN_CLASS_LC_ITEMS;
     }
@@ -507,22 +510,9 @@ __END__;
 __END__;
 	}
 
-	// 2017-01-17 These will need updating.
 	$oMenu = new fcHeaderMenu();
 	switch ($sShow) {
 	  case 'dept':
-	    /* 2017-01-17 old
-	    $arActs = array(
-	      new clsActionLink_option(array(),
-		'add.dept',		// $iLinkKey
-		'do',			// $iGroupKey
-		'add',			// $iDispOff
-		NULL,			// $iDispOn
-		"add a department to $strName"	// $iDescr
-	      )
-	    );
-	    $out .= $oPage->ActionHeader($sHdr,$arActs);
-	    */
 	    $sHdr = 'Departments';
 	    $oMenu->SetNode($ol = new fcMenuOptionLink(
 	      'add.dept',			// $sLinkKey
@@ -535,7 +525,6 @@ __END__;
 	    break;
 	  case 'rreq':
 	    $sHdr = 'Restock Requests';
-	    //$out .= $oPage->ActionHeader($sHdr);
 	    $sContent = $this->RstkReqAdmin();
 	    break;
 	  case 'events':
@@ -553,7 +542,7 @@ __END__;
 	$out .= 
 	  $oHdr->Render()
 	  .$sContent
-	  .$this->EventListing()
+	  //.$this->EventListing()	// 2018-05-10 This was made into a menu option
 	  ;
 	return $out;
     }

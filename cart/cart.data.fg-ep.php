@@ -60,7 +60,7 @@ trait vtCartData_EmailPhone {
 	$this->EmailField();
 	$this->PhoneField();
 	// copy blob data to field objects
-	$this->FormObject()->Load();
+	$this->FormObject()->LoadFields_fromBlob();
     }
 
     // -- FIELD OBJECTS -- //
@@ -97,17 +97,21 @@ trait vtCartData_EmailPhone {
 	
 	$oTplt = $this->ContactTemplate($doEdit);
 	$arCtrls = $this->FormObject()->RenderControls($doEdit);
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	return $oTplt->RenderRecursive();
     }
     protected function RenderUserControls() {
+    
+	/* 2018-02-27 Don't the login controls respond appropriately to logged-in state now?
 	if ($this->AppObject()->UserIsLoggedIn()) {
 	    // render logout stuff
 	    $out = $this->PageObject()->RenderLogout_Controls();
 	} else {
 	    // render login stuff
 	    $out = $this->PageObject()->RenderLogin_Controls();
-	}
+	} */
+	// 2018-02-27 Trying this:
+	$out = $this->PageObject()->RenderLogin_Controls();
 	return $out;
     }
     

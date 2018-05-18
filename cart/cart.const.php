@@ -3,6 +3,10 @@
   PURPOSE: constants for adding items to cart
   HISTORY:
     2013-11-10 created
+    2018-02-19
+      Moved from const/vbz-const-cart.php to cart/cart.const.php
+      TODO: figure out how to make this more configurable for different sites
+      Moved KSF_CART_SHIP_ZONE from vbz-const-ckout.php
   NAMING CONVENTIONS:
     KF = boolean flag
     KI = integer
@@ -13,7 +17,6 @@
     KWP = web path (URL including protocol)
     KFP = file path
     KRP = relative path
-
 */
 
 // ==========================================
@@ -39,6 +42,7 @@ define('KSF_CART_ITEM_ARRAY_NAME','item');
 define('KSF_CART_ITEM_PFX',KSF_CART_ITEM_ARRAY_NAME.'[');
 define('KSF_CART_ITEM_SFX',']');
 */
+define('KSF_CART_SHIP_ZONE'	,'ship-zone');
 
 define('KHT_CART_MSG','Please <a href="'.KWP_HELP_CONTACT.'">let us know</a> if you have any questions.');
 // cart footer when it's editable

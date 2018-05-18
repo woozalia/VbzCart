@@ -1,10 +1,18 @@
 <?php
 /*
-  PURPOSE: Page class for site home page
+  PURPOSE: classes for site home page
   HISTORY:
     2018-02-05 attempting minimal kluge to get something up
+    2018-02-25 moved vcAppShop_home here
 */
-
+class vcAppShop_home extends vcAppShop {
+    protected function GetPageClass() {
+	return 'vcPageHome';
+    }
+    protected function GetKioskClass() {
+	return 'vcMenuKiosk_catalog';
+    }
+}
 class vcPageHome extends vcPage_shop {
     // ++ SETUP ++ //
 

@@ -69,6 +69,15 @@ abstract class vcGlobals extends fcGlobals {
     public function GetWebPath_forCartPage() {
 	return $this->GetWebPath_forAppBase().'cart/';
     }
+    public function GetWebPath_forCheckoutPage() {
+	$uriPath = $this->GetWebPath_forAppBase().'checkout/';
+	if ($_SERVER['HTTPS'] === 'on') {
+	    return $uriPath;
+	} else {
+	    // 2018-02-25 This has not been tested.
+	    return KURL_STORE_SECURE.$uriPath;
+	}
+    }
     protected function GetWebPath_forPublicWikiPages() {
 	return $this->GetWebPath_forAppBase().'wiki/';
     }

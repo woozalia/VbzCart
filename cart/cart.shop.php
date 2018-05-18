@@ -3,40 +3,53 @@
   PURPOSE: shopping cart classes: shopping UI
   HISTORY:
     2016-03-07 Split off some methods from clsShopCart[s] (later renamed vctShopCart[s])
+    2018-02-19 General updating shenanigans; require cart.const.php
 */
+require_once('cart.const.php');
+
+define('KS_CLASS_LOGGER','vctCartLog');
+
 class vctShopCarts extends vctCarts {
-    //use ftFrameworkAccess;
     use ftLoggableTable;
 
-    // ++ CEMENTING ++ //
+    // ++ SETUP ++ //
     
+    // CEMENT
     public function GetActionKey() {
-	return 'shop';
+	return 'cart';
     }
-    
-    // -- CEMENTING -- //
-    // ++ OVERRIDES ++ //
-    
+    // OVERRIDE
     protected function SingularName() {
 	return 'vcrShopCart';
     }
 
-    // -- OVERRIDES -- //
+    // -- SETUP -- //
+    // ++ CLASSES ++ //
+
+    protected function GetEventsClass() {
+	return KS_CLASS_LOGGER;
+    }
+
+    // -- CLASSES -- //
     // ++ SHOPPING UI ++ //
 
     /*----
-      ACTION: Check form input to see if anything needs to be done to the current Cart.
+      ACTION: 
+	1. We're doing stuff to the current cart, so fetch it or create a new one.
+	2. Check form input to see if anything needs to be done to it.
+	3. Save any Cart changes; make sure Session record is tracking the Cart ID.
       ASSUMES: We have form input that actually requires a cart record. (Caller should check this;
 	don't call if cart not required.)
       HISTORY:
 	2013-11-09 moved from clsShopCart to clsShopCarts (later renamed vctShopCarts and then vctCarts)
     */
     public function HandleCartFormInput() {
-	$rcCart = $this->CartRecord_required_allow_invalid();
+	$rcCart = $this->GetCartRecord_toWrite();
 	if (!is_object($rcCart)) {
-	    throw new exception('Could not retrieve or create cart.');
+	    throw new exception('Could not obtain writeable cart.');	// this pretty much should never happen
 	}
-	$rcCart->HandleFormInput();
+	// TODO: save Cart ID to Session record!
+	$rcCart->HandleFormInput();	// NOTE: this may redirect, exiting the code without returning
     }
     /*----
       ACTION: Renders the current cart
@@ -47,10 +60,12 @@ class vctShopCarts extends vctCarts {
     */
     public function RenderCart($bEditable) {
 	if ($this->CartIsRegistered()) {
-	    $rcCart = $this->CartRecord_current();
-	    $out = $rcCart->Render($bEditable);
+	    $rcCart = $this->GetCartRecord_ifWriteable();
+	    $rcCart->SetEditable($bEditable);
+	    $out = $rcCart->Render();
 	} else {
 	throw new exception('Is this being called when items are first added?');
+	// 2018-02-24 The rest of this can't work anymore...
 	    $out = "<font size=4>You have not put anything in your cart yet.</font>";
 	    $sDesc = 'displaying cart - nothing yet; zone '.$this->ShipZoneObj()->Abbr();
 	    $arEv = array(
@@ -67,9 +82,33 @@ class vctShopCarts extends vctCarts {
 
 }
 class vcrShopCart extends vcrCart {
-    //use ftFrameworkAccess;
     use ftSaveableRecord;
 
+    // ++ STATUS ++ //
+    
+    private $bEditable;
+    public function SetEditable($b) {
+	$this->bEditable = $b;
+    }
+    protected function GetEditable() {
+	return $this->bEditable;
+    }
+    
+    // -- STATUS -- //
+    // ++ FRAMEWORK ++ //
+    
+    protected function GetPageObject() {
+	return vcApp::Me()->GetPageObject();
+    }
+
+    // -- FRAMEWORK -- //
+    // ++ CLASSES ++ //
+
+    protected function GetEventsClass() {
+	return KS_CLASS_LOGGER;
+    }
+
+    // -- CLASSES -- //
     // ++ INPUT ++ //
 
     static protected function FoundInputButton_AddToCart() {
@@ -88,7 +127,11 @@ class vcrShopCart extends vcrCart {
 	return $yes;
     */
     }
-    // ACTION Do whatever needs to be done to the current cart based on the form input
+    /*----
+      ACTION: Do whatever needs to be done to the current cart based on the form input
+	1. Check form input to see what (if anything) needs to be done.
+	2. Save any changes back to the Cart and Lines records.
+    */
     public function HandleFormInput() {
 // check for input
 	// - buttons
@@ -151,13 +194,14 @@ class vcrShopCart extends vcrCart {
 	}
 	
 	if ($doCheckout) {
-	    $this->LogCartEvent('ck1','going to checkout');
-	    clsHTTP::Redirect(KURL_CKOUT);
-	    $this->LogCartEvent('ck2','sent redirect to checkout');
+	    $this->CreateEvent('ck1','going to checkout');
+	    fcHTTP::Redirect(vcGlobals::Me()->GetWebPath_forCheckoutPage());
+	    // not sure if PHP returns from a redirect; this might never get executed:
+	    $this->CreateEvent('ck2','sent redirect to checkout');
 	} elseif ($doRefresh) {
 	    $this->UpdateTimestamp();	// record that the cart was updated
 	    // if we changed anything, redirect to a clean URL with no POST data:
-	    clsHTTP::Redirect(KWP_CART_REL);
+	    fcHTTP::Redirect(vcGlobals::Me()->GetWebPath_forCartPage());
 	}
     }
     
@@ -169,8 +213,10 @@ class vcrShopCart extends vcrCart {
       CALLED BY this.Render() (below)
     */
     private $oPainter;
-    protected function DisplayObject($bEditable) {
+    protected function DisplayObject() {
+    
 	if (empty($this->oPainter)) {
+	    $bEditable = $this->GetEditable();
 	    $oZone = $this->ShipZoneObject();
 	    if ($bEditable) {
 		$oPainter = new vcCartDisplay_full_shop($oZone);
@@ -198,25 +244,29 @@ class vcrShopCart extends vcrCart {
 	  to represent a cart record in the database. Any functions that need to work
 	  when there is no record are now handled by the cart table object.
     */
-    public function Render($bEditable) {
+    public function Render() {
 	$id = $this->GetKeyValue();
-	$oSkin = $this->SkinObject();
-	$oSkin->AddFooterStat('cart',$id);
-	$oSkin->AddFooterStat('sess',$this->GetSessionID());
+	$oPage = $this->GetPageObject();
+	$oPage->AddFooterStat('cart',$id);
+	$oPage->AddFooterStat('sess',$this->GetSessionID());
+	$out = NULL;
 	if ($this->HasLines()) {
-	    $oPainter = $this->DisplayObject($bEditable);
-	    $out = $oPainter->Render();
+	    $oPainter = $this->DisplayObject();
+	    $out .= $oPainter->Render();
 	} else {
 	    $sMsg = "You have a cart (#$id), but it's empty. We're not quite sure how that happened.";
-	    //$out = "<font size=4>$sMsg</font>;
-	    $out = $oSkin->WarningMessage($sMsg);
+	    $out = $oPage->AddWarningMessage($sMsg);
+	    $sWhat = 'displaying cart - empty; zone '.$this->GetZoneCode();
+	    /*
 	    $arEv = array(
 	      fcrEvent::KF_CODE		=> 'disp',
-	      fcrEvent::KF_DESCR_START	=> 'displaying cart - empty; zone '.$this->GetZoneCode(),
+	      fcrEvent::KF_DESCR_START	=> $sWhat,
 	      fcrEvent::KF_WHERE		=> __FILE__.' line '.__LINE__,
 	      fcrEvent::KF_IS_ERROR		=> TRUE,
 	      );
 	    $this->CreateEvent($arEv);
+	    */
+	    $this->CreateEvent('empty',$sWhat);
 	}
 	return $out;
     }
@@ -255,11 +305,11 @@ class vcrShopCart extends vcrCart {
 	$oCD_Buyer = $oCDMgr->BuyerObject();
 	$oCD_Recip = $oCDMgr->RecipObject();
 
-	$oPage = $this->PageObject();
+	//$oPage = $this->GetPageObject();
 	$out =
-	  $oPage->SectionHeader('Contact information:')
+	  (new fcSectionHeader('Contact information:'))->Render()
 	  .$oCD_Buyer->RenderContact(TRUE)	// edit email/phone
-	  .$oPage->SectionHeader('Shipping information:')
+	  .(new fcSectionHeader('Shipping information:'))->Render()
 	  .$oCD_Recip->RenderShipping(TRUE)	// edit shipping address / instructions
 	  ;
 	return $out;
@@ -293,7 +343,7 @@ class vcrShopCart extends vcrCart {
 	
 	$oCD_Buyer = $oCDMgr->BuyerObject();
 	
-	$oPage = $this->PageObject(); 
+	$oPage = $this->GetPageObject(); 
 	$out =
 	  $oPage->SectionHeader('Payment information:')
 	  .$oCD_Buyer->RenderPayment(TRUE)	// edit payment information
@@ -311,101 +361,8 @@ class vcrShopCart extends vcrCart {
 	$oCDMgr->StoreBlob();
 	$this->Save();
     }
-    /*----
-      TODO 2016-04-16 Rewrite this as RenderBillingPage, with RenderShippingPage as a model.
-    *//* 2016-06-18 apparently the rewriting has happened -- nothing calls this now.
-    public function RenderBillingSection() {
-	$oPage = $this->PageObject();
-	
-	$ksfCustCardNum = KSF_CART_PAY_CARD_NUM;
-	$ksfCustCardExp = KSF_CART_PAY_CARD_EXP;
-	$ksfCardIsShip = KSF_SHIP_IS_CARD;
-
-	$custCardNum = $rsCFields->CardNumber();
-	$custCardExp = $rsCFields->CardExpiry();
-	$isShipCardSame = $rsCFields->IsShipToCard();	// request to use shipping address for card billing address
-	$doesShipCardMatch = $this->CardMatchesShip();
-
-	$out = $oPage->SectionHeader('Payment information:')
-	  ."\n<table id=form-billing>";
-
-	if ($this->IsLoggedIn()) {
-	    $htEnter = NULL;
-	    // allow user to select from existing recipient profiles
-	    $oUser = $this->UserRecord();
-	    $rsCusts = $oUser->ContactRecords();
-	    $htEnter = NULL;
-	    if ($rsCusts->RowCount() > 0) {
-		$doUseOld = $rsCFields->IsCardOldEntry();
-		$htSelOld = $doUseOld?' checked':'';
-		$htSelNew = $doUseOld?'':' checked';
-		$htCusts = '<input type=radio name="'.KSF_CART_PAY_CARD_INTYPE.'" value="'.KS_FORM_INTYPE_EXISTING.'"'
-		  .$htSelOld
-		  .'><b>pay with an existing card:</b>'
-		  .$rsCusts->Render_DropDown_Cards(KSF_CART_PAY_CARD_CHOICE)
-		  //.'SQL:'.$rsCusts->sqlMake
-		  ;
-		$htEnter = '<input type=radio name="'.KSF_CART_PAY_CARD_INTYPE.'" value="'.KS_FORM_INTYPE_NEWENTRY.'"'
-		  .$htSelNew
-		  .'><b>enter new payment information:</b>';
-	    } else {
-		$htCusts = 'You currently have no payment cards saved in your profile.';
-	    }
-	    $out .= '<tr><td colspan=2>'
-	      .$htCusts
-	      .'<span class=logout-inline>'.$this->RenderLogout().'</span>'
-	      .'<hr></td></tr>';
-	}
-
-	$sWhere = __METHOD__."() in ".__FILE__;
-	$out .= "\n<!-- vv $sWhere vv -->";
-	$out .= <<<__END__
-<tr><td colspan=2>$htEnter</td></tr>
-<input type=hidden name="$ksfCardIsShip" value="$isShipCardSame">
-<tr><td align=right valign=middle>We accept:</td>
-	<td>
-	<img align=absmiddle src="/tools/img/cards/logo_ccVisa.gif" title="Visa">
-	<img align=absmiddle src="/tools/img/cards/logo_ccMC.gif" title="MasterCard">
-	<img align=absmiddle src="/tools/img/cards/logo_ccAmex.gif" title="American Express">
-	<img align=absmiddle src="/tools/img/cards/logo_ccDiscover.gif" title="Discover / Novus">
-	</td></tr>
-<tr><td align=right valign=middle>Card Number:</td>
-	<td><input id="cardnum" name="$ksfCustCardNum" value="$custCardNum" size=24>
-	Expires: <input id="cardexp" name="$ksfCustCardExp" value="$custCardExp" size=6> (mm/yy)
-	</td></tr>
-<tr><td colspan=2><span class=note><b>Tip</b>: It's okay to use dashes or spaces in the card number - reduces typing errors!</span></td></tr>
-__END__;
-
-	$custShipIsCard = $rsCFields->IsShipToCard();
-	//$custShipToSelf = $this->FieldRecords()->ShipToSelf();	// what was this used for? probably something fuzzy.
-
-	//$this->htmlBeforeAddress = NULL;	// 2015-09-01 nothing uses this anymore
-	//$this->htmlBeforeContact = NULL;	// 2015-09-01 nothing uses this anymore
-
-	$this->msgAfterAddr = '<span class=note><font color=ff0000><b>Note</b></font>: please check your most recent credit card statement for exact address!</span>';
-	$this->doFixedCard = FALSE;
-	//$this->doFixedSelf = FALSE;	// 2015-09-01 nothing uses this anymore
-	//$this->doFixedName = FALSE;
-
-	$ofCont = $rsCFields->BuyerFields();
-	$out .= $ofCont->RenderAddress(
-	  array(
-	    'do.ship.zone'	=> FALSE,
-	    'do.fixed.all'	=> FALSE,
-	    'do.fixed.name'	=> FALSE,
-	    ),
-	  $this->CartRecord()->ShipZoneObj()
-	  );
-
-	$out .= '</tr>'
-	  ."\n</table>";				// SHUT inner table
-	$out .= $this->Skin()->SectionFooter();	// SHUT outer table
-	$out .= "\n<!-- ^^ $sWhere ^^ -->";
-	//$out .= self::RenderSectionFtr();
-	return $out;
-    }*/
     public function RenderPayTypeSection() {
-	$oPage = $this->PageObject();
+	$oPage = $this->GetPageObject();
 	$oCDMgr = $this->FieldsManager();
 	$oCD_PayType = $oCDMgr->PayTypeObject();
 	

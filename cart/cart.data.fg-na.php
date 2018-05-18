@@ -103,7 +103,7 @@ trait vtCartData_NameAddress {
 	  $this->FieldName_forContactCountry()
 	  );
 	
-	$oField->SetValue($this->ShipZone()->CountryName());
+	$oField->SetValue($this->ShipZone()->CountryName(),TRUE);	// TRUE: set even if value is blank
 	  
 	$oCtrl = new fcFormControl_HTML($oField,array('size'=>20));
 	  $oCtrl->DisplayAlias('country');
@@ -197,7 +197,7 @@ __END__;
 	$this->InvokeNameAddressFields();
 	$oTplt = $this->NameAddressTemplate();
 	$arCtrls = $this->FormObject()->RenderControls($doEdit);
-	$oTplt->VariableValues($arCtrls);
+	$oTplt->SetVariableValues($arCtrls);
 	return $oTplt->RenderRecursive();
     }
     protected function ReceiveForm() {
@@ -212,7 +212,7 @@ __END__;
     // -- FORM I/O -- //
 
 }
-/*%%%%
+/*::::
   PURPOSE: Base class so overridden trait function can be called as parent::f()
 */
 class vcCartData_NameAddress extends vcCartDataFieldGroup {

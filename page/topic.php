@@ -10,7 +10,22 @@ HISTORY:
   2013-09-16 clsVbzSkin_Standard renamed clsVbzPage_Standard
   2013-09-17 clsVbzPage_Standard renamed clsVbzPage_Browse
   2013-11-16 Renamed from page-topic.php to vbz-page-topic.php
+  2018-02-25 moved vcAppShop_topic and vcMenuKiosk_topic here
 */
+
+class vcAppShop_topic extends vcAppShop {
+    protected function GetPageClass() {
+	return 'vcPageTopic';
+    }
+    protected function GetKioskClass() {
+	return 'vcMenuKiosk_topic';
+    }
+}
+class vcMenuKiosk_topic extends fcMenuKiosk_autonomous {
+    public function GetBasePath() {
+	return vcGlobals::Me()->GetWebPath_forTopicPages();
+    }
+}
 
 class vcPageTopic extends vcPage_shop {
 

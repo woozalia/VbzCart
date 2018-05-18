@@ -2,18 +2,25 @@
 /*
   HISTORY:
     2014-01-20 extracted from cart.php
+    2018-02-21 revisions to make it work again
 */
 
-class VCT_CartLines_admin extends vctShopCartLines {
+class vctAdminCartLines extends vctShopCartLines implements fiLinkableTable {
     use ftLinkableTable;
 
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_CartLine_admin');
-	  $this->ActionKey(KS_PAGE_KEY_CART_LINE);
+    // ++ SETUP ++ //
+
+    protected function SingularName() {
+	return 'vcrAdminCartLine';
     }
+    public function GetActionKey() {
+	return KS_PAGE_KEY_CART_LINE;
+    }
+
+    // -- SETUP -- //
+    
     public function Table_forCart($idCart) {
-	$rs = $this->GetData('ID_Cart='.$idCart,NULL,'Seq');
+	$rs = $this->SelectRecords('ID_Cart='.$idCart,'Seq');
 	if ($rs->HasRows()) {
 	    $out = <<<__END__
 <table class=listing>
@@ -28,7 +35,7 @@ class VCT_CartLines_admin extends vctShopCartLines {
 __END__;
 	    $isOdd = TRUE;
 	    while ($rs->NextRow()) {
-		$wtStyle = $isOdd?'background:#ffffff;':'background:#eeeeee;';
+		$cssClass = $isOdd?'odd':'even';
 		$isOdd = !$isOdd;
 
 		$id = $rs->GetKeyValue();
@@ -36,13 +43,13 @@ __END__;
 		$rcItem = $rs->ItemRecord();
 		$wtItem = $rcItem->SelfLink_name();
 
-		$wtAdded = $rs->Value('WhenAdded');
-		$wtEdited = $rs->Value('WhenEdited');
-		$nSeq = $rs->Value('Seq');
-		$nQty = $rs->Value('Qty');
+		$wtAdded = $rs->GetWhenAdded();
+		$wtEdited = $rs->GetWhenEdited();
+		$nSeq = $rs->GetSequence();
+		$nQty = $rs->GetQtyOrd();
 
 		$out .= <<<__END__
-  <tr style="$wtStyle">
+  <tr class="$cssClass">
     <td>$wtID</td>
     <td>$nSeq</td>
     <td>$wtItem</td>
@@ -65,16 +72,9 @@ __END__;
   HISTORY:
     2010-11-15 created
 */
-class VCR_CartLine_admin extends vcrShopCartLine {
+class vcrAdminCartLine extends vcrShopCartLine implements fiLinkableRecord {
     use ftLinkableRecord;
 
-    // ++ BOILERPLATE ++ //
-/*
-    public function AdminLink($iText=NULL,$iPopup=NULL,array $iarArgs=NULL) {
-	return clsMenuData_helper_standard::_AdminLink($this,$iText,$iPopup,$iarArgs);
-    }
-*/
-    // -- BOILERPLATE -- //
     // ++ CLASS NAMES ++ //
 
     protected function ItemsClass() {

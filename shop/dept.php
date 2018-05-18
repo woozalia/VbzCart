@@ -5,7 +5,7 @@
   HISTORY:
     2016-01-24 split off from vbz-cat-dept.php
 */
-$t = new vcqtTitlesInfo_forDept();	// DEBUG
+//$t = new vcqtTitlesInfo_forDept();	// DEBUG
 
 class vctDepts_shop extends vctDepts {
     use ftQueryableTable;
@@ -19,25 +19,11 @@ class vctDepts_shop extends vctDepts {
     // -- OVERRIDES -- //
 }
 
-class vcrDept_shop extends clsDept {
+class vcrDept_shop extends vcrDept {
     use vtFrameworkAccess;
     use vtTableAccess_ItemType;
     use vtTableAccess_ImagesInfo;
 
-    // ++ DEPRECATED ++ //
-    
-    // TODO: deprecate this in favor of ShopLink()
-    public function SelfLink($sText=NULL) {
-	throw new exception('2016-12-04 SelfLink() is deprecated; call ShopLink().');
-	return $this->ShopLink($sText);
-    }
-    public function LinkName() {
-    throw new exception('&lt;2016-12-04 Call ShopLink() instead.');
-	$strURL = $this->ShopURL();
-	return '<a href="'.$strURL.'">'.$this->NameString().'</a>';
-    }
-
-    // -- DEPRECATED -- //
     // ++ CLASSES ++ //
     
     protected function SuppliersClass() {	// override
@@ -61,6 +47,7 @@ class vcrDept_shop extends clsDept {
     // ++ TABLES ++ //
     
     protected function ItemTable($id=NULL) {
+	throw new exception('2018-05-13 Is anything still using this?');
 	return $this->Engine()->Make($this->ItemsClass(),$id);
     }
     /*

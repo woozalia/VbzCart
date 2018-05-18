@@ -23,11 +23,6 @@ class vctAdminOrders extends vctOrders implements fiEventAware, fiLinkableTable 
 
     // ++ SETUP ++ //
     
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-//	  $this->ClassSng();	// override parent
-//	  $this->ActionKey(KS_PAGE_KEY_ORDER);
-    }
     // OVERRIDE
     protected function SingularName() {
 	return 'vcrAdminOrder';
@@ -432,6 +427,11 @@ class vcrAdminOrder extends vcrOrder implements fiLinkableRecord, fiEventAware, 
     protected function CustomerPhonesClass() {
 	return KS_CLASS_CUST_PHONES_ADMIN;
     }
+    // TODO: will probably want a special subclass for Order Events
+    /* just get the event table from the App object
+    protected function GetEventsClass() {
+	return fcApp::Me()->GetEventsClass();
+    } */
 
     // -- CLASSES -- //
     // ++ TABLES ++ //
@@ -539,28 +539,6 @@ class vcrAdminOrder extends vcrOrder implements fiLinkableRecord, fiEventAware, 
 	    return NULL;
 	}
     }
-    /*----
-      RETURNS: customer object for buyer, or NULL if buyer is not set
-      HISTORY:
-	2011-11-06 now checks to make sure buyer is set
-    */ /* 2016-07-10 duplicates function defined in parent
-    protected function BuyerRecord() {
-	if ($this->HasBuyer()) {
-	    $idCust = $this->BuyerID();
-	    return $this->CustTable($idCust);
-	} else {
-	    return NULL;
-	}
-    } */
-    /*----
-      HISTORY:
-	2016-06-13 Removed the RecipObj() alias of RecipRecord(); updated code
-    */ /* 2016-07-10 duplicates function defined in parent
-    protected function RecipRecord() {
-	$idCust = $this->RecipID();
-	$rcCust = $this->CustTable($idCust);
-	return $rcCust;
-    } */
     protected function RecipAddrRecord() {
 	$idAddr = $this->RecipAddrID();
 	$rcAddr = $this->CustAddrTable($idAddr);
@@ -620,19 +598,6 @@ class vcrAdminOrder extends vcrOrder implements fiLinkableRecord, fiEventAware, 
     }
 
     // -- RECORDS -- //
-    // ++ LOOKUPS ++ //
-
-    /* 2016-06-13 This appears to be unused, which is good because it is probably slow.
-    public function LineID_forItem($idItem) {
-	$rc = $this->LineRecord_forItem($idItem);
-	if ($rc->FirstRow()) {
-	    return $rc->KeyValue();
-	} else {
-	    return NULL;
-	}
-    }*/
-
-    // -- LOOKUPS -- //
     // ++ FIELD VALUES ++ //
 
     // CALLED BY Order Item

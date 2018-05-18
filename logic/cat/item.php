@@ -61,7 +61,7 @@ class vctItems extends vcBasicTable {
 	$doAll: if FALSE (default), stops after first record (faster)
     */
     public function Get_byCatNum($sCatNum,$doAll=FALSE) {
-	$sqlCatNum = $this->GetConnection()->Sanitize_andQuote(strtoupper($sCatNum));
+	$sqlCatNum = $this->GetConnection()->SanitizeValue(strtoupper($sCatNum));
 	$sqlFilt = 'CatNum='.$sqlCatNum;
 	if ($doAll) {
 	    $sqlOther = NULL;

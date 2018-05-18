@@ -4,18 +4,27 @@
     2010-10-16 Should this eventually be folded into the universal event log, or not?
   HISTORY:
     2014-01-20 extracted from cart.php
+    2018-02-21 renamed VCT_CartLog_admin -> vctAdminCartLog, VCR_CartEvent_admin -> vcrAdminCartEvent
 */
-class VCT_CartLog_admin extends clsCartLog {
-    public function __construct($iDB) {
-	parent::__construct($iDB);
-	  $this->ClassSng('VCR_CartEvent_admin');	// override parent
+class vctAdminCartLog extends fctAdminEventPlex {
+
+    // ++ SETUP ++ //
+
+    // OVERRIDE
+    protected function SingularName() {
+	return 'vcrAdminCartEvent';
     }
+
+    // -- SETUP -- //
+    // ++ WEB UI ++ //
+
     /*----
       HISTORY:
 	2010-10-16 Created
       ACTION: By default, shows event counts by day and by IP address
     */
     public function AdminPage() {
+	throw new exception('2018-02-22 This will need rewriting.');	// is there a parental default, maybe?
 	global $wgOut;
 	global $vgOut,$vgPage;
 
@@ -101,8 +110,11 @@ class VCT_CartLog_admin extends clsCartLog {
 	$wgOut->AddHTML($out); $out = '';
 	return $out;
     }
+
+    // -- WEB UI -- //
+
 }
-class VCR_CartEvent_admin extends clsCartEvent {
+class vcrAdminCartEvent extends fcrAdminEventPlect {
 
     public function AdminTable() {
 	if ($this->hasRows()) {

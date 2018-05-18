@@ -2,37 +2,39 @@
 /*
   HISTORY:
     2012-04-17 extracting from shop.php
+    2018-02-21 This was working, but I changed Ferreteria; getting it working again.
 */
 
+define('KS_EVENT_VBZCART_CART_LINE_ADDED','vc.cart.line.add');
 //require_once(KFP_LIB_VBZ.'/const/vbz-const-cart.php');
 
-class vctShopCartLines extends vcShopTable {
+class vctShopCartLines extends vcShopTable implements fiInsertableTable {
     use ftLoggableTable;
     use vtFrameworkAccess;
 
-    // ++ CEMENTING ++ //
-    
+    // ++ SETUP ++ //
+   
+    // CEMENT
     public function GetActionKey() {
 	return 'c.line';
     }
-    
-    // ++ OVERRIDES ++ //
-    
+    // OVERRIDE
     protected function TableName() {
 	return 'shop_cart_line';
     }
+    // OVERRIDE
     protected function SingularName() {
 	return 'vcrShopCartLine';
     }
 
-    // -- OVERRIDES -- //
-    // ++ CLASS NAMES ++ //
+    // -- SETUP -- //
+    // ++ CLASSES ++ //
     
     protected function ItemsClass() {
-	return 'clsItems';
+	return 'vctItems';
     }
-    
-    // -- CLASS NAMES -- //
+
+    // -- CLASSES -- //
     // ++ TABLES ++ //
     
     protected function ItemTable() {
@@ -58,27 +60,34 @@ class vctShopCartLines extends vcShopTable {
 	throw new exception('2016-10-31 Add() is deprecated; call MakeLine().');
     }
     public function MakeLine($idCart, $sCatNum, $nQty) {
-	$arEv = array(
-	  fcrEvent::KF_CODE		=> 'add',
-	  fcrEvent::KF_DESCR_START	=> 'adding to cart: cat# '.$sCatNum.' qty '.$nQty,
-	  fcrEvent::KF_WHERE		=> __FILE__.' line '.__LINE__,
-	  );
-	$rcEv = $this->CreateEvent($arEv);
+	$sDescr = "adding to cart: cat# $sCatNum qty $nQty";
+	$idEv = $this->CreateEvent('item.add',$sDescr);
 
 	$tItems = $this->ItemTable();
 	$rcItem = $tItems->Get_byCatNum($sCatNum);
+	$tEvDone = fcApp::Me()->EventTable_Done();
+	// common Stash elements (regardless of success or failure):
+	$arEv = array(
+	  'cat#' => $sCatNum,
+	  'qty' => $nQty
+	  );
 	if (is_null($rcItem)) {
 	    // log failure
+	    
+	    $arEv[fcrEvent::KF_SQL] = $tItems->sql;
+	    /*
 	    $arEv = array(
 	      fcrEvent::KF_DESCR_FINISH	=> 'Could not retrieve item record for cat# "'.$sCatNum.'".',
 	      fcrEvent::KF_IS_ERROR	=> TRUE,
 	      fcrEvent::KF_IS_SEVERE	=> TRUE,	// for now; might downgrade later
-	      );
-	    $rcEv->Finish($arEv);
+	      ); */
+	    //$rcEv->Finish($arEv);
+	    $sText = "ERROR: Could not find item for cat# $sCatNum when trying to add qty $nQty.";
+	    $tEvDone->CreateRecord($idEv,$sState,$sText,$arEv);
 	    echo '<b>Failed SQL</b>: '.$tItems->sql.'<br>';
-	    throw new exception('ERROR: Could not find item for catalog #'.$sCatNum.'.');
+	    throw new exception($sText);
 	} else {
-	    $sqlCart = $this->GetConnection()->Sanitize_andQuote($idCart);
+	    $sqlCart = $this->GetConnection()->SanitizeValue($idCart);
 	    $idItem = $rcItem->GetKeyValue();
 	    $sqlWhere = "(ID_Cart=$sqlCart) AND (ID_Item=$idItem)";
 	    $rcLine = $this->SelectRecords($sqlWhere);
@@ -86,20 +95,31 @@ class vctShopCartLines extends vcShopTable {
 	    if ($rcLine->hasRows()) {
 		$rcLine->NextRow();	// load the only data row
 		$sAction = 'found';
+		$sEvState = KS_EVENT_VBZCART_CART_LINE_UPDATED;
 	    } else {
  		$rcLine->SetCartID($idCart);
 		$rcLine->SetItemID($rcItem->GetKeyValue());
  		$sAction = 'created';
+		$sEvState = KS_EVENT_VBZCART_CART_LINE_ADDED;
 	    }
 	    $rcLine->SetQtyOrd($nQty);
 
 	    $rcLine->Save();
 	    
 	    // log success
+	    /*
 	    $arEv = array(
-	      fcrEvent::KF_DESCR_FINISH	=> $sAction.' line ID '.$rcLine->GetKeyValue()
-	      );
-	    $rcEv->Finish($arEv);
+//	      fcrEvent::KF_DESCR_FINISH	=> $sAction.' line ID '.$rcLine->GetKeyValue()
+	      'id.line' => $rcLine->GetKeyValue(),
+	      'id.item' => $idItem,
+	      'qty' => $nQty
+	      ); */
+	    $arEv['id.line'] = $rcLine->GetKeyValue();
+	    $arEv['id.item'] = $idItem;
+	    //$rcEv->Finish($arEv);
+	    $idLine = $rcLine->GetKeyValue();
+	    $sEvText = "$sAction line ID $idLine with qty $nQty of cat# $sCatNum -> item ID $idItem";
+	    $tEvDone->CreateRecord($idEv,$sEvState,$sEvText,$arEv);
 	    
 	    return $rcLine;
 	}
@@ -117,7 +137,7 @@ class vcrShopCartLine extends vcrShopCartLine_base {
     private $rcShCost;
     private $arItSp;	// cache for ItemSpecs()
 
-    // ++ INITIALIZATION ++ //
+    // ++ SETUP ++ //
 
 /*    public function __construct(clsDatabase $iDB=NULL, $iRes=NULL, array $iRow=NULL) {
 	parent::__construct($iDB,$iRes,$iRow);
@@ -128,21 +148,21 @@ class vcrShopCartLine extends vcrShopCartLine_base {
 	$this->rcShCost = NULL;
     }
 
-    // -- INITIALIZATION -- //
-    // ++ CLASS NAMES ++ //
+    // -- SETUP -- //
+    // ++ CLASSES ++ //
 
     protected function CartsClass() {
 	return 'vctShopCarts';
     }
     protected function ItemsClass() {
-	return 'clsItems';
+	return 'vctItems';
     }
     protected function OrderLinesClass() {
 	return 'vctOrderLines';
     }
 
-    // -- CLASS NAMES -- //
-    // ++ DATA TABLES ++ //
+    // -- CLASSES -- //
+    // ++ TABLES ++ //
 
     protected function CartTable($id=NULL) {
 	return $this->GetConnection()->MakeTableWrapper($this->CartsClass(),$id);
@@ -154,8 +174,8 @@ class vcrShopCartLine extends vcrShopCartLine_base {
 	return $this->Engine()->Make($this->OrderLinesClass(),$id);
     }
 
-    // -- DATA TABLES -- //
-    // ++ DATA RECORDS ++ //
+    // -- TABLES -- //
+    // ++ RECORDS ++ //
 
     public function CartRecord() {
 	return $this->CartTable($this->GetCartID());
@@ -193,7 +213,7 @@ class vcrShopCartLine extends vcrShopCartLine_base {
 	return $this->arItSp;
     }
 
-    // -- DATA RECORDS -- //
+    // -- RECORDS -- //
     // ++ FIELD VALUES ++ //
 
     public function SetCartID($id) {
@@ -323,19 +343,7 @@ class vcrShopCartLine extends vcrShopCartLine_base {
 	throw new exception('Does the caller expect this to be adjusted for the shipping destination?');
 	return $this->ItemShip_perUnit() * $this->Qty();
     }//*/
-    protected function InsertArray($arOut=NULL) {
-	$arOut = parent::InsertArray($arOut);
-	$arOut['WhenAdded'] = 'NOW()';
-	if ($this->IsNew()) {
-	    $arOut['Seq'] = $this->CartRecord()->LineCount()+1;
-	}
-	return $arOut;
-    }
-    protected function UpdateArray($arOut=NULL) {
-	$arOut = parent::UpdateArray($arOut);
-	$arOut['WhenEdited'] = 'NOW()';
-	return $arOut;
-    }
+    
     private $prcShip_Unit;
     public function ShipCost_Unit_forDest(vcShipCountry $iZone) {
 	if (empty($this->prcShip_Unit)) {
@@ -355,6 +363,21 @@ class vcrShopCartLine extends vcrShopCartLine_base {
     }
 
     // -- FIELD CALCULATIONS -- //
+    // ++ DB WRITING ++ //
+
+    public function GetInsertStorageOverrides() {
+	$arOut['WhenAdded'] = 'NOW()';
+	if ($this->IsNew()) {
+	    $arOut['Seq'] = $this->CartRecord()->LineCount()+1;
+	}
+	return $arOut;
+    }
+    public function GetUpdateStorageOverrides() {
+	$arOut['WhenEdited'] = 'NOW()';
+	return $arOut;
+    }
+
+    // -- DB WRITING -- //
     // ++ ACTIONS ++ //
 
     /*----

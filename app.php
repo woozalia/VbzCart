@@ -5,16 +5,16 @@
   HISTORY:
     2013-11-13 Extracted clsVbzApp (now vcApp) from vbz-page.php
     2016-10-01 Revising to use db.v2
+    2018-04-27 changing class vcApp to a trait, vtApp, so we can layer it
+      on top of a selection of base app classes (basic vs. admin, at this point)
+      Removed private $oPage and $oData members (apparently unused).
 */
 
 /*::::
-  CLASS: vcApp
   IMPLEMENTATION: uses VBZ database object, but lets caller choose what type of Page to display
   ABSTRACT: n/i - GetPageClass(), GetKioskClass()
 */
-abstract class vcApp extends fcAppStandard {
-    private $oPage;
-    private $oData;
+trait vtApp {
 
     // ++ SETUP ++ //
 
@@ -24,9 +24,17 @@ abstract class vcApp extends fcAppStandard {
     }
 
     // -- SETUP -- //
-    // ++ CEMENT ++ //
+    // ++ CLASSES ++ //
+    
+    protected function SettingsClass() {
+	return 'vctSettings';
+    }
+    
+    // -- CLASSES -- //
+    // ++ FRAMEWORK ++ //
     
     private $db;
+    // CEMENT
     public function GetDatabase() {
 	if (empty($this->db)) {
 	    $dbf = new vcDBOFactory(KS_DB_VBZCART);
@@ -35,31 +43,11 @@ abstract class vcApp extends fcAppStandard {
 	}
 	return $this->db;
     }
-    
-    // -- CEMENT -- //
-    // ++ CLASS NAMES ++ //
-    
-    protected function SettingsClass() {
-	return 'vctSettings';
-    }
-    // TODO: Replace old-clunky fctEvents_standard with fctEventPlex
-    /* 2017-03-15 Sort of have to now...
-    protected function GetEventsClass() {
-	return 'fctEvents_standard';
-    }*/
-    
-    // -- CLASS NAMES -- //
-    // ++ TABLES ++ //
-
-    // PUBLIC so Page objects can use it
-    public function CartTable() {
-	return $this->GetDatabase()->MakeTableWrapper($this->CartsClass());
-    }
     public function SettingsTable() {
 	return $this->GetDatabase()->MakeTableWrapper($this->SettingsClass());
     }
-
-    // -- TABLES -- //
+    
+    // -- FRAMEWORK -- //
 
 }
 /*----
