@@ -74,7 +74,7 @@ class vcCatalogPage extends vcPage_shop {
 	}
     }
     // NOTE (2018-02-18): This is not currently being used, but we will probably want to fix it up and use it agian.
-    private function DoDeptIndicia(clsDept $rcDept,$isFinal=true) {
+    private function DoDeptIndicia(vcrDept $rcDept,$isFinal=true) {
 	$this->DoSuppIndicia($rcDept->SupplierRecord(),false);
 	if ($isFinal) {
 	    $sVal = $rcDept->NameString();

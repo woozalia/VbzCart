@@ -31,7 +31,7 @@ class vcpePageHeader_shop extends vcPageHeader {
 	$sWhere = __METHOD__;
 	$urlHome = $oGlob->GetWebPath_forAppBase().'/';
 	$urlLogo = $oGlob->GetWebPath_forSiteLogo();
-	$sStore = KS_SITE_NAME;
+	$sStore = fcGlobals::Me()->GetText_SiteName();
 	$sLogoAlt = KS_SMALL_LOGO_ALT;
 	$out = KS_MSG_SITEWIDE_TOP;
 	$out .= <<<__END__

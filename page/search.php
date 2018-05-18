@@ -70,7 +70,7 @@ class vcPageContent_search extends vcPageContent_shop {
     // ++ FRAMEWORK ++ //
     
     protected function GetConnection() {	// used by vtTableAccess_ImagesInfo
-	return vcApp::Me()->GetDatabase();
+	return fcApp::Me()->GetDatabase();
     }
     
     // -- FRAMEWORK -- //

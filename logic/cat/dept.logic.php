@@ -26,7 +26,7 @@ class vctDepts extends vcShopTable {	// TODO: should be descended from non-shop 
 	return 'cat_depts';
     }
     protected function SingularName() {
-	return 'clsDept';
+	return 'vcrDept';
     }
 
     // -- CEMENTING -- //
@@ -65,7 +65,7 @@ class vctDepts extends vcShopTable {	// TODO: should be descended from non-shop 
     
     // -- RECORDS -- //
 }
-class clsDept extends vcBasicRecordset {
+class vcrDept extends vcBasicRecordset {
     use vtTableAccess_Supplier, vtTableAccess_Title;
     
     // ++ RECORDS ++ //

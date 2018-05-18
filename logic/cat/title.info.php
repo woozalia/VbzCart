@@ -864,7 +864,7 @@ class vcqrTitleInfo extends vcBasicRecordset {
 	}
 	
 	if (is_null($outYes)) {
-	    $htYes = 'There are currently no titles available for this topic.';
+	    $htYes = '<span class=content>There are currently no titles available for this topic.</spaN>';
 	} else {
 	    $oSection = new vcHideableSection('hide-available','Titles Available',$outYes);
 	    $htYes = $oSection->Render();
