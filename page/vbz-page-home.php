@@ -126,14 +126,18 @@ class vcPageContent_home extends vcPageContent_shop {
 	$oPage->SetContentTitleContext('hello and welcome to....');
 	//$oPage->SetPageTitle('Home Page');
 	$oPage->SetBrowserTitle('Vee Bee Zee dot net');
-	$oPage->SetContentTitle('The Virtual BaZaar');
+//	$oPage->SetContentTitle('The Virtual BaZaar');
+
 	//$oPage->GetTagNode_html()->SetMetaDescription('vbz.net online retail');
 	
 	$sItems = $this->GetRandomItems();
+
 	$this->SetValue(<<<__END__
 <table><tr><td width=30% class=content>
 <h1>So...</h1>
 <p>...if <i>you</i> had an online store that was mostly printed t-shirts &ndash; some <a href="/topic/0524">fantasy</a> art (<a href="/topic/0670">light</a>, <a href="/topic/0671">dark</a>) a lot of classic rock bands like <a href="/topic/1213">Pink Floyd</a> and <a href="/topic/0584">The Grateful Dead</a> &ndash; and a few other gift items and generally a pretty eclectic range, and you were planning to expand into more practical areas while ultimately creating <a href="/wiki/The_Virtual_Bazaar_Manifesto">a distributed network of small retailers working together to destroy the plutonomy</a>, what would <i>you</i> put on the front page?</p>
+
+<p>Personally, I'd put this:</p>
 </td><td style="background-color: rgba(0,0,64,0.8);">
 $sItems
 </td></tr></table>
